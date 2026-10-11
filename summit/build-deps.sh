@@ -290,7 +290,9 @@ for name in "${ORDER[@]}"; do
 	if [[ $name == zlib ]]; then
 		FORK_COMMIT=sdk-$(sha256sum "$SYSROOT/boot/system/develop/headers/zlib.h" | cut -c1-16)
 	elif [[ $name == system ]]; then
-		FORK_COMMIT=sdk-$(cat "$SYSROOT"/boot/system/develop/lib/pkgconfig/*.pc | sha256sum | cut -c1-16)
+		# in the same order whatever the locale (people and CI share the stamps)
+		FORK_COMMIT=sdk-$(cd "$SYSROOT/boot/system/develop/lib/pkgconfig" && ls | LC_ALL=C sort \
+			| grep '\.pc$' | xargs cat | sha256sum | cut -c1-16)
 	else
 		FORK_COMMIT=$(fork_info "$name" commit)
 	fi
