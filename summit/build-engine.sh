@@ -157,6 +157,12 @@ export PKG_CONFIG_LIBDIR=$P/lib/pkgconfig PKG_CONFIG_PATH= PKG_CONFIG_SYSROOT_DI
 stale_cache() {
 	local file
 	[[ -f $B/CMakeCache.txt ]] || return 1
+	# x86_64: the image's headers on the include path, a toolchain flag that
+	# CMake takes only when it configures afresh
+	if [[ -n $SYSLIBS ]] && ! grep -q -- "-isystem $SYSLIBS/develop/headers" "$B/CMakeCache.txt"; then
+		echo "the cached flags lack -isystem $SYSLIBS/develop/headers"
+		return 0
+	fi
 	while read -r file; do
 		[[ -e $file ]] || { echo "$file is gone"; return 0; }
 	done < <(sed -n "s#^[A-Za-z0-9_-]*:\(FILEPATH\|PATH\)=\($SUMMIT_ROOT/.*\)#\2#p" "$B/CMakeCache.txt")

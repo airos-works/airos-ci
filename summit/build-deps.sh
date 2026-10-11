@@ -19,7 +19,9 @@
 # engine links those (summit/lib.sh SYSLIBS) instead of carrying copies (a
 # system add-on in the same process, such as the Media Kit's FFmpeg reader
 # with libass and Fontconfig, would get the engine's older copy and fail to
-# load). Their pkg-config files go into the prefix.
+# load). Their pkg-config files go into the prefix, and their headers come
+# after the prefix's (-isystem): WebKit includes some without CMake's help
+# (execinfo.h).
 #
 # Every library gets a GNU hash table and binds its own functions at link time
 # (Haiku's runtime_loader resolves every symbol at load; on the Pi the SysV
@@ -71,8 +73,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
-set(CMAKE_C_FLAGS_INIT "-I$P/include")
-set(CMAKE_CXX_FLAGS_INIT "-I$P/include")
+set(CMAKE_C_FLAGS_INIT "-I$P/include${SYSLIBS:+ -isystem $SYSLIBS/develop/headers}")
+set(CMAKE_CXX_FLAGS_INIT "-I$P/include${SYSLIBS:+ -isystem $SYSLIBS/develop/headers}")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$P/lib${SYSLIBS:+ -L$SYSLIBS/develop/lib} -Wl,-rpath-link,$P/lib${SYSLIBS:+ -Wl,-rpath-link,$SYSLIBS/lib} -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$P/lib${SYSLIBS:+ -L$SYSLIBS/develop/lib} -Wl,-rpath-link,$P/lib${SYSLIBS:+ -Wl,-rpath-link,$SYSLIBS/lib} -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib $LINK")
 set(ENV{PKG_CONFIG_LIBDIR} "$P/lib/pkgconfig")
