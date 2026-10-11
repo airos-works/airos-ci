@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# build-gl-x86_64.sh
+# build-gl-x86_64.sh (AIROS_TARGET=r1beta6: against the Haiku R1/beta6 SDK,
+# for Summit's Haiku build; results then in gl/x86_64-r1beta6{,-mesa})
 #
 # The x86_64 GL stack of Summit's engine, as Summit's tools/mesa-vm builds it,
 # from the forks: jmgasper/libglvnd (airos-1.7.0) and jmgasper/mesa
@@ -21,14 +22,15 @@
 set -euo pipefail
 umask 002
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
-if [[ ${AIROS_LOCKED:-} != haiku-x86_64 ]]; then
-	exec env AIROS_LOCKED=haiku-x86_64 flock "$AIROS_LOCKS/haiku-x86_64.lock" "$0" "$@"
+SDK_NAME=$(sdk_name x86_64)
+if [[ ${AIROS_LOCKED:-} != haiku-$SDK_NAME ]]; then
+	exec env AIROS_LOCKED=haiku-$SDK_NAME flock "$AIROS_LOCKS/haiku-$SDK_NAME.lock" "$0" "$@"
 fi
 export AIROS_ARCH=x86_64
 . "$AIROS_CI/lib/sdk.sh"
 . "$AIROS_CI/lib/fork.sh"
 
-W=$AIROS_WORK/gl-x86_64
+W=$AIROS_WORK/gl-$SDK_NAME
 OUT=$AIROS_ROOT/gl
 mkdir -p "$W"
 cd "$W"
@@ -190,8 +192,8 @@ rmdir "$overlay/develop/headers/os/opengl/opengl"
 for name in libGL.so libEGL.so libOpenGL.so libGLESv2.so libGLdispatch.so; do
 	ln -sfn "../../lib/$name" "$overlay/develop/lib/$name"
 done
-mkdir -p "$OUT/x86_64"
-rsync -rlc --delete "$W/gl-overlay/" "$OUT/x86_64/"
+mkdir -p "$OUT/$SDK_NAME"
+rsync -rlc --delete "$W/gl-overlay/" "$OUT/$SDK_NAME/"
 # The private Mesa for summit_webkit: every library libglvnd and Mesa install.
 private=$W/private
 rm -rf "$private"
@@ -200,7 +202,7 @@ cp -a "$glvnd"/lib/*.so* "$mesa"/lib/*.so* "$private/lib/"
 ${CROSS}strip --strip-unneeded "$private"/lib/*.so*
 cp "$W/haikuports.json" "$private/haikuports.json"
 printf 'mesa %s\nlibglvnd %s\nhaiku %s\n' "$MESA_COMMIT" "$GLVND_COMMIT" "$HAIKU_REVISION" > "$private/gl-sources.txt"
-mkdir -p "$OUT/x86_64-mesa"
-rsync -rlc --delete "$private/" "$OUT/x86_64-mesa/"
-ls "$OUT/x86_64-mesa/lib"
+mkdir -p "$OUT/$SDK_NAME-mesa"
+rsync -rlc --delete "$private/" "$OUT/$SDK_NAME-mesa/"
+ls "$OUT/$SDK_NAME-mesa/lib"
 echo "x86_64 GL stack built from mesa ${MESA_COMMIT:0:12}, libglvnd ${GLVND_COMMIT:0:12} (LLVM $llvm_version)"

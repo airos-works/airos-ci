@@ -14,7 +14,9 @@ for a day in $AIROS_CACHE/haikuports/ARCH; packages are cached by file name.
 Every run writes the resolved list (name-version-arch.hpkg and sha256) next
 to the files, so a build records exactly which HaikuPorts packages it used.
 
-Environment: AIROS_SDK, AIROS_CACHE (as lib/env.sh sets them).
+Environment: AIROS_SDK, AIROS_CACHE (as lib/env.sh sets them), and
+AIROS_SDK_NAME for an SDK other than the air/OS one of ARCH (x86_64-r1beta6,
+sdk/build-release-sdk.sh), whose base is the packages in its HAIKU_PACKAGES.
 """
 import hashlib
 import json
@@ -32,7 +34,11 @@ SDK = os.environ.get("AIROS_SDK", "/data1/airos/sdk")
 
 def sdk_env(arch):
     env = {}
-    for line in open(os.path.join(SDK, arch, "env.sh")):
+    # lib/sdk.sh exports AIROS_SDK_NAME for the architecture it was sourced for
+    name = os.environ.get("AIROS_SDK_NAME") or arch
+    if name != arch and not name.startswith(arch + "-"):
+        name = arch
+    for line in open(os.path.join(SDK, name, "env.sh")):
         m = re.match(r"(\w+)=(.*)", line.strip())
         if m:
             env[m.group(1)] = m.group(2)
@@ -119,11 +125,19 @@ def satisfies(provide, require):
 
 
 def installed_provides(arch):
-    """Provides of the SDK's base: haiku, haiku_devel and the build packages."""
+    """Provides of the SDK's base: haiku, haiku_devel and the build packages
+    (a release SDK: every package it was made from)."""
     env = sdk_env(arch)
     build = env["HAIKU_BUILD"]
     package = tool(arch, "package")
     provides = []
+    if env.get("HAIKU_PACKAGES"):
+        for name in sorted(os.listdir(env["HAIKU_PACKAGES"])):
+            if name.endswith(".hpkg"):
+                out = subprocess.run([package, "list", "-i", os.path.join(env["HAIKU_PACKAGES"], name)],
+                                     check=True, stdout=subprocess.PIPE, text=True).stdout
+                provides += re.findall(r"(?m)^\s*provides:\s*(.*)$", out)
+        return provides
     pkgdir = os.path.join(build, "objects", "haiku", arch, "packaging", "packages")
     for name in ("haiku.hpkg", "haiku_devel.hpkg"):
         out = subprocess.run([package, "list", "-i", os.path.join(pkgdir, name)], check=True,

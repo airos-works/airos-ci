@@ -9,13 +9,33 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter and Turbo Chook; a rolling `latest` release and the "Latest builds" section of each README |
-| Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser) |
+| Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
 The applications and Summit go into the **package pool**
 (`/data2/airos/packages/{x86_64,arm64,any}`). Each image build takes the
 newest package of everything from there, so an image always has the latest
 successful build of every application.
+
+## Builds for stock Haiku
+
+`AIROS_TARGET` says what a build is for: `airos` (the default) or a Haiku
+release, `r1beta6`, for a stock installation of that release without any
+air/OS change. Summit is built for both. For a release:
+
+- the SDK is `sdk/build-release-sdk.sh x86_64 r1beta6`
+  (`/data1/airos/sdk/x86_64-r1beta6`). Its sysroot is the release itself:
+  every package of its ISO (checked against the published SHA-256), its
+  `haiku_devel`, the private headers of its commit, and HaikuPorts devel
+  packages. Only the compiler (the same GCC 13.3 as the release's
+  `gcc_syslibs`) and the host tools are the air/OS SDK's;
+- every tree is the target's own, named after the SDK: `summit/x86_64-r1beta6`,
+  `webkit-x86_64-r1beta6`, `gl/x86_64-r1beta6`, `appbuild-x86_64-r1beta6`;
+- packages go to `/data2/airos/packages-r1beta6/x86_64`, which no image
+  reads, and are published as the rolling `latest-haiku` release and the
+  README's "Latest Haiku builds" section (`apps/publish.sh`).
+
+Haiku has no arm64 release, so the release targets are x86_64 only.
 
 ## What the images contain
 
@@ -95,10 +115,11 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 |---|---|
 | `lib/` | `env.sh` (server layout, locks), `sdk.sh` (cross SDK environment), `fork.sh` (check out a fork at its pinned commit) |
 | `sdk/build-sdk.sh ARCH [REF]` | builds Haiku at REF: `haiku.hpkg`, `haiku_devel.hpkg`, the host tools, a sysroot. Writes `/data1/airos/sdk/ARCH` |
+| `sdk/build-release-sdk.sh ARCH RELEASE` | the SDK of a stock Haiku release (`x86_64 r1beta6`) from the release's own packages. Writes `/data1/airos/sdk/ARCH-RELEASE` |
 | `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages. x86_64: HaikuPorts packages (`deps/haikuports.py`) |
 | `deps/build-firmware.sh` | firmware packages and image inputs, checked against pinned hashes |
 | `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot |
-| `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink) |
+| `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink); with `AIROS_TARGET=r1beta6`, against that release |
 | `deps/build-nvidia.sh` | x86_64 NVIDIA: `nvidia_rm`, `nvidia_rm_modeset`, the accelerant, the NVDEC media add-on |
 | `deps/build-nvk.sh`, `deps/build-zink.sh` | x86_64: NVK (Vulkan) and the Zink renderer add-on of the OpenGL kit |
 | `sdk/build-rust.sh` | a pinned Rust nightly with std built for `x86_64-unknown-haiku`, bindgen and cbindgen (NVK's NAK) |
@@ -132,12 +153,13 @@ forks/make-forks.py --only mesa --force   # remake one fork after changing its p
 
 | Path | What |
 |---|---|
-| `/data1/airos/sdk/ARCH` | cross SDKs (`env.sh`, sysroot) |
+| `/data1/airos/sdk/ARCH` | cross SDKs (`env.sh`, sysroot); `ARCH-RELEASE` for a stock Haiku release |
 | `/data1/airos/build`, `/data1/airos/src` | Haiku build directories and worktrees; WebKit trees |
 | `/data1/airos/deps/ARCH` | the third-party prefix the app builds compile against |
-| `/data1/airos/summit/ARCH` | Summit's engine libraries and its SDK snapshot |
+| `/data1/airos/summit/ARCH` | Summit's engine libraries and its SDK snapshot (`ARCH-RELEASE`: the Haiku build's) |
 | `/data1/airos/gl`, `/data1/airos/image-inputs` | GL stacks, firmware and other files the images take |
 | `/data2/airos/packages` | the package pool |
+| `/data2/airos/packages-RELEASE` | packages for a stock Haiku release (not in any image) |
 | `/data2/airos/artifacts/images` | images (the last five per target), served over HTTP |
 | `/data2/airos/cache`, `/data2/airos/work`, `/data2/airos/locks` | downloads and git caches, scratch space, `flock` locks |
 | `/data1/runner/REPO` | the GitHub runners (user `ghrunner`) |
@@ -145,8 +167,9 @@ forks/make-forks.py --only mesa --force   # remake one fork after changing its p
 Jobs from different repositories run at the same time. They coordinate
 through locks:
 - `haiku-ARCH`: exclusive to rebuild an SDK, its dependencies or an image;
-  shared by app builds.
-- `summit-ARCH`: the Summit pipeline.
+  shared by app builds (`haiku-ARCH-RELEASE` for a release SDK, whose users
+  also hold `haiku-ARCH` shared for its compiler).
+- `summit-ARCH`: the Summit pipeline (`summit-ARCH-RELEASE` for a release).
 - `webkit-build`: one engine compile at a time.
 - `packages-ARCH`: updates to the pool.
 

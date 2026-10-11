@@ -11,6 +11,11 @@
 #   4. the engine, as the summit_webkit package installs it, into DEPS, so
 #      Natter's builds link it for Slack web sign-in
 #
+# With AIROS_TARGET=r1beta6 the same, for a stock Haiku R1/beta6 installation:
+# against that release's SDK (sdk/build-release-sdk.sh), in trees of its own,
+# and the packages go to $AIROS_DATA/packages-r1beta6/ARCH, not to the air/OS
+# pool (step 4 is left out).
+#
 # Writes the package paths to $OUT_LIST (default $RUNNER_TEMP/packages.txt).
 set -euo pipefail
 umask 002
@@ -18,13 +23,20 @@ umask 002
 
 ARCH=${1:?usage: build-summit.sh x86_64|arm64 [SUMMIT_DIR]}
 SUMMIT_DIR=$(cd "${2:-${GITHUB_WORKSPACE:?no Summit checkout}}" && pwd)
-if [[ ${AIROS_SUMMIT_LOCKED:-} != summit-$ARCH ]]; then
-	exec env AIROS_SUMMIT_LOCKED=summit-$ARCH flock "$AIROS_LOCKS/summit-$ARCH.lock" "$0" "$ARCH" "$SUMMIT_DIR"
+SDK_NAME=$(sdk_name "$ARCH")
+if [[ ${AIROS_SUMMIT_LOCKED:-} != summit-$SDK_NAME ]]; then
+	exec env AIROS_SUMMIT_LOCKED=summit-$SDK_NAME flock "$AIROS_LOCKS/summit-$SDK_NAME.lock" "$0" "$ARCH" "$SUMMIT_DIR"
 fi
 JOBTMP=${RUNNER_TEMP:-$AIROS_WORK/tmp-summit}
 export OUT_LIST=${OUT_LIST:-$JOBTMP/packages.txt}
 mkdir -p "$JOBTMP"
 
+# A release's SDK and private Mesa, the first time (later sdk-deps.yml
+# keeps them current).
+if [[ $SDK_NAME != "$ARCH" ]]; then
+	[[ -f $AIROS_SDK/$SDK_NAME/env.sh ]] || "$AIROS_CI/sdk/build-release-sdk.sh" "$ARCH" "$AIROS_TARGET"
+	[[ -d $AIROS_ROOT/gl/$SDK_NAME-mesa/lib ]] || "$AIROS_CI/deps/build-gl-x86_64.sh"
+fi
 "$AIROS_CI/summit/build-deps.sh" "$ARCH"
 "$AIROS_CI/summit/build-engine.sh" "$ARCH" "$SUMMIT_DIR"
 
@@ -33,6 +45,8 @@ before=$(wc -l < "$OUT_LIST" 2>/dev/null || echo 0)
 "$AIROS_CI/apps/ci-build-app.sh" "$ARCH" summit_webkit,summit summit "$SUMMIT_DIR"
 engine=$(tail -n +"$((before + 1))" "$OUT_LIST" | grep '/summit_webkit-[^/]*\.hpkg$' | tail -n 1)
 [[ -n $engine ]] || die "no summit_webkit package was made"
+# Natter's builds are for air/OS.
+[[ $SDK_NAME == "$ARCH" ]] || exit 0
 
 note "engine for app builds"
 # DEPS is read by app builds under the shared haiku-ARCH lock.

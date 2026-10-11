@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# summit/build-engine.sh ARCH SUMMIT_DIR
+# summit/build-engine.sh ARCH SUMMIT_DIR (AIROS_TARGET=r1beta6: for stock
+# Haiku R1/beta6, against that release's SDK, in trees of its own)
 #
 # Summit's WebKit engine for ARCH, from the Summit checkout SUMMIT_DIR:
 #
@@ -13,11 +14,12 @@
 #           the Raspberry Pi's engine is built (haiku: docs/rpi4/SUMMIT.md);
 #           x86_64 adds smooth scrolling, as Summit's x86 engine has it
 #   libs    summit/build-deps.sh's prefix and the backtrace() shim of
-#           engine/arm64/execinfo
+#           engine/arm64/execinfo; FFmpeg's public headers at the version
+#           Summit pins (tools/prepare-ffmpeg-headers.py)
 #
-# The source tree ($AIROS_SRC/webkit-ARCH; sparse: no LayoutTests, JSTests,
+# The source tree ($AIROS_SRC/webkit-SDK_NAME; sparse: no LayoutTests, JSTests,
 # PerformanceTests, ManualTests or Websites) and the build directory
-# ($AIROS_BUILD/webkit-ARCH) persist. The patched tree is a commit made in a
+# ($AIROS_BUILD/webkit-SDK_NAME) persist. The patched tree is a commit made in a
 # scratch index, and checking it out rewrites only the files that differ from
 # the last build's, so ninja rebuilds only what the change reaches.
 #
@@ -29,8 +31,9 @@ umask 002
 
 ARCH=${1:?usage: build-engine.sh x86_64|arm64 SUMMIT_DIR}
 SUMMIT_DIR=$(cd "${2:?usage: build-engine.sh x86_64|arm64 SUMMIT_DIR}" && pwd)
-if [[ ${AIROS_SUMMIT_LOCKED:-} != summit-$ARCH ]]; then
-	exec env AIROS_SUMMIT_LOCKED=summit-$ARCH flock "$AIROS_LOCKS/summit-$ARCH.lock" "$0" "$@"
+SDK_NAME=$(sdk_name "$ARCH")
+if [[ ${AIROS_SUMMIT_LOCKED:-} != summit-$SDK_NAME ]]; then
+	exec env AIROS_SUMMIT_LOCKED=summit-$SDK_NAME flock "$AIROS_LOCKS/summit-$SDK_NAME.lock" "$0" "$@"
 fi
 . "$AIROS_CI/summit/lib.sh"
 . "$AIROS_CI/lib/fork.sh"
@@ -38,9 +41,9 @@ summit_sdk
 
 P=$SUMMIT_ROOT/deps
 TC=$SUMMIT_ROOT/toolchain.cmake
-[[ -f $TC && -f $P/lib/pkgconfig/icu-uc.pc ]] || die "no Summit libraries for $ARCH; run summit/build-deps.sh $ARCH"
-SRC=$AIROS_SRC/webkit-$ARCH
-B=$AIROS_BUILD/webkit-$ARCH
+[[ -f $TC && -f $P/lib/pkgconfig/icu-uc.pc ]] || die "no Summit libraries for $SDK_NAME; run summit/build-deps.sh $ARCH"
+SRC=$AIROS_SRC/webkit-$SDK_NAME
+B=$AIROS_BUILD/webkit-$SDK_NAME
 mem_gb=$(awk '/MemTotal/ {print int($2 / 1048576)}' /proc/meminfo)
 jobs=$(( mem_gb * 2 / 5 ))
 (( jobs <= $(nproc) )) || jobs=$(nproc)
@@ -125,11 +128,22 @@ else
 		"update it with forks/make-forks.py --only webkit --force (after moving the summit source ref)" >&2
 fi
 
+note "FFmpeg headers"
+# The MPEG-TS parser calls FFmpeg's public API (the system's libavformat,
+# checked at run time) and compiles against the headers Summit pins
+# (engine/ffmpeg-headers.lock.json): no codec is built, only the headers.
+ffmpeg=$SUMMIT_ROOT/ffmpeg-headers
+python3 "$SUMMIT_DIR/tools/prepare-ffmpeg-headers.py" --cache "$AIROS_CACHE/ffmpeg-headers" \
+	--prefix "$ffmpeg" > "$AIROS_WORK/ffmpeg-headers-$SDK_NAME.log" 2>&1 \
+	|| { tail -20 "$AIROS_WORK/ffmpeg-headers-$SDK_NAME.log"; die "FFmpeg headers failed"; }
+tail -1 "$AIROS_WORK/ffmpeg-headers-$SDK_NAME.log"
+
 note "configure"
 private=$SYSROOT/boot/system/develop/headers/private
 export CPATH=$private/netservices:$private/libroot:$private/shared:$private/system:$private/system/arch
 export PKG_CONFIG_LIBDIR=$P/lib/pkgconfig PKG_CONFIG_PATH= PKG_CONFIG_SYSROOT_DIR=
-options=(-DUSE_HAIKU_GL_COMPOSITING=ON -DUSE_SKIA=ON -DENABLE_WEBGL=ON -DENABLE_ASYNC_SCROLLING=ON)
+options=(-DUSE_HAIKU_GL_COMPOSITING=ON -DUSE_SKIA=ON -DENABLE_WEBGL=ON -DENABLE_ASYNC_SCROLLING=ON
+	-DHaikuFFmpeg_INCLUDE_DIR="$ffmpeg/include")
 [[ $ARCH != x86_64 ]] || options+=(-DENABLE_SMOOTH_SCROLLING=ON)
 mkdir -p "$B"
 cmake -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/arm64/rpi4-gl/init-cache-rtc.cmake" \
@@ -157,6 +171,7 @@ cat > "$B/engine.json" <<EOF
  "webkit": {"repository": "$url", "base": "$base", "patched_tree": "$(git -C "$SRC" rev-parse "$patched^{tree}")"},
  "summit": "$summit_commit",
  "haiku": "$HAIKU_REVISION",
+ "target": "${AIROS_TARGET:-airos}",
  "arch": "$ARCH"
 }
 EOF

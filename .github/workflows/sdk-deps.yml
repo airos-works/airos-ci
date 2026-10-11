@@ -1,4 +1,5 @@
-# Cross SDKs (Haiku built from jmgasper/haiku master), third-party
+# Cross SDKs (Haiku built from jmgasper/haiku master; and stock Haiku
+# R1/beta6, assembled from the release, for Summit's Haiku build), third-party
 # dependencies (arm64: built from the jmgasper forks; x86_64: HaikuPorts),
 # image firmware and the GL stacks (Mesa and libglvnd from the forks) on the
 # air/OS build server. Runs when the build scripts, recipes or fork pins
@@ -38,6 +39,9 @@ jobs:
             sdk/build-sdk.sh "$arch"
             echo "::endgroup::"
           done
+          echo "::group::SDK x86_64 for stock Haiku R1/beta6"
+          sdk/build-release-sdk.sh x86_64 r1beta6
+          echo "::endgroup::"
 
       - name: Dependencies
         env:
@@ -59,6 +63,9 @@ jobs:
           echo "::endgroup::"
           echo "::group::x86_64 (Summit's private Mesa)"
           deps/build-gl-x86_64.sh
+          echo "::endgroup::"
+          echo "::group::x86_64 for Haiku R1/beta6 (the private Mesa of Summit's Haiku build)"
+          AIROS_TARGET=r1beta6 deps/build-gl-x86_64.sh
           echo "::endgroup::"
           echo "::group::x86_64 NVIDIA (nvidia_rm, accelerant, NVDEC)"
           deps/build-nvidia.sh

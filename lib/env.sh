@@ -47,6 +47,21 @@ haiku_triplet() {
 	esac
 }
 
+# What a build is for, AIROS_TARGET: "airos" (the default) builds for air/OS
+# against the SDK of sdk/build-sdk.sh; a Haiku release ("r1beta6") builds for
+# a stock installation of that release (and later Haiku) against the SDK of
+# sdk/build-release-sdk.sh. Its packages never go into the air/OS pool.
+# sdk_name ARCH: the name of that SDK under $AIROS_SDK (x86_64, x86_64-r1beta6),
+# which also names the target's build trees.
+sdk_name() {
+	case ${AIROS_TARGET:-airos} in
+		airos) echo "$1" ;;
+		r1beta6) [[ $1 == x86_64 ]] || die "Haiku ${AIROS_TARGET} is released for x86_64 only"
+			echo "$1-$AIROS_TARGET" ;;
+		*) die "unknown AIROS_TARGET ${AIROS_TARGET} (airos or a Haiku release: r1beta6)" ;;
+	esac
+}
+
 # json FILE EXPR: read a value from a JSON manifest (python3 is always there).
 json() {
 	python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); v=eval(sys.argv[2],{"d":d}); print(v if not isinstance(v,(list,dict)) else json.dumps(v))' "$1" "$2"

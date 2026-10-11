@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# summit/build-deps.sh ARCH
+# summit/build-deps.sh ARCH (AIROS_TARGET=r1beta6: for stock Haiku R1/beta6)
 #
 # The third-party libraries of Summit's WebKit engine, cross-built from the
 # jmgasper forks (forks/forks.lock.json) into a prefix of their own,
-# $AIROS_ROOT/summit/ARCH/deps (include/, lib/, lib/pkgconfig/). The engine
+# $AIROS_ROOT/summit/SDK_NAME/deps (include/, lib/, lib/pkgconfig/). The engine
 # links them and the summit_webkit package carries them privately in
 # /boot/system/lib/summit-webkit/lib, as Summit's own arm64 build does
 # (summit: engine/arm64/build-deps.sh, tools/pi/build-gl-deps.sh and
@@ -25,15 +25,16 @@ umask 002
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
 
 ARCH=${1:?usage: build-deps.sh x86_64|arm64}
-if [[ ${AIROS_SUMMIT_LOCKED:-} != summit-$ARCH ]]; then
-	exec env AIROS_SUMMIT_LOCKED=summit-$ARCH flock "$AIROS_LOCKS/summit-$ARCH.lock" "$0" "$@"
+SDK_NAME=$(sdk_name "$ARCH")
+if [[ ${AIROS_SUMMIT_LOCKED:-} != summit-$SDK_NAME ]]; then
+	exec env AIROS_SUMMIT_LOCKED=summit-$SDK_NAME flock "$AIROS_LOCKS/summit-$SDK_NAME.lock" "$0" "$@"
 fi
 . "$AIROS_CI/summit/lib.sh"
 . "$AIROS_CI/lib/fork.sh"
 summit_sdk
 
 P=$SUMMIT_ROOT/deps
-W=$AIROS_WORK/summit-deps-$ARCH
+W=$AIROS_WORK/summit-deps-$SDK_NAME
 mkdir -p "$P/lib/pkgconfig" "$P/include" "$W"
 case $ARCH in arm64) PROCESSOR=aarch64 ;; x86_64) PROCESSOR=x86_64 ;; esac
 LINK="-Wl,--hash-style=both -Wl,-Bsymbolic-functions"

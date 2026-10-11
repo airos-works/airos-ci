@@ -58,7 +58,7 @@ SELECTED=("$@")
 # below (airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 # airTime airpins); CI jobs make one with a link to their checkout.
 APPS=${APPS:?APPS must name the directory of application repositories}
-APPBUILD=${APPBUILD:-$AIROS_WORK/appbuild-$ARCH}
+APPBUILD=${APPBUILD:-$AIROS_WORK/appbuild-$SDK_NAME}
 # Third-party libraries (curl, OpenSSL, TagLib, SQLite, PCRE2, Scintilla,
 # Lexilla, FFmpeg, the Summit engine): one prefix per architecture, made by
 # deps/stage-deps.sh from the air/OS package pool (arm64: built from the
@@ -723,15 +723,29 @@ INFO"' _ "$work/PackageInfo.template" > "$work/Natter.PackageInfo"
 #                  libraries of summit/build-deps.sh), the public headers in
 #                  develop/headers/summit-webkit
 #   summit         the browser, the system's default web browser
-SUMMIT_ENGINE_BUILD=${SUMMIT_ENGINE_BUILD:-$AIROS_BUILD/webkit-$ARCH}
-SUMMIT_LIBS=${SUMMIT_LIBS:-$AIROS_ROOT/summit/$ARCH/deps}
-SUMMIT_WEBKIT_SRC=${SUMMIT_WEBKIT_SRC:-$AIROS_SRC/webkit-$ARCH/Source/WebKit}
+# With AIROS_TARGET=r1beta6 (lib/sdk.sh: SDK_NAME x86_64-r1beta6) both are for
+# a stock Haiku R1/beta6 installation instead: built against that release,
+# the browser without what only air/OS's app_server takes (SUMMIT_AIROS=0),
+# requiring what HaikuPorts has to add to the release, and without making
+# Summit the default browser at installation.
+SUMMIT_ENGINE_BUILD=${SUMMIT_ENGINE_BUILD:-$AIROS_BUILD/webkit-$SDK_NAME}
+SUMMIT_LIBS=${SUMMIT_LIBS:-$AIROS_ROOT/summit/$SDK_NAME/deps}
+SUMMIT_WEBKIT_SRC=${SUMMIT_WEBKIT_SRC:-$AIROS_SRC/webkit-$SDK_NAME/Source/WebKit}
 # What the image's GL stack provides (deps/build-gl.sh), as Haiku's own
 # libraries are: not bundled. x86_64 has no system EGL: the package carries
 # a private Mesa (deps/build-gl-x86_64.sh) in mesa/, which the engine points
 # its processes at.
-GL_SYSTEM=$AIROS_ROOT/gl/$ARCH/boot/system
-SUMMIT_MESA=$AIROS_ROOT/gl/$ARCH-mesa
+GL_SYSTEM=$AIROS_ROOT/gl/$SDK_NAME/boot/system
+SUMMIT_MESA=$AIROS_ROOT/gl/$SDK_NAME-mesa
+# What the packages say about where they run.
+if [[ $SDK_NAME == "$ARCH" ]]; then
+	SUMMIT_FOR="air/OS"
+	SUMMIT_HAIKU_REQUIRES="haiku >= r1~beta6"
+else
+	SUMMIT_FOR="Haiku R1/beta6"
+	# the release it was built against, or anything later
+	SUMMIT_HAIKU_REQUIRES="haiku >= $HAIKU_REVISION"
+fi
 # Raise to replace a package built from the same Summit commit.
 SUMMIT_REVISION=${SUMMIT_REVISION:-1}
 PATCHELF=${PATCHELF:-patchelf}
@@ -868,7 +882,7 @@ name			summit_webkit
 version			$SUMMIT_WEBKIT_VERSION
 architecture	$ARCH
 summary			"The WebKit engine of the Summit browser"
-description		"The Summit browser's WebKit (libWebKit with its web and network processes, JavaScriptCore, ICU 78 and the libraries they need), installed in /boot/system/lib/summit-webkit, with GL compositing, WebGL and WebRTC. Programs link lib/libWebKit.so.1 from there and include develop/headers/summit-webkit. Built by air/OS CI from WebKit $base (jmgasper/WebKit) with the Haiku port of Summit $(git -C "$APPS/summit" rev-parse --short HEAD)."
+description		"The Summit browser's WebKit (libWebKit with its web and network processes, JavaScriptCore, ICU 78 and the libraries they need), installed in /boot/system/lib/summit-webkit, with GL compositing, WebGL and WebRTC. Programs link lib/libWebKit.so.1 from there and include develop/headers/summit-webkit. The $SUMMIT_FOR build, made by air/OS CI from WebKit $base (jmgasper/WebKit) with the Haiku port of Summit $(git -C "$APPS/summit" rev-parse --short HEAD)."
 packager		"air/OS CI"
 vendor			"Summit project"
 copyrights {
@@ -886,7 +900,7 @@ provides {
 	summit_webkit = ${SUMMIT_WEBKIT_VERSION%-*}
 }
 requires {
-	haiku >= r1~beta6
+	$SUMMIT_HAIKU_REQUIRES
 $mesa_requires
 }
 INFO
@@ -922,6 +936,8 @@ PY
 		-I"$work/engine/include" -DSUMMIT_MODERN_WEBKIT=1 -I"$SRC/src" -I"$SRC/vendor"
 		-I"$private/netservices" -I"$private" -I"$FARM/include"
 		-I"$FARM/include/scintilla" -I"$FARM/include/lexilla")
+	# src/core/BuildTarget.h
+	[[ $SDK_NAME == "$ARCH" ]] || flags+=(-DSUMMIT_AIROS=0 "-DSUMMIT_TARGET_NAME=\"$SUMMIT_FOR\"")
 	local source objects=() object
 	for source in $sources; do
 		object=$BUILDDIR/obj/$(echo "${source%.cpp}" | tr / _).o
@@ -950,9 +966,12 @@ PY
 	install_file 644 "$SRC/resources/start.html" data/Summit/start.html
 	deskbar_link apps/Summit Summit
 	docs summit README.md LICENSE docs vendor/nlohmann/LICENSE.MIT vendor/nlohmann/UPSTREAM.md
-	# The system's web browser: links, web pages and XHTML open in Summit.
-	mkdir -p "$STAGE/boot/post-install"
-	cat > "$STAGE/boot/post-install/summit-default-browser.sh" <<'SH'
+	# air/OS: the system's web browser: links, web pages and XHTML open in
+	# Summit. On Haiku that stays the user's choice (Summit's preferences).
+	local browser_requires=""
+	if [[ $SDK_NAME == "$ARCH" ]]; then
+		mkdir -p "$STAGE/boot/post-install"
+		cat > "$STAGE/boot/post-install/summit-default-browser.sh" <<'SH'
 #!/bin/sh
 # air/OS: Summit is the default web browser.
 for type in application/x-vnd.Be.URL.http application/x-vnd.Be.URL.https \
@@ -960,13 +979,17 @@ for type in application/x-vnd.Be.URL.http application/x-vnd.Be.URL.https \
 	setmime -set "$type" -preferredAppSig application/x-vnd.Kunanyi-Summit
 done
 SH
-	chmod 755 "$STAGE/boot/post-install/summit-default-browser.sh"
+		chmod 755 "$STAGE/boot/post-install/summit-default-browser.sh"
+	else
+		# The developer tools' text views; a stock installation lacks them.
+		browser_requires=$'\tlib:libscintilla\n\tlib:liblexilla'
+	fi
 	cat > "$STAGE/.PackageInfo" <<INFO
 name			summit
 version			$SUMMIT_VERSION
 architecture	$ARCH
 summary			"A native WebKit browser"
-description		"Summit is a WebKit browser for Haiku and air/OS, with tabs, extensions, developer tools and site permissions, and the default web browser of air/OS. Built by air/OS CI from Summit $(git -C "$APPS/summit" rev-parse --short HEAD) against the summit_webkit engine."
+description		"Summit is a WebKit browser for Haiku and air/OS, with tabs, extensions, developer tools and site permissions, and the default web browser of air/OS. The $SUMMIT_FOR build, made by air/OS CI from Summit $(git -C "$APPS/summit" rev-parse --short HEAD) against the summit_webkit engine of the same build."
 packager		"air/OS CI"
 vendor			"Summit project"
 copyrights {
@@ -981,8 +1004,9 @@ provides {
 	app:Summit = ${SUMMIT_VERSION%-*}
 }
 requires {
-	haiku >= r1~beta6
+	$SUMMIT_HAIKU_REQUIRES
 	summit_webkit >= ${SUMMIT_WEBKIT_VERSION%-*}
+$browser_requires
 }
 INFO
 	DROPPED="(none)"

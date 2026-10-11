@@ -5,6 +5,12 @@
 # air/OS package pool for the images. On the default branch the packages are
 # published (rolling "latest" release) and the README's build links updated.
 #
+# Then the same for stock Haiku releases (haiku-releases; x86_64 only):
+# against the release's own SDK, in trees of their own, never into the air/OS
+# pool; published as the rolling "latest-haiku" release and the README's
+# "Latest Haiku builds" section. A failed Haiku build does not hold back the
+# air/OS packages.
+#
 # Called from jmgasper/summit:
 #
 #   on:
@@ -28,6 +34,11 @@ on:
         default: arm64 x86_64
       publish-branch:
         description: branch whose builds are published (default the repository's default branch)
+        required: false
+        type: string
+        default: ''
+      haiku-releases:
+        description: space-separated stock Haiku releases to build for as well (x86_64 only; r1beta6)
         required: false
         type: string
         default: ''
@@ -75,6 +86,24 @@ jobs:
             echo "- \`$(basename "$package")\` ($(du -h "$package" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
           done < "$OUT_LIST"
 
+      - name: Build for stock Haiku
+        id: haiku
+        if: inputs.haiku-releases != ''
+        continue-on-error: true
+        run: |
+          echo "## Packages for stock Haiku" >> "$GITHUB_STEP_SUMMARY"
+          for release in ${{ inputs.haiku-releases }}; do
+            echo "::group::x86_64 for Haiku $release"
+            list=$RUNNER_TEMP/packages-$release.txt
+            rm -f "$list"
+            AIROS_TARGET=$release OUT_LIST=$list \
+              "$RUNNER_TEMP/airos-ci/summit/build-summit.sh" x86_64 "$GITHUB_WORKSPACE"
+            echo "::endgroup::"
+            while read -r package; do
+              echo "- $release: \`$(basename "$package")\` ($(du -h "$package" | cut -f1))" >> "$GITHUB_STEP_SUMMARY"
+            done < "$list"
+          done
+
       - name: Keep the packages with the run
         uses: actions/upload-artifact@v7
         with:
@@ -89,3 +118,13 @@ jobs:
         run: |
           mapfile -t packages < "${{ runner.temp }}/packages.txt"
           "$RUNNER_TEMP/airos-ci/apps/publish.sh" "${packages[@]}"
+
+      - name: Publish the stock Haiku builds
+        if: steps.haiku.outcome == 'success' && github.ref_name == (inputs.publish-branch != '' && inputs.publish-branch || github.event.repository.default_branch)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for release in ${{ inputs.haiku-releases }}; do
+            mapfile -t packages < "${{ runner.temp }}/packages-$release.txt"
+            AIROS_TARGET=$release "$RUNNER_TEMP/airos-ci/apps/publish.sh" "${packages[@]}"
+          done
