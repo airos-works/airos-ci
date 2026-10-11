@@ -54,10 +54,10 @@ JOBS=${ENGINE_JOBS:-$jobs}
 summit_commit=$(git -C "$SUMMIT_DIR" rev-parse HEAD)
 
 note "backtrace() shim"
-# WebCore links libexecinfo; Haiku has no backtrace(). (A Haiku release's
-# image has HaikuPorts' libexecinfo, and the engine links that.)
+# WebCore links libexecinfo; Haiku has no backtrace(). (x86_64 images have
+# HaikuPorts' libexecinfo, and the engine links that: summit/lib.sh SYSLIBS.)
 x=$SUMMIT_DIR/engine/arm64/execinfo
-if [[ $SDK_NAME == "$ARCH" ]]; then
+if [[ -z $SYSLIBS ]]; then
 	${CROSS}gcc --sysroot="$SYSROOT" -O2 -fPIC -shared "$x/execinfo.c" -o "$P/lib/libexecinfo.so.1.1.new" \
 		-Wl,-soname,libexecinfo.so.1 -Wl,--hash-style=both -Wl,-Bsymbolic-functions
 	# replaced only when it changed, so the engine does not relink for nothing

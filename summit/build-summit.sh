@@ -52,11 +52,20 @@ note "engine for app builds"
 # DEPS is read by app builds under the shared haiku-ARCH lock.
 DEPS=${DEPS:-$AIROS_ROOT/deps/$ARCH/boot/system}
 . "$AIROS_SDK/$ARCH/env.sh"
+# x86_64: the image's libraries the engine links (summit/lib.sh SYSLIBS) that
+# DEPS lacks, for the linker of programs that link the engine; DEPS's own
+# are left alone.
+syslibs=$AIROS_ROOT/summit/$ARCH/system/lib
 with_lock "haiku-$ARCH" bash -c '
 	set -e
 	rm -rf "$1/lib/summit-webkit" "$1/develop/headers/summit-webkit"
 	"$2" extract -C "$1" "$3"
 	rm -f "$1/.PackageInfo"
 	rm -rf "$1/documentation/packages/summit_webkit"
-' _ "$DEPS" "$TOOLS/package/package" "$engine"
+	if [[ -d $4 ]]; then
+		for lib in "$4"/*.so*; do
+			[[ -e $1/lib/${lib##*/} || -L $1/lib/${lib##*/} ]] || cp -a "$lib" "$1/lib/"
+		done
+	fi
+' _ "$DEPS" "$TOOLS/package/package" "$engine" "$syslibs"
 echo "$(basename "$engine") -> $DEPS/lib/summit-webkit"

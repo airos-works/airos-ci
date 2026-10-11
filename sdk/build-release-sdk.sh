@@ -202,35 +202,9 @@ while read -r file; do
 	"$package" extract -C "$SDK/sysroot/boot/system" "$file" > /dev/null
 done < "$CACHE/haikuports.txt"
 rm -f "$SDK/sysroot/boot/system/.PackageInfo"
-# Links that name /boot/system point into the sysroot.
-while IFS= read -r -d '' link; do
-	target=$(readlink "$link")
-	[[ $target == /boot/system/* ]] \
-		&& ln -sfn "$(realpath -m --relative-to="$(dirname "$link")" "$SDK/sysroot$target")" "$link"
-done < <(find "$SDK/sysroot/boot/system" -type l -print0)
-# A devel package of a newer HaikuPorts build names its own library file
-# (libharfbuzz.so.0.61451.0); the image has an older one of the same soname.
-python3 - "$SDK/sysroot/boot/system" <<'PY'
-import os, sys
-system = sys.argv[1]
-lib, develop = os.path.join(system, "lib"), os.path.join(system, "develop", "lib")
-for name in sorted(os.listdir(develop)):
-    link = os.path.join(develop, name)
-    if not os.path.islink(link) or os.path.exists(link):
-        continue
-    target = os.path.basename(os.readlink(link))
-    stem = target[:target.index(".so") + 3] if ".so" in target else target
-    files = [f for f in os.listdir(lib) if f.startswith(stem + ".")
-             and not os.path.islink(os.path.join(lib, f))]
-    if len(files) != 1:
-        # left dangling (gcc_syslibs_devel's libsupc++.so is): a program that
-        # needs it fails to link
-        print(f"warning: {name} names {target}; the image has {files or 'no ' + stem}")
-        continue
-    os.remove(link)
-    os.symlink(os.path.relpath(os.path.join(lib, files[0]), develop), link)
-    print(f"{name} -> the image's {files[0]}")
-PY
+# Links that name /boot/system point into the sysroot; the link names of a
+# devel package of a newer HaikuPorts build lead to the image's libraries.
+python3 "$AIROS_CI/lib/fix-devel-links.py" "$SDK/sysroot/boot/system"
 # The server's trees belong to the group (CI and people replace each
 # other's), but packages carry 0755 directories and 0700 ones, and the
 # package tool gives what it extracts the user's own group.

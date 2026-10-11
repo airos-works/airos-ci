@@ -737,6 +737,19 @@ SUMMIT_WEBKIT_SRC=${SUMMIT_WEBKIT_SRC:-$AIROS_SRC/webkit-$SDK_NAME/Source/WebKit
 # its processes at.
 GL_SYSTEM=$AIROS_ROOT/gl/$SDK_NAME/boot/system
 SUMMIT_MESA=$AIROS_ROOT/gl/$SDK_NAME-mesa
+# x86_64: the image's libraries the engine links rather than carries
+# (summit/lib.sh SYSLIBS), and the packages they come from, whose provides
+# become the engine's requirements.
+if [[ $ARCH != x86_64 ]]; then
+	SUMMIT_SYSLIBS=
+	SUMMIT_SYSLIBS_PACKAGES=
+elif [[ $SDK_NAME == "$ARCH" ]]; then
+	SUMMIT_SYSLIBS=$AIROS_ROOT/summit/$SDK_NAME/system
+	SUMMIT_SYSLIBS_PACKAGES=$SUMMIT_SYSLIBS/packages
+else
+	SUMMIT_SYSLIBS=$SYSROOT/boot/system
+	SUMMIT_SYSLIBS_PACKAGES=$HAIKU_PACKAGES
+fi
 # What the packages say about where they run.
 if [[ $SDK_NAME == "$ARCH" ]]; then
 	SUMMIT_FOR="air/OS"
@@ -820,8 +833,9 @@ build_summit_webkit() {
 			seen[$needed]=1
 			# What the engine was built with comes along, even when the system
 			# has a library of that name: the x86_64 SDK has HaikuPorts'
-			# haikuwebkit (an old libJavaScriptCore.so.18), fontconfig, ...
-			# A library the SDK has byte for byte (zlib) stays the system's.
+			# haikuwebkit (an old libJavaScriptCore.so.18). A library the SDK
+			# has byte for byte (zlib) stays the system's, and so do the
+			# image's libraries the x86_64 engine links (SUMMIT_SYSLIBS).
 			source=""
 			[[ -e $SUMMIT_ENGINE_BUILD/lib/$needed ]] && source=$SUMMIT_ENGINE_BUILD/lib/$needed
 			[[ -z $source && -e $SUMMIT_LIBS/lib/$needed ]] && source=$SUMMIT_LIBS/lib/$needed
@@ -831,7 +845,8 @@ build_summit_webkit() {
 			fi
 			if [[ -z $source ]]; then
 				[[ -e $SYSROOT/boot/system/lib/$needed || -e $SYSROOT/boot/system/develop/lib/$needed \
-					|| -e $GL_SYSTEM/lib/$needed ]] && continue
+					|| -e $GL_SYSTEM/lib/$needed || ( -n $SUMMIT_SYSLIBS && -e $SUMMIT_SYSLIBS/lib/$needed ) ]] \
+					&& continue
 				case $needed in
 					libtracker.so|libtranslation.so|libmedia.so|libtextencoding.so) continue ;;
 				esac
@@ -859,12 +874,12 @@ build_summit_webkit() {
 		cp "$SUMMIT_MESA/gl-sources.txt" "$SUMMIT_MESA/haikuports.json" "$work/" 2>/dev/null || true
 		mesa_requires=$'\tlib:libllvm >= 21\n\tlib:libvulkan >= 1'
 	fi
-	# A Haiku release: the libraries the engine links from the release, at
-	# the release's versions.
+	# x86_64: the libraries the engine links from the image (or the release),
+	# at the image's versions.
 	local system_requires=""
-	if [[ $SDK_NAME != "$ARCH" ]]; then
+	if [[ -n $SUMMIT_SYSLIBS ]]; then
 		system_requires=$(python3 "$AIROS_CI/apps/release-requires.py" "$TOOLS/package/package" \
-			"$HAIKU_PACKAGES" --skip "$STAGE/$engine/lib" --skip "$STAGE/$engine/mesa/lib" \
+			"$SUMMIT_SYSLIBS_PACKAGES" --skip "$STAGE/$engine/lib" --skip "$STAGE/$engine/mesa/lib" \
 			"$STAGE/$engine/WebProcess" "$STAGE/$engine/NetworkProcess" \
 			$(find "$STAGE/$engine/lib" "$STAGE/$engine/mesa/lib" -name '*.so*' -type f 2>/dev/null) \
 			| sed 's/^/\t/')

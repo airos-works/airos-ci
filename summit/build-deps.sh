@@ -14,11 +14,12 @@
 #   libzip, ICU 78.3, and for GL compositing FreeType, Expat, Fontconfig,
 #   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh).
 #
-# For a Haiku release (AIROS_TARGET=r1beta6) only ICU 78, libzip and libepoxy
-# are built: the release has the others, and the engine links those instead
-# of carrying copies (a system add-on in the same process, such as the Media
-# Kit's FFmpeg reader with libass and Fontconfig, would get the engine's
-# older copy and fail to load). Their pkg-config files go into the prefix.
+# For x86_64 (air/OS, and a Haiku release with AIROS_TARGET=r1beta6) only
+# ICU 78, libzip and libepoxy are built: the image has the others, and the
+# engine links those (summit/lib.sh SYSLIBS) instead of carrying copies (a
+# system add-on in the same process, such as the Media Kit's FFmpeg reader
+# with libass and Fontconfig, would get the engine's older copy and fail to
+# load). Their pkg-config files go into the prefix.
 #
 # Every library gets a GNU hash table and binds its own functions at link time
 # (Haiku's runtime_loader resolves every symbol at load; on the Pi the SysV
@@ -64,7 +65,7 @@ set(CMAKE_CXX_COMPILER ${CROSS}g++)
 set(CMAKE_AR ${CROSS}ar CACHE FILEPATH "")
 set(CMAKE_RANLIB ${CROSS}ranlib CACHE FILEPATH "")
 set(CMAKE_STRIP ${CROSS}strip CACHE FILEPATH "")
-set(CMAKE_FIND_ROOT_PATH $P $DEPS/develop $DEPS $SYSROOT/boot/system/develop $SYSROOT/boot/system)
+set(CMAKE_FIND_ROOT_PATH $P${SYSLIBS:+ $SYSLIBS/develop $SYSLIBS} $DEPS/develop $DEPS $SYSROOT/boot/system/develop $SYSROOT/boot/system)
 set(CMAKE_PREFIX_PATH $P)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
@@ -72,8 +73,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 set(CMAKE_C_FLAGS_INIT "-I$P/include")
 set(CMAKE_CXX_FLAGS_INIT "-I$P/include")
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$P/lib -Wl,-rpath-link,$P/lib -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib")
-set(CMAKE_SHARED_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$P/lib -Wl,-rpath-link,$P/lib -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib $LINK")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$P/lib${SYSLIBS:+ -L$SYSLIBS/develop/lib} -Wl,-rpath-link,$P/lib${SYSLIBS:+ -Wl,-rpath-link,$SYSLIBS/lib} -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$P/lib${SYSLIBS:+ -L$SYSLIBS/develop/lib} -Wl,-rpath-link,$P/lib${SYSLIBS:+ -Wl,-rpath-link,$SYSLIBS/lib} -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib $LINK")
 set(ENV{PKG_CONFIG_LIBDIR} "$P/lib/pkgconfig")
 set(ENV{PKG_CONFIG_SYSROOT_DIR} "")
 EOF
@@ -222,15 +223,15 @@ r_harfbuzz() {
 	cm -DHB_HAVE_FREETYPE=ON -DHB_HAVE_ICU=ON -DHB_BUILD_UTILS=OFF -DHB_BUILD_SUBSET=OFF \
 		-DHB_HAVE_GLIB=OFF
 }
-r_system() { # a Haiku release's own libraries: their pkg-config files, for the sysroot
-	local dir=$SYSROOT/boot/system/develop/lib/pkgconfig name
+r_system() { # the image's own libraries (SYSLIBS): their pkg-config files
+	local dir=$SYSLIBS/develop/lib/pkgconfig name
 	for name in openssl libssl libcrypto libnghttp2 libpsl libcurl sqlite3 libxml-2.0 libxslt libexslt \
 			libjpeg libpng libpng16 libwebp libwebpdemux libwebpmux libsharpyuv lcms2 \
 			libbrotlicommon libbrotlidec libbrotlienc libwoff2common libwoff2dec freetype2 expat \
 			fontconfig harfbuzz harfbuzz-icu; do
-		[[ -f $dir/$name.pc ]] || die "the $SDK_NAME SDK has no $name.pc (sdk/build-release-sdk.sh)"
+		[[ -f $dir/$name.pc ]] || die "no $name.pc in $SYSLIBS (summit/lib.sh, sdk/build-release-sdk.sh)"
 		# HaikuPorts' files name the package's own directory
-		sed -e "s|^prefix=.*|prefix=$SYSROOT/boot/system|" -e "s|/boot/system/|$SYSROOT/boot/system/|g" \
+		sed -e "s|^prefix=.*|prefix=$SYSLIBS|" -e "s|/boot/system/|$SYSLIBS/|g" \
 			"$dir/$name.pc" > "$P/lib/pkgconfig/$name.pc"
 	done
 }
@@ -277,11 +278,19 @@ EOF
 	ninja -C _b install
 }
 
-if [[ $SDK_NAME == "$ARCH" ]]; then
+if [[ -z $SYSLIBS ]]; then
 	ORDER=(zlib openssl nghttp2 libpsl curl sqlite libxml2 libxslt libjpeg-turbo libpng libwebp
 		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy)
 else
 	ORDER=(zlib system libzip icu libepoxy)
+fi
+# A prefix that still has the copies of the system's libraries the x86_64
+# engine carried until 12 October 2026 starts again: CMake would find them
+# there first.
+if [[ -n $SYSLIBS ]] && ls "$P"/lib/libfontconfig.so* > /dev/null 2>&1; then
+	note "removing the old prefix $P (it has the forks' builds of the system's libraries)"
+	rm -rf "$P" "$W"/*.stamp
+	mkdir -p "$P/lib/pkgconfig" "$P/include"
 fi
 
 chain=$(sha256sum "$UNWIND_SPECS" | cut -c1-16)
@@ -291,7 +300,7 @@ for name in "${ORDER[@]}"; do
 		FORK_COMMIT=sdk-$(sha256sum "$SYSROOT/boot/system/develop/headers/zlib.h" | cut -c1-16)
 	elif [[ $name == system ]]; then
 		# in the same order whatever the locale (people and CI share the stamps)
-		FORK_COMMIT=sdk-$(cd "$SYSROOT/boot/system/develop/lib/pkgconfig" && ls | LC_ALL=C sort \
+		FORK_COMMIT=sdk-$(cd "$SYSLIBS/develop/lib/pkgconfig" && ls | LC_ALL=C sort \
 			| grep '\.pc$' | xargs cat | sha256sum | cut -c1-16)
 	else
 		FORK_COMMIT=$(fork_info "$name" commit)
