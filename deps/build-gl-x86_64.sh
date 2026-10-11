@@ -193,7 +193,7 @@ for name in libGL.so libEGL.so libOpenGL.so libGLESv2.so libGLdispatch.so; do
 	ln -sfn "../../lib/$name" "$overlay/develop/lib/$name"
 done
 mkdir -p "$OUT/$SDK_NAME"
-rsync -rlc --chmod=g+w --delete "$W/gl-overlay/" "$OUT/$SDK_NAME/"
+rsync -rlc --chmod=g+rwX --delete "$W/gl-overlay/" "$OUT/$SDK_NAME/"
 # The private Mesa for summit_webkit: every library libglvnd and Mesa install.
 private=$W/private
 rm -rf "$private"
@@ -203,6 +203,6 @@ ${CROSS}strip --strip-unneeded "$private"/lib/*.so*
 cp "$W/haikuports.json" "$private/haikuports.json"
 printf 'mesa %s\nlibglvnd %s\nhaiku %s\n' "$MESA_COMMIT" "$GLVND_COMMIT" "$HAIKU_REVISION" > "$private/gl-sources.txt"
 mkdir -p "$OUT/$SDK_NAME-mesa"
-rsync -rlc --chmod=g+w --delete "$private/" "$OUT/$SDK_NAME-mesa/"
+rsync -rlc --chmod=g+rwX --delete "$private/" "$OUT/$SDK_NAME-mesa/"
 ls "$OUT/$SDK_NAME-mesa/lib"
 echo "x86_64 GL stack built from mesa ${MESA_COMMIT:0:12}, libglvnd ${GLVND_COMMIT:0:12} (LLVM $llvm_version)"

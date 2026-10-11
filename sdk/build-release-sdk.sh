@@ -233,5 +233,5 @@ for name in sorted(os.listdir(develop)):
 PY
 # Packages carry 0755 directories; the server's trees belong to the group
 # (CI and people replace each other's).
-chmod -R g+w "$SDK"
+chmod -R g+rwX "$SDK"
 echo "SDK ready: $SDK ($VERSION; $(ls "$SDK/packages" | wc -l) packages)"

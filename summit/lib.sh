@@ -31,8 +31,8 @@ summit_sdk() {
 		local gl=()
 		[[ ! -d $AIROS_ROOT/gl/$SDK_NAME/boot ]] || gl=("$AIROS_ROOT/gl/$SDK_NAME/")
 		# group-writable, as the server's trees are (packages carry 0755)
-		rsync -rlc --chmod=g+w --delete "$SYSROOT/" "${gl[@]}" "$SUMMIT_ROOT/sysroot/"
-		rsync -rlc --chmod=g+w --delete "${CROSS%/bin/*}/" "$SUMMIT_ROOT/cross-tools/"
+		rsync -rlc --chmod=g+rwX --delete "$SYSROOT/" "${gl[@]}" "$SUMMIT_ROOT/sysroot/"
+		rsync -rlc --chmod=g+rwX --delete "${CROSS%/bin/*}/" "$SUMMIT_ROOT/cross-tools/"
 		cp "$UNWIND_SPECS" "$SUMMIT_ROOT/shared-unwinder.specs"
 		# The host rc and xres (WebKit's Haiku resources) with their libraries
 		# (a release SDK has its own copies: HOST_TOOLS).
