@@ -10,18 +10,27 @@
 #                                     the release: every package of its image,
 #                                     its haiku_devel, the private headers of
 #                                     its commit, and the HaikuPorts devel
-#                                     packages below
+#                                     packages below, whose link names lead
+#                                     to the image's own libraries
 #   $AIROS_SDK/ARCH-RELEASE/packages  the packages the sysroot was made from
 #                                     (haikuports.py reads their provides)
 #
 # Nothing comes from the air/OS fork except what does not end up in a
 # binary: the cross compiler (the same GCC as the release's gcc_syslibs) and
 # the host tools (package, rc, xres, mimeset, bfs_shell) of the ARCH SDK.
+# The compiler, rc and xres are copied into the SDK (cross-tools/,
+# host-tools/), so building against it does not wait for air/OS image
+# builds, which hold the ARCH SDK's lock; packaging still uses the ARCH SDK's
+# tools and attribute store under its lock.
 #
 # Whatever is in sysroot/boot/system/lib is on every installation of the
-# release, so the packaging scripts may leave it out of a package; the
-# HaikuPorts libraries added here (Scintilla, Lexilla) are the exception and
-# the packages that link them have to require them.
+# release, so a program links the release's libraries rather than carrying
+# its own copies (two copies of a library in one process clash: a system
+# add-on loaded there gets the program's older one). Only the devel parts of
+# HaikuPorts packages are added for those, whose headers may be a little
+# newer than the image's libraries: linking against the image's libraries
+# catches a symbol the release lacks. Scintilla and Lexilla, which the image
+# lacks, are added whole; packages that link them have to require them.
 #
 # The image's packages come from the release's ISO, checked against its
 # published SHA-256, haiku_devel from the release's build in the Haiku
@@ -47,9 +56,12 @@ case $ARCH-$RELEASE in
 esac
 HAIKU_REPO_URL=https://eu.hpkg.haiku-os.org/haiku/$RELEASE/$ARCH/$VERSION
 UPSTREAM=${HAIKU_UPSTREAM:-https://github.com/haiku/haiku.git}
-# Devel packages for what the image already has, and two libraries it lacks.
-HAIKUPORTS=(gcc_syslibs_devel zlib_devel curl_devel openssl3_devel
-	scintilla scintilla_devel lexilla lexilla_devel)
+# Devel packages for libraries the image has (the ones Summit's engine and
+# browser use), and two libraries it lacks.
+HAIKUPORTS=(gcc_syslibs_devel zlib_devel curl_devel openssl3_devel nghttp2_devel libpsl_devel
+	sqlite_devel libxml2_devel libxslt_devel libjpeg_turbo_devel libpng16_devel libwebp_devel
+	lcms_devel brotli_devel woff2_devel freetype_devel expat_devel fontconfig_devel harfbuzz_devel
+	libexecinfo_devel scintilla scintilla_devel lexilla lexilla_devel)
 
 if [[ ${AIROS_LOCKED:-} != haiku-$NAME ]]; then
 	exec env AIROS_LOCKED=haiku-$NAME flock "$AIROS_LOCKS/haiku-$NAME.lock" "$0" "$@"
@@ -146,10 +158,21 @@ rm -f "$root/.PackageInfo"
 mkdir -p "$root/develop/headers"
 cp -a "$src/headers/private" "$root/develop/headers/"
 printf '*libgcc:\n-lgcc_s -lgcc\n\n' > "$new/shared-unwinder.specs"
+# The compiler, and the host rc and xres with their libraries.
+rsync -rl "${BASE_CROSS%/bin/*}/" "$new/cross-tools/"
+mkdir -p "$new/host-tools/bin" "$new/host-tools/lib"
+cp -L "$TOOLS/rc/rc" "$TOOLS/xres" "$new/host-tools/bin/"
+for lib in $(ldd "$TOOLS/rc/rc" "$TOOLS/xres" | awk '$3 ~ /objects\/linux\/lib/ {print $3}' | sort -u); do
+	cp -L "$lib" "$new/host-tools/lib/"
+done
+for tool in "$new"/host-tools/bin/*; do
+	patchelf --set-rpath '$ORIGIN/../lib' "$tool"
+done
 cat > "$new/env.sh" <<EOF
 # Haiku $RELEASE $ARCH cross SDK (stock Haiku, not air/OS): the image of
 # $VERSION ($COMMIT), made by airos-ci sdk/build-release-sdk.sh.
-# Compiler and host tools are those of the air/OS $ARCH SDK.
+# Compiler (CROSS) and host rc and xres (HOST_TOOLS) are copies of the air/OS
+# $ARCH SDK's; TOOLS, ATTRS and MIMEDB are that SDK's (use them under its lock).
 AIROS_ARCH=$ARCH
 AIROS_SDK_NAME=$NAME
 HAIKU_RELEASE=$RELEASE
@@ -157,7 +180,8 @@ HAIKU_REVISION=$VERSION
 HAIKU_SHA=$COMMIT
 HAIKU_BUILD=$HAIKU_BUILD
 HAIKU_PACKAGES=$SDK/packages
-CROSS=$BASE_CROSS
+CROSS=$SDK/cross-tools/bin/$TRIPLET-
+HOST_TOOLS=$SDK/host-tools
 TRIPLET=$TRIPLET
 SYSROOT=$SDK/sysroot
 TOOLS=$BASE_TOOLS
@@ -184,4 +208,30 @@ while IFS= read -r -d '' link; do
 	[[ $target == /boot/system/* ]] \
 		&& ln -sfn "$(realpath -m --relative-to="$(dirname "$link")" "$SDK/sysroot$target")" "$link"
 done < <(find "$SDK/sysroot/boot/system" -type l -print0)
+# A devel package of a newer HaikuPorts build names its own library file
+# (libharfbuzz.so.0.61451.0); the image has an older one of the same soname.
+python3 - "$SDK/sysroot/boot/system" <<'PY'
+import os, sys
+system = sys.argv[1]
+lib, develop = os.path.join(system, "lib"), os.path.join(system, "develop", "lib")
+for name in sorted(os.listdir(develop)):
+    link = os.path.join(develop, name)
+    if not os.path.islink(link) or os.path.exists(link):
+        continue
+    target = os.path.basename(os.readlink(link))
+    stem = target[:target.index(".so") + 3] if ".so" in target else target
+    files = [f for f in os.listdir(lib) if f.startswith(stem + ".")
+             and not os.path.islink(os.path.join(lib, f))]
+    if len(files) != 1:
+        # left dangling (gcc_syslibs_devel's libsupc++.so is): a program that
+        # needs it fails to link
+        print(f"warning: {name} names {target}; the image has {files or 'no ' + stem}")
+        continue
+    os.remove(link)
+    os.symlink(os.path.relpath(os.path.join(lib, files[0]), develop), link)
+    print(f"{name} -> the image's {files[0]}")
+PY
+# Packages carry 0755 directories; the server's trees belong to the group
+# (CI and people replace each other's).
+chmod -R g+w "$SDK"
 echo "SDK ready: $SDK ($VERSION; $(ls "$SDK/packages" | wc -l) packages)"

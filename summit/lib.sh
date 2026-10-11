@@ -24,28 +24,32 @@ summit_sdk() {
 	mkdir -p "$SUMMIT_ROOT"
 	(
 		flock -s 9
-		# a release SDK's compiler and host tools are the air/OS SDK's
-		flock -s 8
 		[[ -f $AIROS_SDK/$SDK_NAME/env.sh ]] || die "no $SDK_NAME SDK; run sdk/build-sdk.sh $ARCH" \
 			"(for a Haiku release: sdk/build-release-sdk.sh $ARCH ${AIROS_TARGET:-})"
 		. "$AIROS_SDK/$SDK_NAME/env.sh"
 		# with the GL stack (deps/build-gl.sh) laid over it
 		local gl=()
 		[[ ! -d $AIROS_ROOT/gl/$SDK_NAME/boot ]] || gl=("$AIROS_ROOT/gl/$SDK_NAME/")
-		rsync -rlc --delete "$SYSROOT/" "${gl[@]}" "$SUMMIT_ROOT/sysroot/"
-		rsync -rlc --delete "${CROSS%/bin/*}/" "$SUMMIT_ROOT/cross-tools/"
+		# group-writable, as the server's trees are (packages carry 0755)
+		rsync -rlc --chmod=g+w --delete "$SYSROOT/" "${gl[@]}" "$SUMMIT_ROOT/sysroot/"
+		rsync -rlc --chmod=g+w --delete "${CROSS%/bin/*}/" "$SUMMIT_ROOT/cross-tools/"
 		cp "$UNWIND_SPECS" "$SUMMIT_ROOT/shared-unwinder.specs"
-		# The host rc and xres (WebKit's Haiku resources) with their libraries.
+		# The host rc and xres (WebKit's Haiku resources) with their libraries
+		# (a release SDK has its own copies: HOST_TOOLS).
 		local tools=$SUMMIT_ROOT/host-tools.new tool lib
 		rm -rf "$tools"
-		mkdir -p "$tools/bin" "$tools/lib"
-		cp -L "$TOOLS/rc/rc" "$TOOLS/xres" "$tools/bin/"
-		for lib in $(ldd "$TOOLS/rc/rc" "$TOOLS/xres" | awk '$3 ~ /objects\/linux\/lib/ {print $3}' | sort -u); do
-			cp -L "$lib" "$tools/lib/"
-		done
-		for tool in "$tools"/bin/*; do
-			patchelf --set-rpath '$ORIGIN/../lib' "$tool"
-		done
+		if [[ -n ${HOST_TOOLS:-} ]]; then
+			cp -a "$HOST_TOOLS" "$tools"
+		else
+			mkdir -p "$tools/bin" "$tools/lib"
+			cp -L "$TOOLS/rc/rc" "$TOOLS/xres" "$tools/bin/"
+			for lib in $(ldd "$TOOLS/rc/rc" "$TOOLS/xres" | awk '$3 ~ /objects\/linux\/lib/ {print $3}' | sort -u); do
+				cp -L "$lib" "$tools/lib/"
+			done
+			for tool in "$tools"/bin/*; do
+				patchelf --set-rpath '$ORIGIN/../lib' "$tool"
+			done
+		fi
 		rsync -rlc --delete "$tools/" "$SUMMIT_ROOT/host-tools/"
 		rm -rf "$tools"
 		cat > "$SUMMIT_ROOT/sdk-env.sh" <<EOF
@@ -58,7 +62,7 @@ CROSS=$SUMMIT_ROOT/cross-tools/bin/$TRIPLET-
 SYSROOT=$SUMMIT_ROOT/sysroot
 UNWIND_SPECS=$SUMMIT_ROOT/shared-unwinder.specs
 EOF
-	) 9>"$AIROS_LOCKS/haiku-$SDK_NAME.lock" 8>"$AIROS_LOCKS/haiku-$ARCH.lock"
+	) 9>"$AIROS_LOCKS/haiku-$SDK_NAME.lock"
 	. "$SUMMIT_ROOT/sdk-env.sh"
 	# A release has no air/OS dependency prefix: only its sysroot.
 	if [[ $SDK_NAME == "$ARCH" ]]; then

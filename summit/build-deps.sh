@@ -14,6 +14,12 @@
 #   libzip, ICU 78.3, and for GL compositing FreeType, Expat, Fontconfig,
 #   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh).
 #
+# For a Haiku release (AIROS_TARGET=r1beta6) only ICU 78, libzip and libepoxy
+# are built: the release has the others, and the engine links those instead
+# of carrying copies (a system add-on in the same process, such as the Media
+# Kit's FFmpeg reader with libass and Fontconfig, would get the engine's
+# older copy and fail to load). Their pkg-config files go into the prefix.
+#
 # Every library gets a GNU hash table and binds its own functions at link time
 # (Haiku's runtime_loader resolves every symbol at load; on the Pi the SysV
 # hash chains cost seconds of start-up).
@@ -216,6 +222,18 @@ r_harfbuzz() {
 	cm -DHB_HAVE_FREETYPE=ON -DHB_HAVE_ICU=ON -DHB_BUILD_UTILS=OFF -DHB_BUILD_SUBSET=OFF \
 		-DHB_HAVE_GLIB=OFF
 }
+r_system() { # a Haiku release's own libraries: their pkg-config files, for the sysroot
+	local dir=$SYSROOT/boot/system/develop/lib/pkgconfig name
+	for name in openssl libssl libcrypto libnghttp2 libpsl libcurl sqlite3 libxml-2.0 libxslt libexslt \
+			libjpeg libpng libpng16 libwebp libwebpdemux libwebpmux libsharpyuv lcms2 \
+			libbrotlicommon libbrotlidec libbrotlienc libwoff2common libwoff2dec freetype2 expat \
+			fontconfig harfbuzz harfbuzz-icu; do
+		[[ -f $dir/$name.pc ]] || die "the $SDK_NAME SDK has no $name.pc (sdk/build-release-sdk.sh)"
+		# HaikuPorts' files name the package's own directory
+		sed -e "s|^prefix=.*|prefix=$SYSROOT/boot/system|" -e "s|/boot/system/|$SYSROOT/boot/system/|g" \
+			"$dir/$name.pc" > "$P/lib/pkgconfig/$name.pc"
+	done
+}
 r_libepoxy() {
 	# EGL and GLES come from the GL stack laid over the SDK snapshot
 	# (deps/build-gl.sh, summit/lib.sh); pkg-config files for it, which the
@@ -259,14 +277,20 @@ EOF
 	ninja -C _b install
 }
 
-ORDER=(zlib openssl nghttp2 libpsl curl sqlite libxml2 libxslt libjpeg-turbo libpng libwebp
-	lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy)
+if [[ $SDK_NAME == "$ARCH" ]]; then
+	ORDER=(zlib openssl nghttp2 libpsl curl sqlite libxml2 libxslt libjpeg-turbo libpng libwebp
+		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy)
+else
+	ORDER=(zlib system libzip icu libepoxy)
+fi
 
 chain=$(sha256sum "$UNWIND_SPECS" | cut -c1-16)
 for name in "${ORDER[@]}"; do
 	fn=r_${name//-/_}
 	if [[ $name == zlib ]]; then
 		FORK_COMMIT=sdk-$(sha256sum "$SYSROOT/boot/system/develop/headers/zlib.h" | cut -c1-16)
+	elif [[ $name == system ]]; then
+		FORK_COMMIT=sdk-$(cat "$SYSROOT"/boot/system/develop/lib/pkgconfig/*.pc | sha256sum | cut -c1-16)
 	else
 		FORK_COMMIT=$(fork_info "$name" commit)
 	fi
@@ -278,7 +302,7 @@ for name in "${ORDER[@]}"; do
 	fi
 	note "$name"
 	src=$W/src/$name
-	[[ $name == zlib ]] || fork_checkout "$name" "$src"
+	[[ $name == zlib || $name == system ]] || fork_checkout "$name" "$src"
 	mkdir -p "$src"
 	# Not "( ... ) || die": bash ignores set -e inside a subshell that is
 	# the left side of ||, and a failing step would go unnoticed.

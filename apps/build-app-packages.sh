@@ -859,6 +859,16 @@ build_summit_webkit() {
 		cp "$SUMMIT_MESA/gl-sources.txt" "$SUMMIT_MESA/haikuports.json" "$work/" 2>/dev/null || true
 		mesa_requires=$'\tlib:libllvm >= 21\n\tlib:libvulkan >= 1'
 	fi
+	# A Haiku release: the libraries the engine links from the release, at
+	# the release's versions.
+	local system_requires=""
+	if [[ $SDK_NAME != "$ARCH" ]]; then
+		system_requires=$(python3 "$AIROS_CI/apps/release-requires.py" "$TOOLS/package/package" \
+			"$HAIKU_PACKAGES" --skip "$STAGE/$engine/lib" --skip "$STAGE/$engine/mesa/lib" \
+			"$STAGE/$engine/WebProcess" "$STAGE/$engine/NetworkProcess" \
+			$(find "$STAGE/$engine/lib" "$STAGE/$engine/mesa/lib" -name '*.so*' -type f 2>/dev/null) \
+			| sed 's/^/\t/')
+	fi
 	# Fontconfig's configuration, where the engine's Fontconfig looks for it.
 	if [[ -d $SUMMIT_LIBS/etc/fonts ]]; then
 		mkdir -p "$STAGE/$engine/etc"
@@ -902,6 +912,7 @@ provides {
 requires {
 	$SUMMIT_HAIKU_REQUIRES
 $mesa_requires
+$system_requires
 }
 INFO
 	DROPPED="(none)"
@@ -981,8 +992,11 @@ done
 SH
 		chmod 755 "$STAGE/boot/post-install/summit-default-browser.sh"
 	else
-		# The developer tools' text views; a stock installation lacks them.
-		browser_requires=$'\tlib:libscintilla\n\tlib:liblexilla'
+		# What it links from the release and from HaikuPorts (Scintilla and
+		# Lexilla, for the developer tools' text views), not the engine's.
+		browser_requires=$(python3 "$AIROS_CI/apps/release-requires.py" "$TOOLS/package/package" \
+			"$HAIKU_PACKAGES" --skip "$SUMMIT_ENGINE_BUILD/lib" --skip "$SUMMIT_LIBS/lib" \
+			"$BUILDDIR/Summit" | sed 's/^/\t/')
 	fi
 	cat > "$STAGE/.PackageInfo" <<INFO
 name			summit

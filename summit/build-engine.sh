@@ -44,6 +44,9 @@ TC=$SUMMIT_ROOT/toolchain.cmake
 [[ -f $TC && -f $P/lib/pkgconfig/icu-uc.pc ]] || die "no Summit libraries for $SDK_NAME; run summit/build-deps.sh $ARCH"
 SRC=$AIROS_SRC/webkit-$SDK_NAME
 B=$AIROS_BUILD/webkit-$SDK_NAME
+# The trees are shared by the build server's users (group airos, setgid
+# directories): git works in the source tree whoever made it.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=$SRC
 mem_gb=$(awk '/MemTotal/ {print int($2 / 1048576)}' /proc/meminfo)
 jobs=$(( mem_gb * 2 / 5 ))
 (( jobs <= $(nproc) )) || jobs=$(nproc)
@@ -51,16 +54,21 @@ JOBS=${ENGINE_JOBS:-$jobs}
 summit_commit=$(git -C "$SUMMIT_DIR" rev-parse HEAD)
 
 note "backtrace() shim"
-# WebCore links libexecinfo; Haiku has no backtrace().
+# WebCore links libexecinfo; Haiku has no backtrace(). (A Haiku release's
+# image has HaikuPorts' libexecinfo, and the engine links that.)
 x=$SUMMIT_DIR/engine/arm64/execinfo
-${CROSS}gcc --sysroot="$SYSROOT" -O2 -fPIC -shared "$x/execinfo.c" -o "$P/lib/libexecinfo.so.1.1.new" \
-	-Wl,-soname,libexecinfo.so.1 -Wl,--hash-style=both -Wl,-Bsymbolic-functions
-# replaced only when it changed, so the engine does not relink for nothing
-cmp -s "$P/lib/libexecinfo.so.1.1.new" "$P/lib/libexecinfo.so.1.1" \
-	&& rm "$P/lib/libexecinfo.so.1.1.new" || mv "$P/lib/libexecinfo.so.1.1.new" "$P/lib/libexecinfo.so.1.1"
-ln -sfn libexecinfo.so.1.1 "$P/lib/libexecinfo.so.1"
-ln -sfn libexecinfo.so.1 "$P/lib/libexecinfo.so"
-cmp -s "$x/execinfo.h" "$P/include/execinfo.h" || cp "$x/execinfo.h" "$P/include/"
+if [[ $SDK_NAME == "$ARCH" ]]; then
+	${CROSS}gcc --sysroot="$SYSROOT" -O2 -fPIC -shared "$x/execinfo.c" -o "$P/lib/libexecinfo.so.1.1.new" \
+		-Wl,-soname,libexecinfo.so.1 -Wl,--hash-style=both -Wl,-Bsymbolic-functions
+	# replaced only when it changed, so the engine does not relink for nothing
+	cmp -s "$P/lib/libexecinfo.so.1.1.new" "$P/lib/libexecinfo.so.1.1" \
+		&& rm "$P/lib/libexecinfo.so.1.1.new" || mv "$P/lib/libexecinfo.so.1.1.new" "$P/lib/libexecinfo.so.1.1"
+	ln -sfn libexecinfo.so.1.1 "$P/lib/libexecinfo.so.1"
+	ln -sfn libexecinfo.so.1 "$P/lib/libexecinfo.so"
+	cmp -s "$x/execinfo.h" "$P/include/execinfo.h" || cp "$x/execinfo.h" "$P/include/"
+else
+	rm -f "$P"/lib/libexecinfo.so* "$P/include/execinfo.h"
+fi
 
 note "source"
 base=$(json "$SUMMIT_DIR/engine/sources.lock.json" 'd["upstream"]["commit"]')
