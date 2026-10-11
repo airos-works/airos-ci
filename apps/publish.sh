@@ -114,15 +114,16 @@ if git diff --quiet -- "$README"; then
 	echo "README unchanged"
 	exit 0
 fi
-git -c user.name="air/OS CI" -c user.email="airos-ci@users.noreply.github.com" \
-	commit -q -m "README: $COMMIT_TEXT ($short) [skip ci]" -- "$README"
+# The rebase below makes commits too.
+ci_git() { git -c user.name="air/OS CI" -c user.email="airos-ci@users.noreply.github.com" "$@"; }
+ci_git commit -q -m "README: $COMMIT_TEXT ($short) [skip ci]" -- "$README"
 for attempt in 1 2 3 4 5; do
 	if git push -q origin "HEAD:$GITHUB_REF_NAME"; then
 		echo "README pushed"
 		exit 0
 	fi
 	# Someone pushed meanwhile: put the README commit on top and retry.
-	git fetch -q origin "$GITHUB_REF_NAME" && git rebase -q FETCH_HEAD
+	git fetch -q origin "$GITHUB_REF_NAME" && ci_git rebase -q FETCH_HEAD
 	sleep $((attempt * 2))
 done
 die "could not push the README update"
