@@ -231,7 +231,9 @@ for name in sorted(os.listdir(develop)):
     os.symlink(os.path.relpath(os.path.join(lib, files[0]), develop), link)
     print(f"{name} -> the image's {files[0]}")
 PY
-# Packages carry 0755 directories; the server's trees belong to the group
-# (CI and people replace each other's).
+# The server's trees belong to the group (CI and people replace each
+# other's), but packages carry 0755 directories and 0700 ones, and the
+# package tool gives what it extracts the user's own group.
+chgrp -R -h "$(stat -c %G "$AIROS_SDK")" "$SDK"
 chmod -R g+rwX "$SDK"
 echo "SDK ready: $SDK ($VERSION; $(ls "$SDK/packages" | wc -l) packages)"
