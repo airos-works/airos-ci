@@ -38,10 +38,10 @@ on:
         type: string
         default: ''
       haiku-releases:
-        description: space-separated stock Haiku releases to build for as well (x86_64 only; r1beta6)
+        description: space-separated stock Haiku releases to build for as well (x86_64 only; empty for none)
         required: false
         type: string
-        default: ''
+        default: r1beta6
       airos-ci-ref:
         description: airos-ci revision with the build scripts
         required: false
