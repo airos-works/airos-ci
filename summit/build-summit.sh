@@ -55,7 +55,7 @@ DEPS=${DEPS:-$AIROS_ROOT/deps/$ARCH/boot/system}
 # x86_64: the image's libraries the engine links (summit/lib.sh SYSLIBS) that
 # DEPS lacks, for the linker of programs that link the engine; DEPS's own
 # are left alone.
-syslibs=$AIROS_ROOT/summit/$ARCH/system/lib
+syslibs=$AIROS_ROOT/summit/$ARCH/system/boot/system/lib
 with_lock "haiku-$ARCH" bash -c '
 	set -e
 	rm -rf "$1/lib/summit-webkit" "$1/develop/headers/summit-webkit"

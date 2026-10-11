@@ -150,15 +150,16 @@ note "configure"
 private=$SYSROOT/boot/system/develop/headers/private
 export CPATH=$private/netservices:$private/libroot:$private/shared:$private/system:$private/system/arch
 export PKG_CONFIG_LIBDIR=$P/lib/pkgconfig PKG_CONFIG_PATH= PKG_CONFIG_SYSROOT_DIR=
-# CMake keeps what it found; when a library it found in the prefix is gone
-# (summit/build-deps.sh started the prefix again, as for the x86_64 engine
-# linking the image's libraries) it would not look again: configure afresh.
+# CMake keeps what it found; when a library it found in the prefix or in the
+# staged image libraries is gone (summit/build-deps.sh started the prefix
+# again, as for the x86_64 engine linking the image's libraries) it would not
+# look again: configure afresh.
 stale_cache() {
 	local file
 	[[ -f $B/CMakeCache.txt ]] || return 1
 	while read -r file; do
 		[[ -e $file ]] || { echo "$file is gone"; return 0; }
-	done < <(sed -n "s#^[A-Za-z0-9_-]*:\(FILEPATH\|PATH\)=\($P/.*\)#\2#p" "$B/CMakeCache.txt")
+	done < <(sed -n "s#^[A-Za-z0-9_-]*:\(FILEPATH\|PATH\)=\($SUMMIT_ROOT/.*\)#\2#p" "$B/CMakeCache.txt")
 	return 1
 }
 if stale_cache; then

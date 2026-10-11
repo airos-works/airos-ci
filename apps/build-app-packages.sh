@@ -744,7 +744,7 @@ if [[ $ARCH != x86_64 ]]; then
 	SUMMIT_SYSLIBS=
 	SUMMIT_SYSLIBS_PACKAGES=
 elif [[ $SDK_NAME == "$ARCH" ]]; then
-	SUMMIT_SYSLIBS=$AIROS_ROOT/summit/$SDK_NAME/system
+	SUMMIT_SYSLIBS=$AIROS_ROOT/summit/$SDK_NAME/system/boot/system
 	SUMMIT_SYSLIBS_PACKAGES=$SUMMIT_SYSLIBS/packages
 else
 	SUMMIT_SYSLIBS=$SYSROOT/boot/system

@@ -26,7 +26,8 @@
 # Fontconfig 2.15 it did not load at all (no video). A Haiku release's SDK
 # has these libraries in its sysroot; for air/OS, summit_sdk stages them from
 # the packages the image is made of ($HAIKU_BUILD/download) into
-# $SUMMIT_ROOT/system. Empty for arm64, whose images have no HaikuPorts: the
+# $SUMMIT_ROOT/system/boot/system (a root of its own, so CMake's Haiku search
+# paths work there as in the sysroot). Empty for arm64, whose images have no HaikuPorts: the
 # engine carries the jmgasper forks' builds, as the images' airos_* packages.
 
 SDK_NAME=$(sdk_name "$ARCH")
@@ -36,7 +37,7 @@ SUMMIT_SYSTEM_LIBS=(brotli curl expat fontconfig freetype harfbuzz lcms libexeci
 if [[ $ARCH != x86_64 ]]; then
 	SYSLIBS=
 elif [[ $SDK_NAME == "$ARCH" ]]; then
-	SYSLIBS=$SUMMIT_ROOT/system
+	SYSLIBS=$SUMMIT_ROOT/system/boot/system
 else
 	SYSLIBS=$SUMMIT_ROOT/sysroot/boot/system
 fi
@@ -76,13 +77,15 @@ summit_sdk() {
 		# x86_64 air/OS: the image's libraries (SYSLIBS), by content too.
 		if [[ $ARCH == x86_64 && $SDK_NAME == "$ARCH" ]]; then
 			[[ -d $HAIKU_BUILD/download ]] || die "no $HAIKU_BUILD/download: the image's packages"
+			local staged=$SUMMIT_ROOT/system.new log=$SUMMIT_ROOT/system.log
+			rm -rf "$staged"
 			python3 "$AIROS_CI/lib/stage-image-libs.py" "$TOOLS/package/package" "$HAIKU_BUILD/download" \
-				"$SYSROOT/boot/system" "$SYSLIBS.new" "$ARCH" "${SUMMIT_SYSTEM_LIBS[@]}" > "$SYSLIBS.log" \
-				|| { tail -20 "$SYSLIBS.log"; die "staging the image's libraries failed (log: $SYSLIBS.log)"; }
-			chgrp -R -h "$(stat -c %G "$SUMMIT_ROOT")" "$SYSLIBS.new"
-			rsync -rlc --chmod=g+rwX --delete "$SYSLIBS.new/" "$SYSLIBS/"
-			rm -rf "$SYSLIBS.new"
-			tail -1 "$SYSLIBS.log"
+				"$SYSROOT/boot/system" "$staged/boot/system" "$ARCH" "${SUMMIT_SYSTEM_LIBS[@]}" > "$log" \
+				|| { tail -20 "$log"; die "staging the image's libraries failed (log: $log)"; }
+			chgrp -R -h "$(stat -c %G "$SUMMIT_ROOT")" "$staged"
+			rsync -rlc --chmod=g+rwX --delete "$staged/" "$SUMMIT_ROOT/system/"
+			rm -rf "$staged"
+			tail -1 "$log"
 		fi
 		cat > "$SUMMIT_ROOT/sdk-env.sh" <<EOF
 # snapshot of $AIROS_SDK/$SDK_NAME, made by summit/lib.sh
