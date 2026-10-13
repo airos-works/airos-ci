@@ -57,6 +57,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - Every image includes the CA root certificate package for HTTPS. ARM64
   images stage an architecture-neutral copy using zlib compression so the
   trust store also works with bootstrap package readers.
+- Every image has the system fonts: HaikuPorts' `noto` (Noto Sans, the
+  default UI font, and Noto Sans Mono, the default fixed font) and
+  `noto_sans_cjk_jp`. Haiku's arm64 repository has only a 2017 bootstrap
+  `noto` without Noto Sans Mono, so ARM64 images stage zlib copies of the
+  current packages instead and the bootstrap one stays out.
 - x86_64: HaikuPorts' packages for what the applications need. The x86_64
   `summit_webkit` carries a private Mesa with EGL (llvmpipe, zink), which
   needs HaikuPorts' LLVM 21 and Vulkan loader.

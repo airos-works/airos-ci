@@ -91,7 +91,7 @@ fi
 
 WORK=$AIROS_WORK/image-$TARGET
 rm -rf "$WORK"
-mkdir -p "$WORK"/{packages,libs,egl,demos,firmware,add-ons}
+mkdir -p "$WORK"/{packages,fonts,libs,egl,demos,firmware,add-ons}
 
 # 2. The inputs.
 note "inputs"
@@ -131,11 +131,24 @@ else
 		"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 ca_root_certificates)
 	[[ -f $ca_source && $ca_source == *-any.hpkg ]] \
 		|| die "expected one architecture-neutral CA certificate package"
-	ca_package_tool=$HAIKU_BUILD/objects/linux/x86_64/release/tools/package/package
+	package_tool=$HAIKU_BUILD/objects/linux/x86_64/release/tools/package/package
 	# The architecture-neutral pool may already contain an older bundle.
 	rm -f "$WORK/packages/"ca_root_certificates-*-any.hpkg
-	"$ca_package_tool" recompress -q -z zlib "$ca_source" \
+	"$package_tool" recompress -q -z zlib "$ca_source" \
 		"$WORK/packages/$(basename "$ca_source")"
+	# The system fonts. app_server defaults to Noto Sans and, for the fixed
+	# font, Noto Sans Mono; x86_64 images carry HaikuPorts' noto and the CJK
+	# fallback noto_sans_cjk_jp. The arm64 repository has only the bootstrap
+	# noto (2017, without Noto Sans Mono), with which the fixed font falls back
+	# to a proportional serif. Recompressed like the CA bundle, they go in as
+	# system packages of their own (AIROS_CI_FONTS): they satisfy the haiku
+	# package's noto requirement, so jam leaves the bootstrap noto out.
+	for source in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+			"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 noto noto_sans_cjk_jp); do
+		[[ $source == *-any.hpkg ]] || die "$source is not architecture-neutral"
+		"$package_tool" recompress -q -z zlib "$source" "$WORK/fonts/$(basename "$source")"
+	done
+	[[ $(ls "$WORK/fonts" | wc -l) == 2 ]] || die "expected the noto and noto_sans_cjk_jp packages"
 fi
 # GL stack, EGL vendor files, demos, firmware and add-ons staged by the deps
 # builds.
@@ -167,7 +180,7 @@ if [[ $ARCH == x86_64 ]]; then
 	cp -a "$gl/amdgpu/userland" "$WORK/amdgpu"
 fi
 rpi_firmware=$gl/rpi-firmware
-ls -1 "$WORK/packages"
+ls -1 "$WORK/packages" "$WORK/fonts"
 [[ ${#missing[@]} -eq 0 ]] || echo "warning: not in the package pool yet: ${missing[*]}" >&2
 
 # 3. + 4. The image.
@@ -183,6 +196,7 @@ fi
 {
 	echo "# written by airos-ci images/build-image.sh"
 	echo "AIROS_CI_PACKAGES = $WORK/packages ;"
+	[[ -z $(ls "$WORK/fonts") ]] || echo "AIROS_CI_FONTS = $WORK/fonts ;"
 	[[ -z $(ls "$WORK/libs") ]] || echo "AIROS_CI_LIBS = $WORK/libs ;"
 	[[ -z $(ls "$WORK/egl") ]] || echo "AIROS_CI_EGL = $WORK/egl ;"
 	[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_DEMOS = $WORK/demos ;"
@@ -214,10 +228,11 @@ xz -T0 -6 -c "$BUILD/$IMAGE" > "$dest/$IMAGE.xz"
 ( cd "$dest" && sha256sum "$IMAGE.xz" > "$IMAGE.xz.sha256" )
 image_sha=$(sha256sum "$BUILD/$IMAGE" | cut -d' ' -f1)
 python3 - "$dest/manifest.json" "$TARGET" "$IMAGE" "$size" "$image_sha" "$HAIKU_REVISION" \
-	"$HAIKU_SHA" "$WORK/packages" "$gl" <<'EOF'
+	"$HAIKU_SHA" "$WORK/packages" "$gl" "$WORK/fonts" <<'EOF'
 import glob, hashlib, json, os, sys, datetime
-out, target, image, size, sha, rev, haiku_sha, pkgdir, inputs = sys.argv[1:10]
-pkgs = sorted(os.listdir(pkgdir))
+out, target, image, size, sha, rev, haiku_sha, pkgdir, inputs, fontdir = sys.argv[1:11]
+pkgs = sorted((os.path.join(d, p) for d in (pkgdir, fontdir) for p in os.listdir(d)),
+              key=os.path.basename)
 # What the files outside packages were built from (the *-sources.txt the deps
 # builds leave with them: GL stacks, NVIDIA, NVK, Zink).
 sources = {}
@@ -230,7 +245,7 @@ json.dump({
     "target": target, "image": image, "image_bytes": int(size), "image_sha256": sha,
     "built": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     "haiku": {"repository": "https://github.com/jmgasper/haiku", "revision": rev, "commit": haiku_sha},
-    "packages": [{"file": p, "sha256": hashlib.sha256(open(os.path.join(pkgdir, p), "rb").read()).hexdigest()}
+    "packages": [{"file": os.path.basename(p), "sha256": hashlib.sha256(open(p, "rb").read()).hexdigest()}
                  for p in pkgs],
 }, open(out, "w"), indent=1)
 EOF
