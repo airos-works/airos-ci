@@ -82,6 +82,13 @@ if [[ $TARGET == x86_64 ]]; then
 	build_stage "AMD driver" "amdgpu_drm, amdgpu firmware"
 	"$AIROS_CI/deps/build-amdgpu.sh"
 fi
+# arm64: FreeType for app_server, which Haiku's arm64 repository has only as
+# the bootstrap 2.6.3 (deps/recipes/freetype.sh, under this build's lock;
+# nothing to do while the fork pin and the recipe stay the same).
+if [[ $ARCH == arm64 ]]; then
+	build_stage "FreeType" "deps/recipes/freetype.sh"
+	"$AIROS_CI/deps/build-deps.sh" arm64 freetype
+fi
 
 BUILD=$HAIKU_BUILD
 if [[ $TARGET == rpi4 ]]; then
@@ -91,7 +98,7 @@ fi
 
 WORK=$AIROS_WORK/image-$TARGET
 rm -rf "$WORK"
-mkdir -p "$WORK"/{packages,fonts,libs,egl,demos,firmware,add-ons}
+mkdir -p "$WORK"/{packages,fonts,freetype,libs,egl,demos,firmware,add-ons}
 
 # 2. The inputs.
 note "inputs"
@@ -149,6 +156,14 @@ else
 		"$package_tool" recompress -q -z zlib "$source" "$WORK/fonts/$(basename "$source")"
 	done
 	[[ $(ls "$WORK/fonts" | wc -l) == 2 ]] || die "expected the noto and noto_sans_cjk_jp packages"
+	# FreeType (above) as HAIKU_ARM64_FREETYPE_PACKAGES_DIR: the tree's
+	# BuildFeatures compiles Haiku against freetype_devel and its Jamfile puts
+	# the freetype package in the image instead of the bootstrap one.
+	for name in freetype freetype_devel; do
+		file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/freetype.sh)"
+		cp "$file" "$WORK/freetype/"
+	done
 fi
 # GL stack, EGL vendor files, demos, firmware and add-ons staged by the deps
 # builds.
@@ -180,7 +195,7 @@ if [[ $ARCH == x86_64 ]]; then
 	cp -a "$gl/amdgpu/userland" "$WORK/amdgpu"
 fi
 rpi_firmware=$gl/rpi-firmware
-ls -1 "$WORK/packages" "$WORK/fonts"
+ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype"
 [[ ${#missing[@]} -eq 0 ]] || echo "warning: not in the package pool yet: ${missing[*]}" >&2
 
 # 3. + 4. The image.
@@ -197,6 +212,7 @@ fi
 	echo "# written by airos-ci images/build-image.sh"
 	echo "AIROS_CI_PACKAGES = $WORK/packages ;"
 	[[ -z $(ls "$WORK/fonts") ]] || echo "AIROS_CI_FONTS = $WORK/fonts ;"
+	[[ -z $(ls "$WORK/freetype") ]] || echo "HAIKU_ARM64_FREETYPE_PACKAGES_DIR = $WORK/freetype ;"
 	[[ -z $(ls "$WORK/libs") ]] || echo "AIROS_CI_LIBS = $WORK/libs ;"
 	[[ -z $(ls "$WORK/egl") ]] || echo "AIROS_CI_EGL = $WORK/egl ;"
 	[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_DEMOS = $WORK/demos ;"
@@ -228,11 +244,13 @@ xz -T0 -6 -c "$BUILD/$IMAGE" > "$dest/$IMAGE.xz"
 ( cd "$dest" && sha256sum "$IMAGE.xz" > "$IMAGE.xz.sha256" )
 image_sha=$(sha256sum "$BUILD/$IMAGE" | cut -d' ' -f1)
 python3 - "$dest/manifest.json" "$TARGET" "$IMAGE" "$size" "$image_sha" "$HAIKU_REVISION" \
-	"$HAIKU_SHA" "$WORK/packages" "$gl" "$WORK/fonts" <<'EOF'
+	"$HAIKU_SHA" "$WORK/packages" "$gl" "$WORK/fonts" "$WORK/freetype" <<'EOF'
 import glob, hashlib, json, os, sys, datetime
-out, target, image, size, sha, rev, haiku_sha, pkgdir, inputs, fontdir = sys.argv[1:11]
-pkgs = sorted((os.path.join(d, p) for d in (pkgdir, fontdir) for p in os.listdir(d)),
-              key=os.path.basename)
+out, target, image, size, sha, rev, haiku_sha, pkgdir, inputs = sys.argv[1:10]
+# The packages CI put in the image: AIROS_CI_PACKAGES, the fonts and FreeType
+# (whose _devel package only builds Haiku).
+pkgs = sorted((os.path.join(d, p) for d in [pkgdir] + sys.argv[10:] for p in os.listdir(d)
+               if "_devel-" not in p), key=os.path.basename)
 # What the files outside packages were built from (the *-sources.txt the deps
 # builds leave with them: GL stacks, NVIDIA, NVK, Zink).
 sources = {}
