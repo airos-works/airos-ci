@@ -649,6 +649,33 @@
       "used_by": "Summit engine with GL compositing (Pi / ROCK 5 build-gl-deps.sh)"
     },
     {
+      "name": "freetype-system",
+      "repo": "freetype",
+      "wave": 4,
+      "create": "fork",
+      "github": "freetype/freetype",
+      "base": "VER-2-14-3",
+      "branch": "airos-VER-2-14-3",
+      "patches": [
+        {
+          "tarball": "https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz",
+          "sha256": "36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f",
+          "strip": 1,
+          "into": ".",
+          "message": "Release tarball contents (with the generated build files the release ships)"
+        },
+        {
+          "from": "haikuports:media-libs/freetype/patches/enable-validation-modules.patchset",
+          "message": "Enable the GX and OpenType validation modules (HaikuPorts)"
+        },
+        {
+          "from": "ci:forks/patches/freetype-2.14.3-haiku.patchset",
+          "message": "Haiku: no libdl for dynamic HarfBuzz (HaikuPorts' freetype-2.14.3.patchset, haikuports 1ee746cc35)"
+        }
+      ],
+      "used_by": "arm64 system FreeType, app_server's font engine, as HaikuPorts builds 2.14.3 for x86_64 (deps/recipes/freetype.sh); Summit's engine keeps freetype"
+    },
+    {
       "name": "expat",
       "wave": 4,
       "create": "fork",
