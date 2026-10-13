@@ -115,10 +115,13 @@ if [[ $ARCH == x86_64 ]]; then
 	# The applications' x86_64 requirements that the build system's HaikuPorts
 	# list lacks (the others come with AddHaikuImageSystemPackages), and what
 	# summit_webkit's private Mesa needs: LLVM 21 (llvmpipe) and the Vulkan
-	# loader (zink); and the Wi-Fi firmware Haiku's image leaves out (Intel
-	# cards such as the X399's AX210, Ralink, Realtek).
+	# loader (zink); what the AMD GPU user land needs besides (libelf, and
+	# Wayland with Haiku's in-process Wayland server for Vulkan windows); and
+	# the Wi-Fi firmware Haiku's image leaves out (Intel cards such as the
+	# X399's AX210, Ralink, Realtek).
 	AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" fetch --no-deps \
 		x86_64 taglib2 scintilla lexilla lzo lz4 llvm21_libs vulkan \
+		libelf wayland wayland_server libffi \
 		intel_wifi_firmwares ralink_wifi_firmwares realtek_wifi_firmwares | xargs -r cp -t "$WORK/packages/"
 else
 	# curl and Summit use /boot/system/data/ssl/CARootCertificates.pem.
@@ -148,14 +151,20 @@ for part in "$gl"/nvidia "$gl"/nvk "$gl"/zink; do
 	[[ -d $part/lib ]] && cp -a "$part/lib/." "$WORK/libs/"
 	[[ -d $part/add-ons ]] && cp -a "$part/add-ons/." "$WORK/add-ons/"
 done
-# x86_64: amdgpu_drm and amdgpu_firmwares (deps/build-amdgpu.sh), which every
-# x86_64 image carries
+# x86_64: amdgpu_drm and amdgpu_firmwares, and the AMD GPU user land for
+# system/non-packaged/amdgpu (deps/build-amdgpu.sh), which every x86_64 image
+# carries
 if [[ $ARCH == x86_64 ]]; then
 	for name in amdgpu_drm amdgpu_firmwares; do
 		ls "$gl/amdgpu/packages/$name"-[0-9]*.hpkg > /dev/null 2>&1 \
 			|| die "no $name package in $gl/amdgpu/packages (deps/build-amdgpu.sh)"
 	done
 	cp "$gl"/amdgpu/packages/*.hpkg "$WORK/packages/"
+	for file in lib/libEGL_mesa.so.0 lib/libvulkan_radeon.so add-ons/media/plugins/amduvd; do
+		[[ -e $gl/amdgpu/userland/$file ]] \
+			|| die "no $file in $gl/amdgpu/userland (deps/build-amdgpu.sh)"
+	done
+	cp -a "$gl/amdgpu/userland" "$WORK/amdgpu"
 fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages"
@@ -179,6 +188,7 @@ fi
 	[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_DEMOS = $WORK/demos ;"
 	[[ -z $(ls "$WORK/firmware") ]] || echo "AIROS_CI_FIRMWARE = $WORK/firmware ;"
 	[[ -z $(ls "$WORK/add-ons") ]] || echo "AIROS_CI_ADDONS = $WORK/add-ons ;"
+	[[ ! -d $WORK/amdgpu ]] || echo "AIROS_CI_AMDGPU = $WORK/amdgpu ;"
 	# arm64: FluidLite for the MIDI kit (deps/recipes/fluidlite.sh)
 	deps=$AIROS_ROOT/deps/$ARCH/boot/system
 	[[ $ARCH != arm64 || ! -f $deps/develop/lib/libfluidlite.a ]] || echo "AIROS_CI_FLUIDLITE = $deps ;"

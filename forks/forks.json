@@ -759,6 +759,39 @@
       "used_by": "x86_64 images: the amdgpu_drm kernel driver and its amdgpu_drm package (deps/build-amdgpu.sh; the amdgpu_kms accelerant is in haiku.hpkg)"
     },
     {
+      "name": "libdrm",
+      "repo": "libdrm",
+      "wave": 5,
+      "create": "existing",
+      "base": "libdrm-2.4.134",
+      "branch": "airos-2.4.134",
+      "upstream": "https://gitlab.freedesktop.org/mesa/drm.git",
+      "origin": "libdrm 2.4.134 with Haiku's DRM device access (drm_haiku.h: amdgpu_drm's ioctls, drmHaikuMmap) and positive POSIX errors, developed on the X399 (src/forks/libdrm) and pushed as it is",
+      "used_by": "x86_64 images: libdrm and libdrm_amdgpu of the AMD GPU user land (deps/build-amdgpu-userland.sh)"
+    },
+    {
+      "name": "libva",
+      "repo": "libva",
+      "wave": 5,
+      "create": "existing",
+      "github": "intel/libva",
+      "base": "2.24.1",
+      "branch": "airos-2.24.1",
+      "upstream": "https://github.com/intel/libva.git",
+      "origin": "libva 2.24.1 with a Haiku change (thread IDs for tracing), developed on the X399 (src/forks/libva) and pushed as it is",
+      "used_by": "x86_64 images: libva and libva-drm of the AMD GPU user land, and the amdgpu_va (amduvd) media add-on (deps/build-amdgpu-userland.sh)"
+    },
+    {
+      "name": "mesa-amdgpu",
+      "repo": "mesa",
+      "wave": 5,
+      "create": "existing",
+      "base": "33656fb53639a447733ed926a00843db898e28c7",
+      "branch": "airos-amdgpu",
+      "origin": "mesa-x86_64 (airos-25.3.6-x86_64) with radeonsi, RADV and the VA-API driver on amdgpu_drm (Haiku), developed on the X399 (src/forks/mesa) and pushed as it is",
+      "used_by": "x86_64 images: radeonsi (OpenGL, GLES, EGL), RADV (Vulkan) and the VA-API driver of the AMD GPU user land (deps/build-amdgpu-userland.sh)"
+    },
+    {
       "name": "fluidlite",
       "repo": "FluidLite",
       "wave": 5,

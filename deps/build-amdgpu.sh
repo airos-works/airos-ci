@@ -18,8 +18,19 @@
 # into $AIROS_ROOT/image-inputs/x86_64/amdgpu/packages, which the x86_64 image
 # puts in system/packages. app_server's side, the amdgpu_kms accelerant, is in
 # haiku.hpkg. The driver binds to AMD GPUs only, and leaves Southern and Sea
-# Islands GPUs to radeon_hd. images/build-image.sh x86_64 runs this with every
-# image build, so the driver matches the image's Haiku revision; the sdk-deps
+# Islands GPUs to radeon_hd.
+#
+# And the GPU user land, in $AIROS_ROOT/image-inputs/x86_64/amdgpu/userland:
+# libdrm, libva, libglvnd and Mesa (radeonsi, RADV, the VA-API driver) from
+# deps/build-amdgpu-userland.sh, and the amdgpu_va media add-on (H.264 and HEVC
+# on the GPU through VA-API; installed as "amduvd", the name airTime and Summit
+# load AMD decoders by), built here from the Haiku tree. The image ships the
+# tree in system/non-packaged/amdgpu; its boot script links it into
+# system/non-packaged only where amdgpu_drm drives a GPU (Haiku's
+# tools/airos/ci/boot/UserBootscript).
+#
+# images/build-image.sh x86_64 runs this with every image build, so the
+# driver and the add-on match the image's Haiku revision; the sdk-deps
 # workflow runs it too.
 set -euo pipefail
 umask 002
@@ -37,7 +48,8 @@ FIRMWARE_VERSION=20260916
 FIRMWARE_REVISION=1
 
 W=$AIROS_WORK/amdgpu
-INPUTS=$AIROS_ROOT/image-inputs/x86_64
+# (AMDGPU_INPUTS and AMDGPU_USERLAND_OUT: elsewhere, for trial runs)
+INPUTS=${AMDGPU_INPUTS:-$AIROS_ROOT/image-inputs/x86_64}
 mkdir -p "$W" "$INPUTS"
 cd "$W"
 
@@ -72,10 +84,42 @@ for name in amdgpu_drm amdgpu_firmwares; do
 		|| die "package.sh made no single $name package"
 done
 
+note "GPU user land"
+"$AIROS_CI/deps/build-amdgpu-userland.sh"
+USERLAND=${AMDGPU_USERLAND_OUT:-$AIROS_ROOT/gl/x86_64-amdgpu}
+
+note "amdgpu_va (amduvd)"
+# as docs/x399-workstation/tools/build-amdgpu-va-plugin.sh builds it on the
+# X399: FFmpeg's decoders linked in statically (the system's FFmpeg has no
+# VA-API), libva from system/non-packaged/lib
+va=$HAIKU_SOURCE/src/add-ons/media/plugins/amdgpu_va
+[[ -f $va/AmdgpuVaPlugin.cpp ]] || die "$HAIKU_REVISION has no amdgpu_va add-on"
+addon=$W/amdgpu_va
+rm -rf "$addon"
+mkdir -p "$addon"
+for source in AmdgpuVaPlugin H264Output HevcOutput; do
+	"${CROSS}g++" --sysroot="$SYSROOT" -O2 -Wall -fPIC -I"$USERLAND/addon/include" \
+		-I"$HAIKU_SOURCE/headers/private/media" -c "$va/$source.cpp" -o "$addon/$source.o"
+done
+"${CROSS}g++" --sysroot="$SYSROOT" -specs="$UNWIND_SPECS" -shared -o "$addon/amduvd" \
+	"$addon"/*.o -Wl,--exclude-libs,ALL "$USERLAND/addon/lib/libavcodec.a" \
+	"$USERLAND/addon/lib/libavutil.a" -L"$USERLAND/addon/lib" -lva -lva-drm -lbe -lmedia \
+	-Wl,-rpath-link,"$USERLAND/root/lib" -Wl,-rpath,/boot/system/non-packaged/lib
+"${CROSS}strip" --strip-unneeded "$addon/amduvd"
+ls -l "$addon/amduvd"
+
 note "image inputs"
+mkdir -p "$W/stage/userland"
+cp -a "$USERLAND/root/." "$W/stage/userland/"
+mkdir -p "$W/stage/userland/add-ons/media/plugins"
+cp "$addon/amduvd" "$W/stage/userland/add-ons/media/plugins/"
 # what went in
-printf 'haiku %s\nlinux-drm %s\nairos-firmware %s\nlinux-firmware %s\n' "$HAIKU_REVISION" \
-	"$DRM_COMMIT" "$FW_COMMIT" "$FIRMWARE_VERSION" > "$W/stage/amdgpu-sources.txt"
+{
+	printf 'haiku %s\nlinux-drm %s\nairos-firmware %s\nlinux-firmware %s\n' "$HAIKU_REVISION" \
+		"$DRM_COMMIT" "$FW_COMMIT" "$FIRMWARE_VERSION"
+	cat "$USERLAND/sources.txt"
+} > "$W/stage/amdgpu-sources.txt"
 mkdir -p "$INPUTS/amdgpu"
 rsync -rlc --delete "$W/stage/" "$INPUTS/amdgpu/"
 ls -l "$INPUTS/amdgpu/packages"
+du -sh "$INPUTS/amdgpu/userland"
