@@ -71,6 +71,15 @@
     "upstream": "https://github.com/freetype/freetype.git",
     "url": "https://github.com/jmgasper/freetype.git"
   },
+  "freetype-system": {
+    "base": "VER-2-14-3",
+    "base_commit": "0a0221a1347e2f1e07c395263540026e9a0aa7c7",
+    "branch": "airos-VER-2-14-3",
+    "commit": "3e3581ef61119785f789a4edffd666ab85ba304c",
+    "repo": "freetype",
+    "upstream": "https://github.com/freetype/freetype.git",
+    "url": "https://github.com/jmgasper/freetype.git"
+  },
   "glu": {
     "base": null,
     "base_commit": null,

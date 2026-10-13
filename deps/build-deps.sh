@@ -13,8 +13,8 @@
 #      builds and later recipes compile against;
 #   4. package it as airos_<name>-<version>-ARCH.hpkg into the package pool
 #      ($AIROS_PACKAGES/ARCH), from which the images install it. Recipes that
-#      replace a system package (wpa_supplicant, freetype) set NO_PACKAGE and
-#      package it under its own name themselves.
+#      make a system package (wpa_supplicant, libpng, freetype) set NO_PACKAGE
+#      and package it under its own name themselves.
 #
 # A recipe is skipped when its fork commit and recipe are unchanged since the
 # last build (stamp in the work tree), unless FORCE=1.
@@ -34,7 +34,7 @@ export AIROS_ARCH=$ARCH
 
 if [[ $ARCH == arm64 ]]; then
 	ORDER=(openssl nghttp2 curl sqlite taglib pcre2 scintilla lexilla rock5_ffmpeg wpa_supplicant fluidlite
-		freetype)
+		libpng freetype)
 else
 	ORDER=(haikuports)
 fi

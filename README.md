@@ -51,7 +51,9 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - arm64: libraries built from the jmgasper forks (`airos_*` packages:
   OpenSSL, curl, nghttp2, SQLite, TagLib, PCRE2, Scintilla, Lexilla),
   `rock5_ffmpeg` (FFmpeg 6.1.6 with Rockchip MPP hardware decoding),
-  `wpa_supplicant`, FreeType 2.13.3 as `freetype` (app_server's font engine,
+  `wpa_supplicant`, libpng 1.6.44 as `libpng16` (Haiku's PNG translator is
+  built with it), FreeType 2.14.3 as `freetype` (app_server's font engine,
+  built as HaikuPorts builds it for x86_64, with PNG; only bzip2 is left out;
   in place of the arm64 repository's bootstrap 2.6.3; Haiku is compiled
   against it), and the GL stack:
   - ROCK 5: Mesa Panfrost with the Mali CSF firmware;
@@ -135,7 +137,7 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `lib/` | `env.sh` (server layout, locks), `sdk.sh` (cross SDK environment), `fork.sh` (check out a fork at its pinned commit) |
 | `sdk/build-sdk.sh ARCH [REF]` | builds Haiku at REF: `haiku.hpkg`, `haiku_devel.hpkg`, the host tools, a sysroot. Writes `/data1/airos/sdk/ARCH` |
 | `sdk/build-release-sdk.sh ARCH RELEASE` | the SDK of a stock Haiku release (`x86_64 r1beta6`) from the release's own packages. Writes `/data1/airos/sdk/ARCH-RELEASE` |
-| `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages, and FreeType as `freetype` and `freetype_devel` (also run by each arm64 image build). x86_64: HaikuPorts packages (`deps/haikuports.py`) |
+| `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages, and libpng and FreeType as HaikuPorts' `libpng16`, `freetype` and their `_devel` packages (also run by each arm64 image build). x86_64: HaikuPorts packages (`deps/haikuports.py`) |
 | `deps/build-firmware.sh` | firmware packages and image inputs, checked against pinned hashes |
 | `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot |
 | `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink); with `AIROS_TARGET=r1beta6`, against that release |
