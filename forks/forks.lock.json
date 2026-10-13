@@ -3,7 +3,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos",
-    "commit": "70ca081ec9ef60ed170f7a1d9e8d181179dbbffb",
+    "commit": "1cbcfec1d6bbb8cc5f1dbe6fd6d250f4511e5a9b",
     "repo": "airos-firmware",
     "upstream": null,
     "url": "https://github.com/jmgasper/airos-firmware.git"
@@ -196,6 +196,15 @@
     "repo": "libzip",
     "upstream": "https://github.com/nih-at/libzip.git",
     "url": "https://github.com/jmgasper/libzip.git"
+  },
+  "linux-drm": {
+    "base": "v6.18.52",
+    "base_commit": "v6.18.52",
+    "branch": "airos-6.18.52",
+    "commit": "d479ae1240a08c47944a2596046921a079d63aa0",
+    "repo": "linux-drm",
+    "upstream": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+    "url": "https://github.com/jmgasper/linux-drm.git"
   },
   "mesa": {
     "base": null,

@@ -15,7 +15,8 @@
 # $AIROS_ARTIFACTS/images/TARGET/latest, which the build server serves over
 # HTTP. The build is recorded for the build dashboard (lib/status.py,
 # $AIROS_DATA/builds); CLEAN=1 builds Haiku from scratch. The x86_64 image also
-# rebuilds the NVIDIA driver, accelerant and NVDEC from the same Haiku tree.
+# rebuilds the NVIDIA driver, accelerant and NVDEC, and the AMD driver
+# amdgpu_drm with its firmware package, from the same Haiku tree.
 set -euo pipefail
 umask 002
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
@@ -76,6 +77,10 @@ build_stage "Haiku and the SDK"
 if [[ $TARGET == x86_64 ]]; then
 	build_stage "NVIDIA driver" "nvidia_rm, accelerant, NVDEC"
 	"$AIROS_CI/deps/build-nvidia.sh"
+	# and the AMD driver, amdgpu_drm, and its firmware: packages for
+	# system/packages (deps/build-amdgpu.sh; the accelerant is in haiku.hpkg)
+	build_stage "AMD driver" "amdgpu_drm, amdgpu firmware"
+	"$AIROS_CI/deps/build-amdgpu.sh"
 fi
 
 BUILD=$HAIKU_BUILD
@@ -143,6 +148,15 @@ for part in "$gl"/nvidia "$gl"/nvk "$gl"/zink; do
 	[[ -d $part/lib ]] && cp -a "$part/lib/." "$WORK/libs/"
 	[[ -d $part/add-ons ]] && cp -a "$part/add-ons/." "$WORK/add-ons/"
 done
+# x86_64: amdgpu_drm and amdgpu_firmwares (deps/build-amdgpu.sh), which every
+# x86_64 image carries
+if [[ $ARCH == x86_64 ]]; then
+	for name in amdgpu_drm amdgpu_firmwares; do
+		ls "$gl/amdgpu/packages/$name"-[0-9]*.hpkg > /dev/null 2>&1 \
+			|| die "no $name package in $gl/amdgpu/packages (deps/build-amdgpu.sh)"
+	done
+	cp "$gl"/amdgpu/packages/*.hpkg "$WORK/packages/"
+fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages"
 [[ ${#missing[@]} -eq 0 ]] || echo "warning: not in the package pool yet: ${missing[*]}" >&2

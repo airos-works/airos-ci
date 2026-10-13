@@ -73,6 +73,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
     NVIDIA card.
 
   See [docs/x86_64-gpu.md](docs/x86_64-gpu.md).
+- x86_64: the AMD GPU driver **amdgpu_drm** (Linux 6.18's amdgpu on a Linux
+  compatibility layer, `jmgasper/linux-drm`) and **amdgpu_firmwares** (every
+  amdgpu file of linux-firmware 20260916), as packages in `system/packages`;
+  app_server drives it through the `amdgpu_kms` accelerant in `haiku.hpkg`.
+  See [docs/x86_64-gpu.md](docs/x86_64-gpu.md#amd-amdgpu_drm).
 - Wi-Fi and Bluetooth firmware (Intel, Realtek, MediaTek, Broadcom for the
   Pi) from `jmgasper/airos-firmware` and the Raspberry Pi firmware forks.
 
@@ -121,6 +126,7 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot |
 | `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink); with `AIROS_TARGET=r1beta6`, against that release |
 | `deps/build-nvidia.sh` | x86_64 NVIDIA: `nvidia_rm`, `nvidia_rm_modeset`, the accelerant, the NVDEC media add-on |
+| `deps/build-amdgpu.sh` | x86_64 AMD: the `amdgpu_drm` and `amdgpu_firmwares` packages |
 | `deps/build-nvk.sh`, `deps/build-zink.sh` | x86_64: NVK (Vulkan) and the Zink renderer add-on of the OpenGL kit |
 | `sdk/build-rust.sh` | a pinned Rust nightly with std built for `x86_64-unknown-haiku`, bindgen and cbindgen (NVK's NAK) |
 | `apps/build-app-packages.sh` | cross-builds the applications, `summit_webkit` and `summit` into Haiku packages |

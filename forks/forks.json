@@ -269,7 +269,7 @@
       "name": "airos-firmware",
       "wave": 2,
       "create": "import",
-      "description": "Firmware air/OS images ship, from linux-firmware at pinned commits (Bluetooth for Intel/Realtek/MediaTek, MediaTek MT7921/MT7922 Wi-Fi, Mali CSF GPU), with their licences",
+      "description": "Firmware air/OS images ship, from linux-firmware at pinned commits (Bluetooth for Intel/Realtek/MediaTek, MediaTek MT7921/MT7922 Wi-Fi, Mali CSF GPU, AMD GPUs for amdgpu_drm), with their licences",
       "branch": "airos",
       "patches": [
         {
@@ -312,9 +312,18 @@
             "/rtl_bt/rtl8922au_*"
           ],
           "message": "Newer Bluetooth chips from linux-firmware eeccccbe\n\nIntel BE200/BE201/AX211-class (ibt-0093, -00a0, -0190, -1190) and Realtek\nRTL8723B/BS/CS, RTL8821A and RTL8922AU files that Ubuntu's linux-firmware\nupdates added after 20240318. Every file present in 3b128b60 (the AX210's\nibt-0041-0041 among them, as tested on the ROCK 5) keeps that version."
+        },
+        {
+          "git": "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git",
+          "commit": "ab23307cfe7f9366c819025ca3e4778299bc2db2",
+          "paths": [
+            "/amdgpu/*",
+            "/LICENSES/LICENSE.amdgpu"
+          ],
+          "message": "linux-firmware 20260916: AMD GPU firmware (amdgpu)\n\nEvery amdgpu file of linux-firmware 20260916 (ab23307c), Southern Islands\nto RDNA 4 and the APUs, for the amdgpu_drm driver (Linux 6.18's amdgpu,\njmgasper/linux-drm) in the x86_64 images. None of them is a WHENCE link."
         }
       ],
-      "used_by": "firmware packages and the Mali firmware in all images (deps/recipes/firmware.sh)"
+      "used_by": "firmware packages and the Mali firmware in all images (deps/recipes/firmware.sh); amdgpu_firmwares for the x86_64 images (deps/build-amdgpu.sh)"
     },
     {
       "name": "wpa_supplicant",
@@ -737,6 +746,17 @@
       "branch": "airos-22.0.5-hgl",
       "origin": "Mesa 22.0.5 (mesa-22.0.5.tar.xz) with HaikuPorts' six Haiku patches (sys-libs/mesa/patches/mesa-22.0.5.patchset) and haiku docs/x399-workstation/patches/mesa-hgl/0001-0014 (git am), pushed from the X399 build tree; then the private headers taken from the cross file's sys_root",
       "used_by": "x86_64: the Zink renderer add-on of Haiku's OpenGL kit (BGLView programs on Vulkan)"
+    },
+    {
+      "name": "linux-drm",
+      "repo": "linux-drm",
+      "wave": 5,
+      "create": "existing",
+      "base": "v6.18.52",
+      "branch": "airos-6.18.52",
+      "upstream": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+      "origin": "the subset of Linux 6.18.52 amdgpu needs (DRM core, TTM, the GPU scheduler, amdgpu with Display Core; haiku/tools/import-linux.sh) with Haiku's changes, and the Linux compatibility layer and Haiku driver in haiku/; developed on the X399 (src/forks/linux-drm) and pushed as it is",
+      "used_by": "x86_64 images: the amdgpu_drm kernel driver and its amdgpu_drm package (deps/build-amdgpu.sh; the amdgpu_kms accelerant is in haiku.hpkg)"
     },
     {
       "name": "fluidlite",
