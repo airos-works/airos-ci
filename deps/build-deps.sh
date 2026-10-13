@@ -167,6 +167,10 @@ build_recipe() {
 	local recipe=$AIROS_CI/deps/recipes/$NAME.sh
 	[[ -f $recipe ]] || die "no recipe $recipe"
 	unset VERSION FORK SUMMARY COPYRIGHT LICENSE REQUIRES PKG_REVISION NO_PACKAGE STAMP_EXTRA
+	# The previous recipe's functions go too: an up-to-date recipe returns
+	# before the unset below, and its fetch_source would check out its own
+	# fork for the next recipe (rock5_ffmpeg's put FFmpeg in freetype's tree).
+	unset -f build fetch_source
 	FORK=$NAME
 	. "$recipe"
 	local dir=$WORKDIR/$NAME stamp
