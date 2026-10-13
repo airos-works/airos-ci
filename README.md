@@ -87,7 +87,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 Each image comes with a `manifest.json` listing every package that went in,
 with its SHA-256, and the Haiku commit. Images are smoke-tested in QEMU:
 x86_64 and arm64 must boot to the desktop; for the Pi, the SD card layout is
-checked. They are served at `http://airos-build.local/images/<target>/latest/`.
+checked. x86_64 boots twice, with a legacy BIOS from a CD and with UEFI
+(OVMF) from a USB stick through the EFI system partition, as a PC does; the
+UEFI boot's log and screenshot are `serial-uefi-usb.log` and
+`screen-uefi-usb.png`. Images are served at
+`http://airos-build.local/images/<target>/latest/`.
 After the smoke test, `images/publish-github.py` verifies the compressed and
 uncompressed image hashes, uploads the image, SHA-256 file and manifest to a
 draft GitHub release, verifies GitHub's asset digests, then publishes it as
