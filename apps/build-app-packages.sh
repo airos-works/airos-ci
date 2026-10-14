@@ -208,13 +208,16 @@ deskbar_link() { # deskbar_link <path in package of the app> <menu name>
 	ln -s "../../../../$1" "$STAGE/data/deskbar/menu/Applications/$2"
 }
 
-# Stale attributes: any attribute file of a staged node older than $1.
+# Stale attributes: any attribute file of a staged node older than $1. The
+# host tools keep a symlink's attributes as symlink-<inode> (Linux allows no
+# user xattrs on symlinks), a file's under the id in its xattr, its inode.
 purge_stale_attributes() {
-	local marker=$1 entry inode
+	local marker=$1 entry dir
 	while IFS= read -r -d '' entry; do
-		inode=$(stat -c %i "$entry")
-		[[ -d $ATTRS/$inode ]] || continue
-		find "$ATTRS/$inode" -mindepth 1 ! -newer "$marker" -exec rm -rf {} +
+		dir=$ATTRS/$(stat -c %i "$entry")
+		[[ -L $entry ]] && dir=$ATTRS/symlink-$(stat -c %i "$entry")
+		[[ -d $dir ]] || continue
+		find "$dir" -mindepth 1 ! -newer "$marker" -exec rm -rf {} +
 	done < <(find "$STAGE" -print0)
 }
 
