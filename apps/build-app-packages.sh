@@ -164,6 +164,9 @@ snapshot() {
 stage_begin() {
 	[[ -e $STAGE ]] && "$TOOLS/rm_attrs" -rf "$STAGE"
 	mkdir -p "$STAGE"
+	# finish_package() drops attributes older than this (see there).
+	touch "$STAGE.began"
+	sleep 0.05
 }
 
 stage_end() {
@@ -320,6 +323,12 @@ finish_package() {
 	file=$OUT/$name-$version-$ARCH.hpkg
 	mkdir -p "$OUT"
 	rm -f "$OUT/$name"-[0-9]*-"$ARCH".hpkg
+	# The host tools keep attributes in $ATTRS by inode, and a file removed
+	# elsewhere without rm_attrs leaves its entry for the next file that gets
+	# the inode: summit_webkit's libraries came out with BEOS:TYPE on
+	# 2026-10-14 and verify_package refused the package. What staging added
+	# (resattr, mimeset) is newer than the stage.
+	[[ ! -e $STAGE.began ]] || purge_stale_attributes "$STAGE.began"
 	"$TOOLS/package/package" create -q -C "$STAGE" "$file"
 	verify_package "$file"
 	echo "package:  $file"
