@@ -99,7 +99,7 @@ fi
 
 WORK=$AIROS_WORK/image-$TARGET
 rm -rf "$WORK"
-mkdir -p "$WORK"/{packages,fonts,freetype,libpng,libs,egl,demos,firmware,add-ons}
+mkdir -p "$WORK"/{packages,fonts,freetype,libpng,mupdf,libs,egl,demos,firmware,add-ons}
 
 # 2. The inputs.
 note "inputs"
@@ -131,6 +131,16 @@ if [[ $ARCH == x86_64 ]]; then
 		x86_64 taglib2 scintilla lexilla lzo lz4 llvm21_libs vulkan \
 		libelf wayland wayland_server libffi \
 		intel_wifi_firmwares ralink_wifi_firmwares realtek_wifi_firmwares | xargs -r cp -t "$WORK/packages/"
+	# MuPDF for Quick Look's document preview (HAIKU_MUPDF_PACKAGES_DIR: the
+	# tree's BuildFeatures compiles the add-on against mupdf_devel), and mupdf
+	# with its jbig2dec in the image; the build system's HaikuPorts list lacks
+	# all three.
+	for source in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+			"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 mupdf mupdf_devel jbig2dec); do
+		cp "$source" "$WORK/mupdf/"
+		[[ $source == */mupdf_devel-* ]] || cp "$source" "$WORK/packages/"
+	done
+	[[ $(ls "$WORK/mupdf" | wc -l) == 3 ]] || die "expected the mupdf, mupdf_devel and jbig2dec packages"
 else
 	# curl and Summit use /boot/system/data/ssl/CARootCertificates.pem.
 	# This package is architecture-neutral, but the repository copy may use
@@ -203,7 +213,7 @@ if [[ $ARCH == x86_64 ]]; then
 	cp -a "$gl/amdgpu/userland" "$WORK/amdgpu"
 fi
 rpi_firmware=$gl/rpi-firmware
-ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng"
+ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupdf"
 [[ ${#missing[@]} -eq 0 ]] || echo "warning: not in the package pool yet: ${missing[*]}" >&2
 
 # 3. + 4. The image.
@@ -222,6 +232,7 @@ fi
 	[[ -z $(ls "$WORK/fonts") ]] || echo "AIROS_CI_FONTS = $WORK/fonts ;"
 	[[ -z $(ls "$WORK/freetype") ]] || echo "HAIKU_ARM64_FREETYPE_PACKAGES_DIR = $WORK/freetype ;"
 	[[ -z $(ls "$WORK/libpng") ]] || echo "HAIKU_ARM64_LIBPNG_PACKAGES_DIR = $WORK/libpng ;"
+	[[ -z $(ls "$WORK/mupdf") ]] || echo "HAIKU_MUPDF_PACKAGES_DIR = $WORK/mupdf ;"
 	[[ -z $(ls "$WORK/libs") ]] || echo "AIROS_CI_LIBS = $WORK/libs ;"
 	[[ -z $(ls "$WORK/egl") ]] || echo "AIROS_CI_EGL = $WORK/egl ;"
 	[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_DEMOS = $WORK/demos ;"
