@@ -452,6 +452,10 @@
         {
           "from": "haiku:tools/rock5-itx/mesa/libglvnd-haiku-present.patch",
           "message": "Haiku: GLView present"
+        },
+        {
+          "from": "ci:forks/patches/libglvnd-haiku-scaled-filter.patch",
+          "message": "Haiku: GLView filters its frame on a fractionally scaled desktop"
         }
       ],
       "used_by": "arm64 images: libGL, libEGL, libGLESv2, libOpenGL, libGLdispatch and the Haiku GL kit"

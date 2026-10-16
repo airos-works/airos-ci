@@ -147,7 +147,7 @@
     "base": "v1.7.0",
     "base_commit": "faa23f21fc677af5792825dc30cb1ccef4bf33a6",
     "branch": "airos-1.7.0",
-    "commit": "9755b3ec1af8eb8e6a59501e66f1aa7cc892e540",
+    "commit": "3c953cf59b08cfb11b5a70b60005bd319180707d",
     "repo": "libglvnd",
     "upstream": "https://github.com/NVIDIA/libglvnd.git",
     "url": "https://github.com/jmgasper/libglvnd.git"
