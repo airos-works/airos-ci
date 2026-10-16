@@ -417,7 +417,7 @@
     "base": "0364da32d1bf9917ce48d42025682d49e8bfd204",
     "base_commit": "0364da32d1bf9917ce48d42025682d49e8bfd204",
     "branch": "airos",
-    "commit": "4a5f97c6b486b1aced968c1a4ebeb859f8050ed4",
+    "commit": "e9f70a0e75cffc5fc13ce114c5eb7c861b1e6b2e",
     "repo": "wayland-server",
     "upstream": "https://github.com/X547/wayland-server.git",
     "url": "https://github.com/jmgasper/wayland-server.git"

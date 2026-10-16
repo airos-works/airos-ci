@@ -861,6 +861,10 @@
         {
           "from": "ci:forks/patches/wayland-server-meson-sysroot.patch",
           "message": "meson: Haiku's private headers from the sys_root when cross-building"
+        },
+        {
+          "from": "ci:forks/patches/wayland-server-enter-when-shown.patch",
+          "message": "Surfaces enter the outputs when they are shown"
         }
       ],
       "used_by": "x86_64 images: the in-process Wayland server of the AMD GPU user land (GTK, Firefox and Vulkan windows at the desktop's scale; deps/build-amdgpu-userland.sh)"

@@ -1,0 +1,56 @@
+Surfaces enter the outputs when they are shown
+
+A compositor sends wl_surface.enter once a surface is mapped. Sent when
+the toplevel was made, before its first buffer, it made Firefox take the
+output's scale for its initial size and open a 500 x 200 window.
+
+diff --git a/HaikuXdgPopup.cpp b/HaikuXdgPopup.cpp
+index 7309e85..90336d2 100644
+--- a/HaikuXdgPopup.cpp
++++ b/HaikuXdgPopup.cpp
+@@ -1,5 +1,4 @@
+ #include "HaikuXdgPopup.h"
+-#include "HaikuOutput.h"
+ #include "HaikuXdgSurface.h"
+ #include "HaikuXdgPositioner.h"
+ #include "WaylandEnv.h"
+@@ -83,7 +82,6 @@ HaikuXdgPopup *HaikuXdgPopup::Create(HaikuXdgSurface *xdgSurface, uint32_t id, s
+ 	xdgPopup->fWindow = new WaylandPopupWindow(xdgPopup, BRect(), "", B_NO_BORDER_WINDOW_LOOK, B_FLOATING_SUBSET_WINDOW_FEEL, B_AVOID_FOCUS);
+ 	xdgSurface->Surface()->AttachWindow(xdgPopup->fWindow);
+ 	xdgSurface->Surface()->AttachViewsToEarlierSubsurfaces();
+-	HaikuOutputsEnter(xdgSurface->Surface());
+ 	xdgPopup->fWindow->AddToSubset(xdgPopup->fXdgSurface->fRoot->Window());
+ 
+ 	return xdgPopup;
+diff --git a/HaikuXdgSurface.cpp b/HaikuXdgSurface.cpp
+index fc0383b..4eb625e 100644
+--- a/HaikuXdgSurface.cpp
++++ b/HaikuXdgSurface.cpp
+@@ -1,4 +1,5 @@
+ #include "HaikuXdgSurface.h"
++#include "HaikuOutput.h"
+ #include "HaikuXdgShell.h"
+ #include "HaikuXdgToplevel.h"
+ #include "HaikuXdgPopup.h"
+@@ -101,6 +102,9 @@ void XdgSurfaceHook::HandleCommit()
+ 		}
+ 		fXdgSurface->Window()->Show();
+ 		fXdgSurface->fSurfaceInitalized = true;
++		// shown: on the outputs now, as a compositor says once a surface is
++		// mapped (earlier, Firefox took the scale for its initial size)
++		HaikuOutputsEnter(fXdgSurface->Surface());
+ 	}
+ 
+ 	if (fXdgSurface->fPopup != NULL) {
+diff --git a/HaikuXdgToplevel.cpp b/HaikuXdgToplevel.cpp
+index 714cb37..21cebaa 100644
+--- a/HaikuXdgToplevel.cpp
++++ b/HaikuXdgToplevel.cpp
+@@ -285,7 +285,6 @@ HaikuXdgToplevel *HaikuXdgToplevel::Create(HaikuXdgSurface *xdgSurface, uint32_t
+ 	xdgToplevel->fXdgSurface = xdgSurface;
+ 	xdgToplevel->fWindow = new WaylandWindow(xdgToplevel, BRect(), "", B_NO_BORDER_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL, 0);
+ 	xdgSurface->fSurface->AttachWindow(xdgToplevel->fWindow);
+-	HaikuOutputsEnter(xdgSurface->fSurface);
+ 
+ 	return xdgToplevel;
+ }
