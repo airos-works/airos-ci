@@ -413,6 +413,15 @@
     "upstream": "https://github.com/nemtrif/utfcpp.git",
     "url": "https://github.com/jmgasper/utfcpp.git"
   },
+  "wayland-server": {
+    "base": "0364da32d1bf9917ce48d42025682d49e8bfd204",
+    "base_commit": "0364da32d1bf9917ce48d42025682d49e8bfd204",
+    "branch": "airos",
+    "commit": "4a5f97c6b486b1aced968c1a4ebeb859f8050ed4",
+    "repo": "wayland-server",
+    "upstream": "https://github.com/X547/wayland-server.git",
+    "url": "https://github.com/jmgasper/wayland-server.git"
+  },
   "webkit": {
     "base": "00991b6cdc59937da6076c69a22ae6a9460a4445",
     "base_commit": "00991b6cdc59937da6076c69a22ae6a9460a4445",

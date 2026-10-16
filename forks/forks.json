@@ -831,6 +831,41 @@
       "used_by": "x86_64 images: radeonsi (OpenGL, GLES, EGL), RADV (Vulkan) and the VA-API driver of the AMD GPU user land (deps/build-amdgpu-userland.sh)"
     },
     {
+      "name": "wayland-server",
+      "wave": 3,
+      "create": "fork",
+      "github": "X547/wayland-server",
+      "base": "0364da32d1bf9917ce48d42025682d49e8bfd204",
+      "branch": "airos",
+      "patches": [
+        {
+          "from": "ci:forks/patches/wayland-server-buffer-scale.patch",
+          "message": "Draw surfaces at their buffer scale; report the desktop's device scale"
+        },
+        {
+          "from": "ci:forks/patches/wayland-server-text-input.patch",
+          "message": "Text input: accept the requests newer wayland-protocols added"
+        },
+        {
+          "from": "ci:forks/patches/wayland-server-viewporter.patch",
+          "message": "Viewporter: a source without a destination, a destination without a source"
+        },
+        {
+          "from": "ci:forks/patches/wayland-server-device-scale-lookup.patch",
+          "message": "Find BScreen::DeviceScale() in libbe's image"
+        },
+        {
+          "from": "ci:forks/patches/wayland-server-outputs.patch",
+          "message": "Outputs follow the desktop; surfaces enter them"
+        },
+        {
+          "from": "ci:forks/patches/wayland-server-meson-sysroot.patch",
+          "message": "meson: Haiku's private headers from the sys_root when cross-building"
+        }
+      ],
+      "used_by": "x86_64 images: the in-process Wayland server of the AMD GPU user land (GTK, Firefox and Vulkan windows at the desktop's scale; deps/build-amdgpu-userland.sh)"
+    },
+    {
       "name": "fluidlite",
       "repo": "FluidLite",
       "wave": 5,

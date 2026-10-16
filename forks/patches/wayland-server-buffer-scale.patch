@@ -1,0 +1,208 @@
+Draw surfaces at their buffer scale; report the desktop's device scale
+
+On a scaled desktop (air/OS: BScreen::DeviceScale(), looked up at run
+time) wl_output reports the device scale rounded up, with the mode in
+pixels of that scale, so clients such as GTK and Firefox draw their
+buffers at that density instead of at the logical size, which app_server
+then had to enlarge. A surface with a buffer scale covers its buffer
+size divided by the scale: drawn one to one where the desktop has the
+same density (200 percent), filtered down where it is lower (150, 175
+percent). Buffer damage and viewport sources follow the scale, and a
+cursor drawn at a higher density is averaged down to logical pixels.
+
+diff --git a/HaikuCompositor.cpp b/HaikuCompositor.cpp
+index 3878213..5076698 100644
+--- a/HaikuCompositor.cpp
++++ b/HaikuCompositor.cpp
+@@ -235,24 +235,30 @@ void WaylandView::Draw(BRect dirty)
+ 				mode = B_OP_COPY;
+ 				break;
+ 		}
++		// A buffer drawn at a higher density (wl_surface.set_buffer_scale)
++		// covers its size divided by the scale: filtered down where the
++		// desktop's density is lower, one to one where it is the same.
++		const int32_t scale = fSurface->BufferScale();
++		BRect bitmapRect = bmp->Bounds();
++		BRect viewRect(0, 0, (bitmapRect.Width() + 1) / scale - 1, (bitmapRect.Height() + 1) / scale - 1);
++		const auto &viewportSrc = fSurface->fState.viewportSrc;
++		const auto &viewportDst = fSurface->fState.viewportDst;
++		if (viewportSrc.IsValid() && viewportDst.IsValid()) {
++			// the source is in surface coordinates, before the buffer scale
++			bitmapRect = BRect(viewportSrc.x * scale, viewportSrc.y * scale, (viewportSrc.x + viewportSrc.width) * scale - 1, (viewportSrc.y + viewportSrc.height) * scale - 1);
++			viewRect = BRect(0, 0, viewportDst.width - 1, viewportDst.height - 1);
++		}
++		const uint32 options = scale > 1 || (viewportSrc.IsValid() && viewportDst.IsValid()) ? B_FILTER_BITMAP_BILINEAR : 0;
+ 		if (mode == B_OP_ALPHA && fSurface->fState.opaqueRgn.has_value()) {
+ 			viewLocked->ConstrainClippingRegion(&fSurface->fState.opaqueRgn.value());
+ 			viewLocked->SetDrawingMode(B_OP_COPY);
+-			viewLocked->DrawBitmap(bmp);
++			viewLocked->DrawBitmap(bmp, bitmapRect, viewRect, options);
+ 			BRegion remaining = viewLocked->Bounds();
+ 			remaining.Exclude(&fSurface->fState.opaqueRgn.value());
+ 			viewLocked->ConstrainClippingRegion(&remaining);
+ 		}
+ 		viewLocked->SetDrawingMode(mode);
+-		const auto &viewportSrc = fSurface->fState.viewportSrc;
+-		const auto &viewportDst = fSurface->fState.viewportDst;
+-		if (viewportSrc.IsValid() && viewportDst.IsValid()) {
+-			BRect bitmapRect(viewportSrc.x, viewportSrc.y, viewportSrc.x + viewportSrc.width - 1, viewportSrc.y + viewportSrc.height - 1);
+-			BRect viewRect(0, 0, viewportDst.width - 1, viewportDst.height - 1);
+-			viewLocked->DrawBitmap(bmp, bitmapRect, viewRect);
+-		} else {
+-			viewLocked->DrawBitmap(bmp);
+-		}
++		viewLocked->DrawBitmap(bmp, bitmapRect, viewRect, options);
+ 	}
+ 
+ 	if (fSurface && fFramerateLimitDisabled)
+@@ -308,7 +314,8 @@ BSize HaikuSurface::Size() const
+ 		return BSize(fState.viewportDst.width - 1, fState.viewportDst.height - 1);
+ 	}
+ 	if (Bitmap() != NULL) {
+-		return BSize(Bitmap()->Bounds().Width(), Bitmap()->Bounds().Height());
++		const int32_t scale = BufferScale();
++		return BSize((Bitmap()->Bounds().Width() + 1) / scale - 1, (Bitmap()->Bounds().Height() + 1) / scale - 1);
+ 	}
+ 	return BSize(-1, -1);
+ }
+@@ -518,7 +525,10 @@ void HaikuSurface::HandleDamageBuffer(int32_t x, int32_t y, int32_t width, int32
+ {
+ 	width = std::min(width, 1 << 24);
+ 	height = std::min(height, 1 << 24);
+-	fDirty.Include(BRect(x, y, x + width - 1, y + height - 1));
++	// in buffer pixels: to surface coordinates, rounded outwards (the scale
++	// is the pending one if it changes in this commit)
++	const int32_t scale = fPendingFields & (1 << fieldScale) ? std::max(fPendingState.scale, 1) : BufferScale();
++	fDirty.Include(BRect(x / scale, y / scale, (x + width + scale - 1) / scale - 1, (y + height + scale - 1) / scale - 1));
+ }
+ 
+ void HaikuSurface::HandleOffset(int32_t x, int32_t y)
+diff --git a/HaikuCompositor.h b/HaikuCompositor.h
+index 9d06a1f..c467d4e 100644
+--- a/HaikuCompositor.h
++++ b/HaikuCompositor.h
+@@ -117,6 +117,7 @@ public:
+ 
+ 	BView *View() const {return (BView*)fView;}
+ 	BBitmap *Bitmap() const {return fState.buffer == NULL ? NULL : &fState.buffer->Bitmap();}
++	int32_t BufferScale() const {return fState.scale > 1 ? fState.scale : 1;}
+ 	bool InputRgnContains(BPoint p) {return !fState.inputRgn ? true : fState.inputRgn->Contains(p);}
+ 	void GetOffset(int32_t &x, int32_t &y) const {x = fState.dx; y = fState.dy;}
+ 	BSize Size() const;
+diff --git a/HaikuOutput.cpp b/HaikuOutput.cpp
+index 89b1375..827af09 100644
+--- a/HaikuOutput.cpp
++++ b/HaikuOutput.cpp
+@@ -1,6 +1,8 @@
+ #include "HaikuOutput.h"
+ #include <Screen.h>
+ #include <AutoDeleter.h>
++#include <dlfcn.h>
++#include <math.h>
+ 
+ extern const struct wl_interface wl_output_interface;
+ 
+@@ -16,6 +18,22 @@ protected:
+ };
+ 
+ 
++// The buffer scale clients should draw at: on a scaled desktop (air/OS,
++// BScreen::DeviceScale(), looked up at run time) its device scale rounded up.
++// Surfaces drawn at a higher density than the desktop are filtered down.
++int32_t HaikuOutputScale()
++{
++	typedef float (*DeviceScaleFunction)(BScreen *screen);
++	static DeviceScaleFunction deviceScale
++		= (DeviceScaleFunction)dlsym(RTLD_DEFAULT, "_ZN7BScreen11DeviceScaleEv");
++	if (deviceScale == NULL) return 1;
++	BScreen screen;
++	float scale = deviceScale(&screen);
++	if (!(scale > 1)) return 1;
++	return (int32_t)ceilf(scale - 0.01f);
++}
++
++
+ HaikuOutputGlobal *HaikuOutputGlobal::Create(struct wl_display *display)
+ {
+ 	ObjectDeleter<HaikuOutputGlobal> global(new(std::nothrow) HaikuOutputGlobal());
+@@ -38,8 +56,10 @@ void HaikuOutputGlobal::Bind(struct wl_client *wl_client, uint32_t version, uint
+ 	BScreen screen;
+ 	int32_t width = (int32_t)screen.Frame().Width() + 1;
+ 	int32_t height = (int32_t)screen.Frame().Height() + 1;
++	int32_t scale = HaikuOutputScale();
+ 	output->SendGeometry(0, 0, (float)width * 0.3528, (float)height * 0.3528, WlOutput::subpixelUnknown, "Unknown make", "Unknown model", WlOutput::transformNormal);
+-	output->SendMode(WlOutput::modeCurrent | WlOutput::modePreferred, width, height, 60000);
+-	output->SendScale(1);
++	// the mode is in the pixels of the scale's buffers
++	output->SendMode(WlOutput::modeCurrent | WlOutput::modePreferred, width * scale, height * scale, 60000);
++	output->SendScale(scale);
+ 	output->SendDone();
+ }
+diff --git a/HaikuOutput.h b/HaikuOutput.h
+index cf8b3a6..ec6031d 100644
+--- a/HaikuOutput.h
++++ b/HaikuOutput.h
+@@ -9,3 +9,5 @@ public:
+ 	virtual ~HaikuOutputGlobal() = default;
+ 	void Bind(struct wl_client *wl_client, uint32_t version, uint32_t id) override;
+ };
++
++int32_t HaikuOutputScale();
+diff --git a/HaikuSeat.cpp b/HaikuSeat.cpp
+index 9a31f08..214a0d3 100644
+--- a/HaikuSeat.cpp
++++ b/HaikuSeat.cpp
+@@ -11,6 +11,8 @@
+ #include <Window.h>
+ #include <View.h>
+ #include <Cursor.h>
++#include <Bitmap.h>
++#include <AutoDeleter.h>
+ #include <Autolock.h>
+ #include "AppKitPtrs.h"
+ 
+@@ -203,6 +205,44 @@ void SurfaceCursorHook::HandleCommit()
+ {
+ 	BBitmap *bitmap = Base()->Bitmap();
+ 	if (bitmap != NULL) {
++		// Cursors are in logical pixels: one drawn at a higher density is
++		// averaged down to its size in them (the hotspot already is).
++		const int32_t scale = Base()->BufferScale();
++		ObjectDeleter<BBitmap> scaled;
++		if (scale > 1 && (bitmap->ColorSpace() == B_RGBA32 || bitmap->ColorSpace() == B_RGB32)) {
++			const int32 width = (bitmap->Bounds().IntegerWidth() + 1) / scale;
++			const int32 height = (bitmap->Bounds().IntegerHeight() + 1) / scale;
++			if (width > 0 && height > 0)
++				scaled.SetTo(new(std::nothrow) BBitmap(BRect(0, 0, width - 1, height - 1), B_RGBA32));
++			if (scaled.IsSet() && scaled->InitCheck() == B_OK) {
++				const bool hasAlpha = bitmap->ColorSpace() == B_RGBA32;
++				const uint8 *src = (const uint8*)bitmap->Bits();
++				const int32 srcBpr = bitmap->BytesPerRow();
++				uint8 *dst = (uint8*)scaled->Bits();
++				const int32 dstBpr = scaled->BytesPerRow();
++				for (int32 y = 0; y < height; y++) {
++					for (int32 x = 0; x < width; x++) {
++						// with the alpha applied, so transparent pixels add nothing
++						uint32 sum[4] = {0, 0, 0, 0};
++						for (int32 j = 0; j < scale; j++) {
++							const uint8 *p = src + (y * scale + j) * srcBpr + x * scale * 4;
++							for (int32 i = 0; i < scale; i++, p += 4) {
++								const uint32 a = hasAlpha ? p[3] : 255;
++								sum[0] += p[0] * a;
++								sum[1] += p[1] * a;
++								sum[2] += p[2] * a;
++								sum[3] += a;
++							}
++						}
++						uint8 *d = dst + y * dstBpr + x * 4;
++						for (int32 c = 0; c < 3; c++)
++							d[c] = sum[3] == 0 ? 0 : (sum[c] + sum[3] / 2) / sum[3];
++						d[3] = (sum[3] + scale * scale / 2) / (scale * scale);
++					}
++				}
++				bitmap = scaled.Get();
++			}
++		}
+ 		BCursor cursor(bitmap, fHotspot);
+ 		AppKitPtrs::LockedPtr(be_app)->SetCursor(&cursor);
+ 	} else {

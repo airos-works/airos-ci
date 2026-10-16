@@ -206,11 +206,18 @@ if [[ $ARCH == x86_64 ]]; then
 			|| die "no $name package in $gl/amdgpu/packages (deps/build-amdgpu.sh)"
 	done
 	cp "$gl"/amdgpu/packages/*.hpkg "$WORK/packages/"
-	for file in lib/libEGL_mesa.so.0 lib/libvulkan_radeon.so add-ons/media/plugins/amduvd; do
+	for file in lib/libEGL_mesa.so.0 lib/libvulkan_radeon.so lib/wayland-server-inproc.so \
+			add-ons/media/plugins/amduvd; do
 		[[ -e $gl/amdgpu/userland/$file ]] \
 			|| die "no $file in $gl/amdgpu/userland (deps/build-amdgpu.sh)"
 	done
 	cp -a "$gl/amdgpu/userland" "$WORK/amdgpu"
+	# The in-process Wayland server built with the user land, for every
+	# machine: in system/non-packaged/lib it comes before HaikuPorts'
+	# wayland_server, so GTK, Firefox and Vulkan windows get the desktop's
+	# scale on NVIDIA and other PCs too (on AMD ones the boot script leaves
+	# this copy alone, the user land's is the same file).
+	cp "$gl/amdgpu/userland/lib/wayland-server-inproc.so" "$WORK/libs/"
 fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupdf"

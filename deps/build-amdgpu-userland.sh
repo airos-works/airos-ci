@@ -17,6 +17,10 @@
 #                           in-process Wayland server) and the VA-API driver
 #   FFmpeg (static)         jmgasper/ffmpeg airos-6.1.6, H.264 and HEVC with
 #                           VA-API only, for the amdgpu_va media add-on
+#   in-process Wayland      jmgasper/wayland-server airos: X547's server with
+#   server                  the desktop's scale for GTK, Firefox and Vulkan
+#                           windows; ahead of HaikuPorts' wayland_server in
+#                           the library path where it is linked into place
 #
 # All of them for /boot/system/non-packaged, where they find each other
 # through their RPATH. Results in $AIROS_ROOT/gl/x86_64-amdgpu:
@@ -65,11 +69,12 @@ fork_checkout libva "$W/libva"; VA_COMMIT=$FORK_COMMIT
 fork_checkout libglvnd "$W/libglvnd"; GLVND_COMMIT=$FORK_COMMIT
 fork_checkout mesa-amdgpu "$W/mesa"; MESA_COMMIT=$FORK_COMMIT
 fork_checkout ffmpeg "$W/ffmpeg"; FFMPEG_COMMIT=$FORK_COMMIT
+fork_checkout wayland-server "$W/wayland-server"; WLS_COMMIT=$FORK_COMMIT
 
 AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 \
 	"${HAIKUPORTS[@]}" | xargs -n1 basename > "$W/haikuports.txt"
 key=$(cat "$0" "$W/haikuports.txt" <(printf '%s\n' "$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" \
-	"$MESA_COMMIT" "$FFMPEG_COMMIT") | sha256sum | cut -c1-16)
+	"$MESA_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT") | sha256sum | cut -c1-16)
 if [[ ${FORCE:-0} != 1 && ${CLEAN:-0} != 1 && -f $OUT/key && $(cat "$OUT/key") == "$key" \
 		&& -f $OUT/root/lib/libEGL_mesa.so.0 && -f $OUT/addon/lib/libavcodec.a ]]; then
 	echo "AMD GPU user land unchanged ($key): $OUT"
@@ -248,6 +253,10 @@ meson_build mesa "$W/mesa" "$POSITIVE" "$MAPPER" \
 	-Dlibunwind=disabled -Dlmsensors=disabled -Dspirv-tools=disabled \
 	-Dbuild-tests=false '-Dtools=[]'
 
+# the in-process Wayland server (lib/wayland-server-inproc.so), which
+# libwayland-client loads by name through the library path
+meson_build wayland-server "$W/wayland-server" "" "$RPATH"
+
 note "FFmpeg (static, VA-API) for the amdgpu_va add-on"
 ADDON=$W/addon
 rm -rf "$W/build-ffmpeg" "$ADDON"
@@ -291,11 +300,13 @@ if find "$root/lib" -type f -name '*.so*' -exec "${CROSS}readelf" -rW {} + 2>/de
 	die "unsupported TLS relocations in the AMD GPU libraries"
 fi
 for lib in libGL.so.1 libEGL.so.1 libGLESv2.so.2 libEGL_mesa.so.0 libvulkan_radeon.so \
-		libdrm.so.2 libdrm_amdgpu.so.1 libva.so.2 libva-drm.so.2 dri/radeonsi_drv_video.so; do
+		libdrm.so.2 libdrm_amdgpu.so.1 libva.so.2 libva-drm.so.2 dri/radeonsi_drv_video.so \
+		wayland-server-inproc.so; do
 	[[ -e $root/lib/$lib ]] || die "no $lib"
 done
-printf 'libdrm %s\nlibva %s\nlibglvnd %s\nmesa %s\nffmpeg %s\nllvm %s\n' "$DRM_COMMIT" \
-	"$VA_COMMIT" "$GLVND_COMMIT" "$MESA_COMMIT" "$FFMPEG_COMMIT" "$llvm_version" > "$W/sources.txt"
+printf 'libdrm %s\nlibva %s\nlibglvnd %s\nmesa %s\nffmpeg %s\nwayland-server %s\nllvm %s\n' \
+	"$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" "$MESA_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT" \
+	"$llvm_version" > "$W/sources.txt"
 rsync -rlc --chmod=g+rwX --delete "$root/" "$OUT/root/"
 rsync -rlc --chmod=g+rwX --delete "$ADDON/" "$OUT/addon/"
 cp "$W/sources.txt" "$W/haikuports.json" "$OUT/"

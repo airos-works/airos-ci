@@ -1,0 +1,22 @@
+Text input: accept the requests newer wayland-protocols added
+
+set_available_actions, show_input_panel and hide_input_panel (in
+wayland-protocols 1.49, which the X399 builds against) have nothing to
+do here; without them the server does not build against it.
+
+diff --git a/HaikuTextInput.h b/HaikuTextInput.h
+index 073ffa2..f4f4ac1 100644
+--- a/HaikuTextInput.h
++++ b/HaikuTextInput.h
+@@ -32,6 +32,11 @@ public:
+ 	void HandleSetContentType(uint32_t hint, uint32_t purpose) final;
+ 	void HandleSetCursorRectangle(int32_t x, int32_t y, int32_t width, int32_t height) final;
+ 	void HandleCommit() final;
++	// text-input-unstable-v3 requests of newer wayland-protocols (1.49
++	// here): nothing to do for them (not "override", for older protocols)
++	virtual void HandleSetAvailableActions(struct wl_array *available_actions) {}
++	virtual void HandleShowInputPanel() {}
++	virtual void HandleHideInputPanel() {}
+ };
+ 
+ 

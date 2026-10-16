@@ -1,0 +1,132 @@
+Find BScreen::DeviceScale() in libbe's image
+
+dlsym(RTLD_DEFAULT) does not see libbe when the client does not link it
+itself (GTK): it is then only a dependency of this add-on, loaded in its
+local scope, and the output scale stayed 1. Look the symbol up in the
+libbe image with get_image_symbol() instead.
+
+diff --git a/HaikuOutput.cpp b/HaikuOutput.cpp
+index 827af09..ee0a1ac 100644
+--- a/HaikuOutput.cpp
++++ b/HaikuOutput.cpp
+@@ -1,7 +1,11 @@
+ #include "HaikuOutput.h"
++#include "HaikuCompositor.h"
+ #include <Screen.h>
++#include <algorithm>
++#include <vector>
+ #include <AutoDeleter.h>
+-#include <dlfcn.h>
++#include <image.h>
++#include <string.h>
+ #include <math.h>
+ 
+ extern const struct wl_interface wl_output_interface;
+@@ -13,19 +17,88 @@ enum {
+ 
+ 
+ class HaikuOutput: public WlOutput {
++public:
++	HaikuOutput() {sOutputs.push_back(this);}
++	void SendCurrent();
++
++	static std::vector<HaikuOutput*> sOutputs;
++
+ protected:
+-	virtual ~HaikuOutput() = default;
++	virtual ~HaikuOutput() {sOutputs.erase(std::remove(sOutputs.begin(), sOutputs.end(), this), sOutputs.end());}
++
++private:
++	int32_t fWidth = 0, fHeight = 0, fScale = 0;
+ };
+ 
++std::vector<HaikuOutput*> HaikuOutput::sOutputs;
++
++
++// Sends the desktop's size and scale, if they are not what was sent last.
++void HaikuOutput::SendCurrent()
++{
++	BScreen screen;
++	int32_t width = (int32_t)screen.Frame().Width() + 1;
++	int32_t height = (int32_t)screen.Frame().Height() + 1;
++	int32_t scale = HaikuOutputScale();
++	if (width == fWidth && height == fHeight && scale == fScale)
++		return;
++	fWidth = width;
++	fHeight = height;
++	fScale = scale;
++
++	SendGeometry(0, 0, (float)width * 0.3528, (float)height * 0.3528, WlOutput::subpixelUnknown, "Unknown make", "Unknown model", WlOutput::transformNormal);
++	// the mode is in the pixels of the scale's buffers
++	SendMode(WlOutput::modeCurrent | WlOutput::modePreferred, width * scale, height * scale, 60000);
++	if (Version() >= 2) {
++		SendScale(scale);
++		SendDone();
++	}
++}
++
++
++void HaikuOutputsUpdate()
++{
++	for (HaikuOutput *output : HaikuOutput::sOutputs)
++		output->SendCurrent();
++}
++
++
++void HaikuOutputsEnter(HaikuSurface *surface)
++{
++	for (HaikuOutput *output : HaikuOutput::sOutputs) {
++		if (output->Client() == surface->Client())
++			surface->SendEnter(output->ToResource());
++	}
++}
++
+ 
+ // The buffer scale clients should draw at: on a scaled desktop (air/OS,
+ // BScreen::DeviceScale(), looked up at run time) its device scale rounded up.
+ // Surfaces drawn at a higher density than the desktop are filtered down.
++typedef float (*DeviceScaleFunction)(BScreen *screen);
++
++// Looked up in libbe's own image: a client that does not link libbe itself
++// (GTK) loads it only as a dependency of this add-on, where
++// dlsym(RTLD_DEFAULT) does not find it.
++static DeviceScaleFunction FindDeviceScale()
++{
++	image_info info;
++	int32 cookie = 0;
++	while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
++		const char *name = strrchr(info.name, '/');
++		name = name != NULL ? name + 1 : info.name;
++		if (strcmp(name, "libbe.so") != 0) continue;
++		void *symbol;
++		if (get_image_symbol(info.id, "_ZN7BScreen11DeviceScaleEv", B_SYMBOL_TYPE_TEXT, &symbol) != B_OK)
++			return NULL;
++		return (DeviceScaleFunction)symbol;
++	}
++	return NULL;
++}
++
+ int32_t HaikuOutputScale()
+ {
+-	typedef float (*DeviceScaleFunction)(BScreen *screen);
+-	static DeviceScaleFunction deviceScale
+-		= (DeviceScaleFunction)dlsym(RTLD_DEFAULT, "_ZN7BScreen11DeviceScaleEv");
++	static DeviceScaleFunction deviceScale = FindDeviceScale();
+ 	if (deviceScale == NULL) return 1;
+ 	BScreen screen;
+ 	float scale = deviceScale(&screen);
+@@ -53,13 +126,5 @@ void HaikuOutputGlobal::Bind(struct wl_client *wl_client, uint32_t version, uint
+ 		return;
+ 	}
+ 
+-	BScreen screen;
+-	int32_t width = (int32_t)screen.Frame().Width() + 1;
+-	int32_t height = (int32_t)screen.Frame().Height() + 1;
+-	int32_t scale = HaikuOutputScale();
+-	output->SendGeometry(0, 0, (float)width * 0.3528, (float)height * 0.3528, WlOutput::subpixelUnknown, "Unknown make", "Unknown model", WlOutput::transformNormal);
+-	// the mode is in the pixels of the scale's buffers
+-	output->SendMode(WlOutput::modeCurrent | WlOutput::modePreferred, width * scale, height * scale, 60000);
+-	output->SendScale(scale);
+-	output->SendDone();
++	output->SendCurrent();
+ }

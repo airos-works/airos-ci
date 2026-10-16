@@ -1,0 +1,86 @@
+Outputs follow the desktop; surfaces enter them
+
+When the desktop's resolution or scale changes (BWindow::ScreenChanged()
+of a toplevel), every output sends its size and scale again, and
+toplevels and popups enter their client's outputs when they are
+created. GTK takes a window's scale from the outputs it is on, so a
+running GTK program now draws at the new density instead of keeping the
+one it started with (200 -> 100 -> 150 percent: buffer scale 2 -> 1 -> 2).
+
+diff --git a/HaikuOutput.h b/HaikuOutput.h
+index ec6031d..d43a895 100644
+--- a/HaikuOutput.h
++++ b/HaikuOutput.h
+@@ -10,4 +10,12 @@ public:
+ 	void Bind(struct wl_client *wl_client, uint32_t version, uint32_t id) override;
+ };
+ 
++class HaikuSurface;
++
+ int32_t HaikuOutputScale();
++// Sends the outputs' size and scale to their clients again where the
++// desktop changed.
++void HaikuOutputsUpdate();
++// Tells a surface that it is shown on its client's outputs, so that a client
++// such as GTK follows their scale when it changes.
++void HaikuOutputsEnter(HaikuSurface *surface);
+diff --git a/HaikuXdgPopup.cpp b/HaikuXdgPopup.cpp
+index 90336d2..7309e85 100644
+--- a/HaikuXdgPopup.cpp
++++ b/HaikuXdgPopup.cpp
+@@ -1,4 +1,5 @@
+ #include "HaikuXdgPopup.h"
++#include "HaikuOutput.h"
+ #include "HaikuXdgSurface.h"
+ #include "HaikuXdgPositioner.h"
+ #include "WaylandEnv.h"
+@@ -82,6 +83,7 @@ HaikuXdgPopup *HaikuXdgPopup::Create(HaikuXdgSurface *xdgSurface, uint32_t id, s
+ 	xdgPopup->fWindow = new WaylandPopupWindow(xdgPopup, BRect(), "", B_NO_BORDER_WINDOW_LOOK, B_FLOATING_SUBSET_WINDOW_FEEL, B_AVOID_FOCUS);
+ 	xdgSurface->Surface()->AttachWindow(xdgPopup->fWindow);
+ 	xdgSurface->Surface()->AttachViewsToEarlierSubsurfaces();
++	HaikuOutputsEnter(xdgSurface->Surface());
+ 	xdgPopup->fWindow->AddToSubset(xdgPopup->fXdgSurface->fRoot->Window());
+ 
+ 	return xdgPopup;
+diff --git a/HaikuXdgToplevel.cpp b/HaikuXdgToplevel.cpp
+index fc750e7..714cb37 100644
+--- a/HaikuXdgToplevel.cpp
++++ b/HaikuXdgToplevel.cpp
+@@ -13,6 +13,7 @@
+ 
+ #include <Window.h>
+ #include <Screen.h>
++#include "HaikuOutput.h"
+ 
+ #include <cmath>
+ #include <algorithm>
+@@ -37,6 +38,7 @@ public:
+ 	void WindowActivated(bool isActive) final;
+ 	void WorkspacesChanged(uint32 oldWorkspace, uint32 newWorkspace) final;
+ 	void FrameResized(float newWidth, float newHeight) final;
++	void ScreenChanged(BRect frame, color_space mode) final;
+ 	void DispatchMessage(BMessage *msg, BHandler *target) final;
+ };
+ 
+@@ -73,6 +75,13 @@ void WaylandWindow::WorkspacesChanged(uint32 oldWorkspace, uint32 newWorkspace)
+ 	UpdateRefreshRate();
+ }
+ 
++void WaylandWindow::ScreenChanged(BRect frame, color_space mode)
++{
++	// the resolution or the scale of the desktop changed
++	WaylandEnv vlEnv(this);
++	HaikuOutputsUpdate();
++}
++
+ void WaylandWindow::FrameResized(float newWidth, float newHeight)
+ {
+ 	WaylandEnv vlEnv(this);
+@@ -276,6 +285,7 @@ HaikuXdgToplevel *HaikuXdgToplevel::Create(HaikuXdgSurface *xdgSurface, uint32_t
+ 	xdgToplevel->fXdgSurface = xdgSurface;
+ 	xdgToplevel->fWindow = new WaylandWindow(xdgToplevel, BRect(), "", B_NO_BORDER_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL, 0);
+ 	xdgSurface->fSurface->AttachWindow(xdgToplevel->fWindow);
++	HaikuOutputsEnter(xdgSurface->fSurface);
+ 
+ 	return xdgToplevel;
+ }
