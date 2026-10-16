@@ -104,6 +104,8 @@ MOC=$moc_dir/moc
 note "sysroot: the SDK's and HaikuPorts' qt6_base_devel"
 QTROOT=$W/sysroot
 system=$QTROOT/boot/system
+# haiku_svg_icon_theme's directories are read-only once staged
+[[ ! -d $QTROOT ]] || chmod -R u+w "$QTROOT"
 rm -rf "$QTROOT"
 mkdir -p "$QTROOT"
 rsync -a --exclude=/boot/system/data/ssl/private "$SYSROOT/" "$QTROOT/"
