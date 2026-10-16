@@ -81,6 +81,10 @@ if [[ $TARGET == x86_64 ]]; then
 	# system/packages (deps/build-amdgpu.sh; the accelerant is in haiku.hpkg)
 	build_stage "AMD driver" "amdgpu_drm, amdgpu firmware"
 	"$AIROS_CI/deps/build-amdgpu.sh"
+	# and Qt: HaikuPorts' qt6_base with air/OS's Haiku platform plugin, which
+	# draws at the desktop's density (deps/build-qt-airos.sh)
+	build_stage "Qt" "qt6_base with the air/OS platform plugin"
+	"$AIROS_CI/deps/build-qt-airos.sh"
 fi
 # arm64: libpng and FreeType for the system, which Haiku's arm64 repository
 # has not (libpng) or only as the bootstrap FreeType 2.6.3
@@ -107,6 +111,8 @@ build_stage "inputs" "packages, GL stacks, firmware"
 pool=$AIROS_PACKAGES/$ARCH
 any=$AIROS_PACKAGES/any
 missing=()
+# HaikuPorts packages for jam to install (AIROS_CI_SYSTEM_PACKAGES)
+system_packages=()
 for app in "${IMAGE_APPS[@]}"; do
 	file=$(ls "$pool/$app"-[0-9]*-"$ARCH".hpkg 2>/dev/null | head -n 1 || true)
 	if [[ -n $file ]]; then cp "$file" "$WORK/packages/"; else missing+=("$app"); fi
@@ -218,6 +224,24 @@ if [[ $ARCH == x86_64 ]]; then
 	# scale on NVIDIA and other PCs too (on AMD ones the boot script leaves
 	# this copy alone, the user land's is the same file).
 	cp "$gl/amdgpu/userland/lib/wayland-server-inproc.so" "$WORK/libs/"
+	# Qt (deps/build-qt-airos.sh): the patched qt6_base goes in as a file, so
+	# Qt programs installed later (Telegram from HaikuDepot) use it; of what it
+	# needs, jam installs the packages its HaikuPorts list has
+	# (AIROS_CI_SYSTEM_PACKAGES, with their dependencies), the others go in as
+	# files too.
+	qt=$AIROS_ROOT/qt/x86_64/packages
+	ls "$qt"/qt6_base-[0-9]*.hpkg > /dev/null 2>&1 \
+		|| die "no qt6_base package in $qt (deps/build-qt-airos.sh)"
+	jamlist=$HAIKU_SOURCE/build/jam/repositories/HaikuPorts/$ARCH
+	for file in "$qt"/*.hpkg; do
+		name=$(basename "$file")
+		name=${name%%-[0-9]*}
+		if [[ $name != qt6_base ]] && grep -qE "^[[:space:]]*$name-[0-9]" "$jamlist"; then
+			system_packages+=("$name")
+		else
+			cp "$file" "$WORK/packages/"
+		fi
+	done
 fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupdf"
@@ -246,6 +270,8 @@ fi
 	[[ -z $(ls "$WORK/firmware") ]] || echo "AIROS_CI_FIRMWARE = $WORK/firmware ;"
 	[[ -z $(ls "$WORK/add-ons") ]] || echo "AIROS_CI_ADDONS = $WORK/add-ons ;"
 	[[ ! -d $WORK/amdgpu ]] || echo "AIROS_CI_AMDGPU = $WORK/amdgpu ;"
+	[[ ${#system_packages[@]} -eq 0 ]] \
+		|| echo "AIROS_CI_SYSTEM_PACKAGES = ${system_packages[*]} ;"
 	# arm64: FluidLite for the MIDI kit (deps/recipes/fluidlite.sh)
 	deps=$AIROS_ROOT/deps/$ARCH/boot/system
 	[[ $ARCH != arm64 || ! -f $deps/develop/lib/libfluidlite.a ]] || echo "AIROS_CI_FLUIDLITE = $deps ;"

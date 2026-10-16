@@ -48,6 +48,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
 - Amp, airTime, Kiri, Clipper, airShot, Turbo Chook and Burrow.
+- x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
+  Haiku platform plugin from jmgasper/qt6-haikuplugins `airos`, which draws at
+  the desktop's density, at HaikuPorts' revision plus 100
+  (`deps/build-qt-airos.sh`). Qt programs installed from HaikuDepot, such as
+  Telegram, use it and are sharp at 125 to 175 percent.
 - arm64: libraries built from the jmgasper forks (`airos_*` packages:
   OpenSSL, curl, nghttp2, SQLite, TagLib, PCRE2, Scintilla, Lexilla),
   `rock5_ffmpeg` (FFmpeg 6.1.6 with Rockchip MPP hardware decoding),

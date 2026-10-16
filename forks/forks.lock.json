@@ -341,6 +341,15 @@
     "upstream": "https://github.com/PCRE2Project/pcre2.git",
     "url": "https://github.com/jmgasper/pcre2.git"
   },
+  "qt6-haikuplugins": {
+    "base": "1d255f2f8e58d66c1d3f2fc12cf651e4ca0aa80d",
+    "base_commit": "1d255f2f8e58d66c1d3f2fc12cf651e4ca0aa80d",
+    "branch": "airos",
+    "commit": "cfd62e66d57e9c33010d56645fcca5025569f69d",
+    "repo": "qt6-haikuplugins",
+    "upstream": "https://github.com/threedeyes/qt6-haikuplugins.git",
+    "url": "https://github.com/jmgasper/qt6-haikuplugins.git"
+  },
   "rpi-bluez-firmware": {
     "base": "adb4d55c8f193ff16ece74dd72fd6e8801632103",
     "base_commit": "adb4d55c8f193ff16ece74dd72fd6e8801632103",

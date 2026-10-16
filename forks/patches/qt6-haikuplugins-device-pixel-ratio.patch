@@ -1,0 +1,430 @@
+QPA: draw windows at the device pixel ratio of a scaled desktop
+
+On a desktop drawn at a higher density (air/OS, BScreen::DeviceScale()),
+Qt windows were rendered at their logical size and enlarged by the window
+system, which made every Qt application blurry at 125 to 175% and
+smeared its subpixel text.
+
+The screen and the windows now report that scale as their device pixel
+ratio, so Qt renders at the frame buffer's density. Window geometry,
+events and the rest stay in the window system's coordinates. The
+backing store has that many pixels per coordinate unit (rounded up so it
+covers the window wherever it is), follows ratio changes in beginPaint(),
+and is drawn one to one with B_DEVICE_PIXEL_BITMAP. B_SCREEN_CHANGED is
+passed on to Qt (screen geometry and device pixel ratio), so a change of
+scale repaints the windows at the new one.
+
+Text on a scaled desktop is anti-aliased in grey and hinted vertically
+only, as the system does there. BScreen::DeviceScale() is looked up at
+run time; without it the ratio stays 1.
+
+diff --git a/src/platform/qhaikubackingstore.cpp b/src/platform/qhaikubackingstore.cpp
+index 6f2052f..b7c9dd1 100644
+--- a/src/platform/qhaikubackingstore.cpp
++++ b/src/platform/qhaikubackingstore.cpp
+@@ -42,6 +42,7 @@
+ #include "qhaikuwindow.h"
+ #include "qhaikucursor.h"
+ #include "qhaikuintegration.h"
++#include "qhaikuscreen.h"
+ 
+ #include <QtGui/private/qpixmap_raster_p.h>
+ #include <QtGui/private/qguiapplication_p.h>
+@@ -50,15 +51,22 @@
+ #include <qpa/qplatformwindow.h>
+ 
+ #include <qdebug.h>
++#include <QtCore/qmath.h>
+ 
+ QT_BEGIN_NAMESPACE
+ 
++// B_DEVICE_PIXEL_BITMAP of <InterfaceDefs.h> on systems that have it: the
++// bitmap holds frame buffer pixels and is drawn one to one.
++static const uint32 kDevicePixelBitmap = 0x00001000;
++
++
+ QHaikuBackingStore::QHaikuBackingStore(QWindow *window)
+     : QPlatformBackingStore(window)
++    , m_bitmap(NULL)
++    , m_requestedSize(window->size())
++    , m_scale(1.0)
+ {
+-	BRect rect(0, 0, window->width() - 1, window->height() - 1);
+-	m_bitmap = new BBitmap(rect, B_RGB32);	
+-	m_image = QImage((uchar*)m_bitmap->Bits(), window->width(), window->height(), m_bitmap->BytesPerRow(), QImage::Format_RGB32);
++	ensureBitmap();
+ }
+ 
+ 
+@@ -78,7 +86,6 @@ QPaintDevice *QHaikuBackingStore::paintDevice()
+ void QHaikuBackingStore::drawChildWindows(QWindow *topwin)
+ {
+ 	QHaikuWindow *topHaikuWin = QHaikuWindow::windowForWinId(topwin->winId());
+-
+ 	for (int i = 0; i < topHaikuWin->fakeChildList()->size(); ++i) {
+ 		QHaikuWindow *win = topHaikuWin->fakeChildList()->at(i);
+ 		if (!win->window()->isTopLevel() && win->window()->isVisible()) {
+@@ -95,56 +102,97 @@ void QHaikuBackingStore::flush(QWindow *window, const QRegion &region, const QPo
+     if (m_image.size().isEmpty())// && !window->isTopLevel())
+         return;
+ 
+-    QSize imageSize = m_image.size();
+-
++    QSize imageSize = m_image.deviceIndependentSize().toSize();
+     QRegion clipped = QRect(0, 0, window->width(), window->height());
+     clipped &= QRect(0, 0, imageSize.width(), imageSize.height()).translated(-offset);
+-
+     QRect bounds = clipped.boundingRect().translated(offset);
+ 
+     if (bounds.isNull())
+         return;
+ 
+     WId id = window->winId();
+-	QHaikuSurfaceView *view = QHaikuWindow::viewForWinId(id);
+ 
++	QHaikuSurfaceView *view = QHaikuWindow::viewForWinId(id);
+     QRect outline = region.boundingRect();
+ 
+ 	if (view->LockLooperWithTimeout(10000) == B_OK) {
+ 		view->SetDrawingMode(B_OP_COPY);
+-
+ 		QHaikuWindow *topHaikuWin = QHaikuWindow::windowForWinId(id)->topLevelWindow();
+-
+ 		BRect rect(outline.left(), outline.top(), outline.right(), outline.bottom());
+ 		BRegion winregion(rect);
+ 		BRegion region = topHaikuWin->getClippingRegion();
+ 		view->ConstrainClippingRegion(&region);
+-		view->DrawBitmapAsync(m_bitmap, rect, rect);
++		if (m_scale != 1.0) {
++			// The pixels covering the region, from the one its top left
++			// corner falls on: the window system puts that one on the
++			// frame buffer pixel where the same coordinate falls.
++			int left = qMax(0, qFloor(outline.left() * m_scale));
++			int top = qMax(0, qFloor(outline.top() * m_scale));
++			int right = qMin(m_image.width(), qCeil((outline.right() + 1) * m_scale)) - 1;
++			int bottom = qMin(m_image.height(), qCeil((outline.bottom() + 1) * m_scale)) - 1;
++			if (left <= right && top <= bottom) {
++				view->DrawBitmapAsync(m_bitmap, BRect(left, top, right, bottom),
++					BRect(left / m_scale, top / m_scale, (right + 1) / m_scale,
++						(bottom + 1) / m_scale), kDevicePixelBitmap);
++			}
++		} else
++			view->DrawBitmapAsync(m_bitmap, rect, rect);
+ 		winregion.Exclude(&region);
+ 		view->ConstrainClippingRegion(&winregion);
+ 		drawChildWindows(window);
+ 		view->Sync();
+     	view->UnlockLooper();
+     }
++
+     m_windowAreaHash[id] = bounds;
+ }
+ 
+ 
+ void QHaikuBackingStore::resize(const QSize &size, const QRegion &)
+ {
+-    WId id = window()->winId();
+-    if (m_image.size() != size) {
+-		QHaikuSurfaceView *view = QHaikuWindow::viewForWinId(id);
+-		if (view->LockLooperWithTimeout(10000) == B_OK) {
+-    		m_image = QImage();
+-	        delete m_bitmap;
+-
+-			BRect rect(0, 0, size.width() - 1, size.height() - 1);
+-			m_bitmap = new BBitmap(rect, B_RGB32, true);
+-			m_image = QImage((uchar*)m_bitmap->Bits(), size.width(), size.height(), m_bitmap->BytesPerRow(), QImage::Format_RGB32);
+-			view->UnlockLooper();
+-    	}
+-    }
++	m_requestedSize = size;
++	ensureBitmap();
++}
++
++
++void QHaikuBackingStore::beginPaint(const QRegion &)
++{
++	// the device pixel ratio may have changed since the last resize
++	ensureBitmap();
++}
++
++
++// The image has the device pixel ratio's worth of pixels for each coordinate
++// unit of the window, rounded up so that it covers every frame buffer pixel
++// of the window wherever it is.
++void QHaikuBackingStore::ensureBitmap()
++{
++	qreal scale = window()->handle() != NULL
++		? window()->handle()->devicePixelRatio() : QHaikuScreen::deviceScale();
++	QSize pixels(qCeil(m_requestedSize.width() * scale),
++		qCeil(m_requestedSize.height() * scale));
++	if (m_bitmap != NULL && m_image.size() == pixels && m_scale == scale)
++		return;
++	if (pixels.isEmpty())
++		pixels = QSize(1, 1);
++
++	QHaikuSurfaceView *view = window()->handle() != NULL
++		? QHaikuWindow::viewForWinId(window()->winId()) : NULL;
++	bool locked = view != NULL && view->LockLooperWithTimeout(10000) == B_OK;
++	if (view != NULL && !locked)
++		return;
++
++	m_image = QImage();
++	delete m_bitmap;
++	m_bitmap = new BBitmap(BRect(0, 0, pixels.width() - 1, pixels.height() - 1),
++		B_RGB32, true);
++	m_image = QImage((uchar*)m_bitmap->Bits(), pixels.width(), pixels.height(),
++		m_bitmap->BytesPerRow(), QImage::Format_RGB32);
++	m_image.setDevicePixelRatio(scale);
++	m_scale = scale;
++
++	if (locked)
++		view->UnlockLooper();
+ }
+ 
+ 
+@@ -153,8 +201,15 @@ bool QHaikuBackingStore::scroll(const QRegion &area, int dx, int dy)
+ 	if (m_image.isNull())
+ 		return false;
+ 
+-	for (const QRect &rect : area)
+-		qt_scrollRectInImage(m_image, rect, QPoint(dx, dy));
++	// At a fractional ratio a scroll is a fraction of a pixel: paint again.
++	if (m_scale != qRound(m_scale))
++		return false;
++
++	int scale = qRound(m_scale);
++	for (const QRect &rect : area) {
++		qt_scrollRectInImage(m_image, QRect(rect.topLeft() * scale,
++			rect.size() * scale), QPoint(dx, dy) * scale);
++	}
+ 
+ 	return true;
+ }
+diff --git a/src/platform/qhaikubackingstore.h b/src/platform/qhaikubackingstore.h
+index c66b435..c5de74f 100644
+--- a/src/platform/qhaikubackingstore.h
++++ b/src/platform/qhaikubackingstore.h
+@@ -79,6 +79,7 @@ public:
+     QPaintDevice *paintDevice() override;
+     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
+     void resize(const QSize &size, const QRegion &staticContents) override;
++    void beginPaint(const QRegion &region) override;
+     bool scroll(const QRegion &area, int dx, int dy) override;
+ 	QImage toImage() const override { return m_image; }
+ 
+@@ -87,8 +88,11 @@ public:
+ private:
+     void clearHash();
+ 
++    void ensureBitmap();
+     QImage m_image;
+     BBitmap *m_bitmap;
++    QSize m_requestedSize;
++    qreal m_scale;
+     
+     QHash<WId, QRect> m_windowAreaHash;
+ };
+diff --git a/src/platform/qhaikuplatformfontdatabase.cpp b/src/platform/qhaikuplatformfontdatabase.cpp
+index 637427e..6566d22 100644
+--- a/src/platform/qhaikuplatformfontdatabase.cpp
++++ b/src/platform/qhaikuplatformfontdatabase.cpp
+@@ -43,6 +43,7 @@
+ 
+ #include "qhaikuintegration.h"
+ #include "qhaikuplatformfontdatabase.h"
++#include "qhaikuscreen.h"
+ 
+ #include <Path.h>
+ #include <PathFinder.h>
+@@ -63,6 +64,13 @@ QFontEngineHaikuFT *QFontEngineHaikuFT::create(const QFontDef &fontDef, FaceId f
+ 	bool subpixel = false;
+ 	get_subpixel_antialiasing(&subpixel);
+ 
++	// On a desktop drawn at a higher density the system anti-aliases in grey
++	// and hints vertically only, keeping the advances: the same here, so that
++	// text in Qt windows looks like the rest.
++	bool scaled = QHaikuScreen::deviceScale() != 1.0;
++	if (scaled)
++		subpixel = false;
++
+ 	if (!subpixel) {
+ 		format = QFontEngineFT::Format_A8;
+ 		engine->subpixelType = QFontEngine::Subpixel_None;
+@@ -81,6 +89,8 @@ QFontEngineHaikuFT *QFontEngineHaikuFT::create(const QFontDef &fontDef, FaceId f
+ 
+ 	if (hinting == 0)
+ 		engine->setDefaultHintStyle(QFontEngineHaikuFT::HintNone);
++	else if (scaled)
++		engine->setDefaultHintStyle(QFontEngineHaikuFT::HintLight);
+ 	else if (hinting == 1)
+ 		engine->setDefaultHintStyle(QFontEngineHaikuFT::HintMedium);
+ 	else if (hinting == 2 && fontDef.families.contains("Mono"))
+diff --git a/src/platform/qhaikuscreen.cpp b/src/platform/qhaikuscreen.cpp
+index 1bae80f..48aa41e 100644
+--- a/src/platform/qhaikuscreen.cpp
++++ b/src/platform/qhaikuscreen.cpp
+@@ -50,6 +50,8 @@
+ 
+ #include <qdebug.h>
+ 
++#include <dlfcn.h>
++
+ QT_BEGIN_NAMESPACE
+ 
+ QHaikuScreen::QHaikuScreen()
+@@ -113,7 +115,7 @@ QPlatformScreen::SubpixelAntialiasingType QHaikuScreen::subpixelAntialiasingType
+ {
+     QPlatformScreen::SubpixelAntialiasingType type = QPlatformScreen::subpixelAntialiasingTypeHint();
+ 
+-    if (type == QPlatformScreen::Subpixel_None) {
++    if (type == QPlatformScreen::Subpixel_None && deviceScale() == 1.0) {
+ 		bool subpixel = false;
+ 		get_subpixel_antialiasing(&subpixel);
+ 
+@@ -147,6 +149,32 @@ QDpi QHaikuScreen::logicalDpi() const
+     return QDpi(72, 72);
+ }
+ 
++
++// On a desktop drawn at a higher density for a high density monitor
++// (air/OS), BScreen::DeviceScale() says how many frame buffer pixels make up
++// a coordinate unit. Windows keep their coordinates; their backing stores
++// have that many times as many pixels and are drawn one to one, which keeps
++// text and lines sharp instead of having the window system enlarge them.
++// Looked up at run time: elsewhere the ratio is 1.
++qreal QHaikuScreen::deviceScale()
++{
++    typedef float (*DeviceScaleFunction)(BScreen *screen);
++    static DeviceScaleFunction deviceScaleFunction
++        = (DeviceScaleFunction)dlsym(RTLD_DEFAULT, "_ZN7BScreen11DeviceScaleEv");
++    if (deviceScaleFunction == NULL)
++        return 1.0;
++
++    BScreen screen(B_MAIN_SCREEN_ID);
++    float scale = deviceScaleFunction(&screen);
++    return scale >= 1.0f && scale <= 8.0f ? scale : 1.0;
++}
++
++
++qreal QHaikuScreen::devicePixelRatio() const
++{
++    return deviceScale();
++}
++
+ Qt::ScreenOrientation QHaikuScreen::nativeOrientation() const
+ {
+     return Qt::PrimaryOrientation;
+diff --git a/src/platform/qhaikuscreen.h b/src/platform/qhaikuscreen.h
+index d5af81a..bec66fd 100644
+--- a/src/platform/qhaikuscreen.h
++++ b/src/platform/qhaikuscreen.h
+@@ -74,6 +74,9 @@ public:
+ 
+     QSizeF physicalSize() const override;
+     QDpi logicalDpi() const override;
++    qreal devicePixelRatio() const override;
++
++    static qreal deviceScale();
+     Qt::ScreenOrientation nativeOrientation() const override;
+     Qt::ScreenOrientation orientation() const override;
+ 
+diff --git a/src/platform/qhaikuwindow.cpp b/src/platform/qhaikuwindow.cpp
+index 9eda27b..5a75f91 100644
+--- a/src/platform/qhaikuwindow.cpp
++++ b/src/platform/qhaikuwindow.cpp
+@@ -39,6 +39,7 @@
+ ****************************************************************************/
+ 
+ #include "qhaikuwindow.h"
++#include "qhaikuscreen.h"
+ #include "qhaikukeymap.h"
+ #include "qhaikusettings.h"
+ 
+@@ -276,6 +277,13 @@ void QtHaikuWindow::FrameMoved(BPoint point)
+ }
+ 
+ 
++void QtHaikuWindow::ScreenChanged(BRect frame, color_space mode)
++{
++	BWindow::ScreenChanged(frame, mode);
++	Q_EMIT screenChanged();
++}
++
++
+ void QtHaikuWindow::WindowActivated(bool active)
+ {
+ 	Q_EMIT windowActivated(active);
+@@ -327,6 +335,7 @@ QHaikuWindow::QHaikuWindow(QWindow *wnd)
+ 
+ 	connect(m_window, SIGNAL(quitRequested()), SLOT(platformWindowQuitRequested()));
+     connect(m_window, SIGNAL(windowMoved(QPoint)), SLOT(platformWindowMoved(QPoint)));
++    connect(m_window, SIGNAL(screenChanged()), SLOT(platformScreenChanged()));
+ 	connect(m_window, SIGNAL(windowResized(QSize)), SLOT(platformWindowResized(QSize)));
+     connect(m_window, SIGNAL(windowActivated(bool)), SLOT(platformWindowActivated(bool)));
+     connect(m_window, SIGNAL(workspaceActivated(int, bool)), SLOT(platformWorkspaceActivated(int, bool)));
+@@ -959,6 +968,29 @@ void QHaikuWindow::platformWindowQuitRequested()
+ }
+ 
+ 
++// Frame buffer pixels per coordinate unit, see QHaikuScreen::deviceScale().
++qreal QHaikuWindow::devicePixelRatio() const
++{
++	return QHaikuScreen::deviceScale();
++}
++
++
++// The screen's size, or the density it is drawn at, changed: Qt asks
++// the screen again and repaints the window at the new device pixel ratio.
++void QHaikuWindow::platformScreenChanged()
++{
++	QPlatformScreen *platformScreen = screen();
++	if (platformScreen != NULL && platformScreen->screen() != NULL) {
++		QWindowSystemInterface::handleScreenGeometryChange(
++			platformScreen->screen(), platformScreen->geometry(),
++			platformScreen->availableGeometry());
++	}
++	QWindowSystemInterface::handleWindowDevicePixelRatioChanged(window());
++	QWindowSystemInterface::handleExposeEvent(window(),
++		QRect(QPoint(), window()->size()));
++}
++
++
+ void QHaikuWindow::platformWindowMoved(const QPoint &pos)
+ {
+ 	QRect adjusted = geometry();
+diff --git a/src/platform/qhaikuwindow.h b/src/platform/qhaikuwindow.h
+index 0744ff9..264cc12 100644
+--- a/src/platform/qhaikuwindow.h
++++ b/src/platform/qhaikuwindow.h
+@@ -83,6 +83,7 @@ public:
+ 
+ 	void FrameResized(float width, float height) override;
+ 	void FrameMoved(BPoint point) override;
++	void ScreenChanged(BRect frame, color_space mode) override;
+ 	void MessageReceived(BMessage* msg) override;
+ 	virtual void DispatchMessage(BMessage *, BHandler *) override;
+ 	virtual void WindowActivated(bool active) override;
+@@ -98,6 +99,7 @@ public:
+ 	QHaikuWindow *fQWindow;
+ Q_SIGNALS:
+     void windowMoved(const QPoint &pos);
++    void screenChanged();
+     void windowResized(const QSize &size);
+     void windowActivated(bool activated);
+     void workspaceActivated(int workspace, bool activated);
+@@ -126,6 +128,7 @@ public:
+ 	virtual void destroy();
+ 
+ 	void setGeometry(const QRect &rect) override;
++	qreal devicePixelRatio() const override;
+ 	void setWindowTitle(const QString &title) override;
+ 	void setWindowState(Qt::WindowStates state) override;
+ 	void setWindowFlags(Qt::WindowFlags flags) override;
+@@ -194,6 +197,7 @@ private:
+ private Q_SLOTS:
+ 	void platformWindowQuitRequested();
+ 	void platformWindowMoved(const QPoint &pos);
++	void platformScreenChanged();
+ 	void platformWindowResized(const QSize &size);
+ 	void platformWindowActivated(bool activated);
+ 	void platformWorkspaceActivated(int workspace, bool activated);

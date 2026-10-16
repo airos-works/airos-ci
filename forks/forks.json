@@ -870,6 +870,25 @@
       "used_by": "x86_64 images: the in-process Wayland server of the AMD GPU user land (GTK, Firefox and Vulkan windows at the desktop's scale; deps/build-amdgpu-userland.sh)"
     },
     {
+      "name": "qt6-haikuplugins",
+      "wave": 3,
+      "create": "fork",
+      "github": "threedeyes/qt6-haikuplugins",
+      "base": "1d255f2f8e58d66c1d3f2fc12cf651e4ca0aa80d",
+      "branch": "airos",
+      "patches": [
+        {
+          "from": "ci:forks/patches/qt6-haikuplugins-build-fix.patch",
+          "message": "Build fix"
+        },
+        {
+          "from": "ci:forks/patches/qt6-haikuplugins-device-pixel-ratio.patch",
+          "message": "QPA: draw windows at the device pixel ratio of a scaled desktop"
+        }
+      ],
+      "used_by": "x86_64 images: the Haiku platform plugin in qt6_base (deps/build-qt-airos.sh), Qt programs at the desktop's density"
+    },
+    {
       "name": "fluidlite",
       "repo": "FluidLite",
       "wave": 5,
