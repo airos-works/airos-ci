@@ -237,7 +237,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos-25.3.6",
-    "commit": "fa0964a05f6cf0616657e74be836c2687b4fe1c0",
+    "commit": "cb8efafbba6572157128f5a3b8785eec12f114cf",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/jmgasper/mesa.git"
@@ -246,7 +246,7 @@
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
     "branch": "airos-amdgpu",
-    "commit": "63052615c4b1c8765691f2fe89864fbd6fefc278",
+    "commit": "dce808ad918f5a768b749e75b0c92104ae4664fe",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/jmgasper/mesa.git"
@@ -273,7 +273,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos-25.3.6-x86_64",
-    "commit": "33656fb53639a447733ed926a00843db898e28c7",
+    "commit": "d7d67ef2c570ea9e64fa3db3978cf7e2be7a771a",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/jmgasper/mesa.git"

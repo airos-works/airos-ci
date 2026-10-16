@@ -1,0 +1,33 @@
+util: find the Haiku program name from the application image
+
+__getProgramName() passed B_CURRENT_TEAM to get_image_info(), which takes an
+image ID: the call failed with B_ENTRY_NOT_FOUND and the uninitialised
+image_info name was strdup()ed. It became the process prefix of every
+util_queue thread name ("<junk>0:zfq0" in Summit's web processes). Walk the
+team's images and use the base name of the B_APP_IMAGE instead.
+
+diff --git a/src/util/u_process.c b/src/util/u_process.c
+index 6846acd..4de210d 100644
+--- a/src/util/u_process.c
++++ b/src/util/u_process.c
+@@ -159,9 +159,18 @@ __getProgramName()
+ static char *
+ __getProgramName()
+ {
++   /* get_image_info() takes an image ID, not a team ID: find the team's
++    * application image instead.
++    */
+    image_info info;
+-   get_image_info(B_CURRENT_TEAM, &info);
+-   return strdup(info.name);
++   int32 cookie = 0;
++   while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK) {
++      if (info.type == B_APP_IMAGE) {
++         const char *progname = strrchr(info.name, '/');
++         return strdup(progname ? progname + 1 : info.name);
++      }
++   }
++   return strdup("");
+ }
+ #else
+ #define GET_PROGRAM_NAME_NOT_AVAILABLE

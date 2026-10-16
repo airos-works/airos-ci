@@ -364,6 +364,10 @@
         {
           "from": "ci:forks/patches/mesa-hgl-format-dep.patch",
           "message": "hgl: depend on the generated format header (parallel build race)"
+        },
+        {
+          "from": "ci:forks/patches/mesa-haiku-progname.patch",
+          "message": "util: find the Haiku program name from the application image"
         }
       ],
       "used_by": "arm64 images: libEGL_mesa (Panfrost on the ROCK 5, V3D on the Pi) and libvulkan_broadcom (deps/recipes/gl.sh)"
@@ -414,6 +418,10 @@
         {
           "from": "ci:forks/patches/mesa-hgl-format-dep.patch",
           "message": "hgl: depend on the generated format header (parallel build race)"
+        },
+        {
+          "from": "ci:forks/patches/mesa-haiku-progname.patch",
+          "message": "util: find the Haiku program name from the application image"
         }
       ],
       "used_by": "x86_64 summit_webkit: the private Mesa (llvmpipe, zink) with EGL in lib/summit-webkit/mesa (deps/build-gl-x86_64.sh)"
