@@ -949,6 +949,21 @@ INFO
 	finish_package summit_webkit "$engine/WebProcess" "$engine/NetworkProcess"
 }
 
+# object_is_current <object>: the object is newer than its source and every
+# header that went into it, from the list gcc wrote beside it (-MMD). An
+# object without that list is rebuilt. Comparing with the source alone kept
+# objects of a struct's old layout beside new ones when a header changed
+# (summit 97a499c's Profile, 1487b19's BrowserWindow): the browser read
+# padding for a new field and allocated windows too small.
+object_is_current() {
+	local object=$1 dependency
+	[[ -e $object && -e $object.d ]] || return 1
+	while read -r dependency; do
+		[[ -e $dependency && ! $dependency -nt $object ]] || return 1
+	done < <(sed -e 's/^[^:]*://' -e 's/\\$//' "$object.d" | tr -s ' ' '\n' | sed '/^$/d')
+	return 0
+}
+
 build_summit() {
 	note Summit
 	summit_engine_built || die "no Summit engine in $SUMMIT_ENGINE_BUILD (summit/build-engine.sh)"
@@ -960,7 +975,9 @@ build_summit() {
 	mkdir -p "$work/engine/include/WebKit" "$BUILDDIR/obj"
 	local header
 	for header in $(engine_api_headers); do
-		cp "$header" "$work/engine/include/WebKit/"
+		# Their times are the engine source's: objects that include them are
+		# rebuilt only when they change (object_is_current).
+		cp -p "$header" "$work/engine/include/WebKit/"
 	done
 	# The browser's sources: the list its own native build uses.
 	local sources
@@ -983,8 +1000,8 @@ PY
 	for source in $sources; do
 		object=$BUILDDIR/obj/$(echo "${source%.cpp}" | tr / _).o
 		objects+=("$object")
-		[[ -e $object && ! $SRC/$source -nt $object ]] && continue
-		${CROSS}g++ --sysroot="$SYSROOT" "${flags[@]}" -c "$SRC/$source" -o "$object" &
+		object_is_current "$object" && continue
+		${CROSS}g++ --sysroot="$SYSROOT" "${flags[@]}" -MMD -MF "$object.d" -c "$SRC/$source" -o "$object" &
 		while [[ $(jobs -rp | wc -l) -ge $JOBS ]]; do wait -n; done
 	done
 	wait
