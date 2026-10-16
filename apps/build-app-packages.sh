@@ -818,12 +818,18 @@ build_summit_webkit() {
 	local engine=lib/summit-webkit
 	mkdir -p "$STAGE/$engine/lib"
 	local name
+	# The processes find the engine's libraries, and on x86_64 the private EGL.
+	local process_rpath='$ORIGIN/lib'
+	[[ ! -d $SUMMIT_MESA/lib ]] || process_rpath='$ORIGIN/lib:$ORIGIN/mesa/lib'
 	for name in WebProcess NetworkProcess; do
 		cp "$SUMMIT_ENGINE_BUILD/bin/$name" "$STAGE/$engine/$name"
 		chmod 755 "$STAGE/$engine/$name"
 		"$STRIP" --strip-debug "$STAGE/$engine/$name"
-		set_rpath "$STAGE/$engine/$name" '$ORIGIN/lib'
+		set_rpath "$STAGE/$engine/$name" "$process_rpath"
 	done
+	# The resources go on last: strip and patchelf drop them. Without them
+	# the web process registers as an ordinary application (B_BACKGROUND_APP
+	# is in its app flags) and the Deskbar lists it as "WebProcess".
 	[[ ! -f $SUMMIT_ENGINE_BUILD/bin/WebProcess.rsrc ]] \
 		|| "$TOOLS/xres" -o "$STAGE/$engine/WebProcess" "$SUMMIT_ENGINE_BUILD/bin/WebProcess.rsrc"
 	# Every library the processes need that Haiku and the GL stack do not
@@ -834,9 +840,6 @@ build_summit_webkit() {
 	# The engine's libraries find each other, and on x86_64 the private EGL.
 	local lib_rpath='$ORIGIN'
 	[[ ! -d $SUMMIT_MESA/lib ]] || lib_rpath='$ORIGIN:$ORIGIN/../mesa/lib'
-	for name in WebProcess NetworkProcess; do
-		[[ ! -d $SUMMIT_MESA/lib ]] || set_rpath "$STAGE/$engine/$name" '$ORIGIN/lib:$ORIGIN/mesa/lib'
-	done
 	while [[ ${#pending[@]} -gt 0 ]]; do
 		item=${pending[-1]}
 		unset 'pending[-1]'
