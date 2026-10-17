@@ -85,6 +85,10 @@ if [[ $TARGET == x86_64 ]]; then
 	# draws at the desktop's density (deps/build-qt-airos.sh)
 	build_stage "Qt" "qt6_base with the air/OS platform plugin"
 	"$AIROS_CI/deps/build-qt-airos.sh"
+	# and libvpx with x86-64 code and VP9's high bit depth, ahead of
+	# HaikuPorts' generic build (deps/build-libvpx.sh; once per version)
+	build_stage "libvpx" "VP8/VP9 with SIMD and 10-bit VP9"
+	"$AIROS_CI/deps/build-libvpx.sh"
 fi
 # arm64: libpng and FreeType for the system, which Haiku's arm64 repository
 # has not (libpng) or only as the bootstrap FreeType 2.6.3
@@ -103,7 +107,7 @@ fi
 
 WORK=$AIROS_WORK/image-$TARGET
 rm -rf "$WORK"
-mkdir -p "$WORK"/{packages,fonts,freetype,libpng,mupdf,libs,egl,demos,firmware,add-ons}
+mkdir -p "$WORK"/{packages,fonts,freetype,libpng,ffmpeg,mupdf,libs,egl,demos,firmware,add-ons}
 
 # 2. The inputs.
 note "inputs"
@@ -197,6 +201,17 @@ else
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/libpng.sh)"
 		cp "$file" "$WORK/libpng/"
 	done
+	# FFmpeg as HAIKU_ARM64_FFMPEG_PACKAGES_DIR: Haiku's ffmpeg build feature,
+	# for MediaConverter (rock5_ffmpeg itself goes in with the pool's rock5_*
+	# packages; its devel package is kept apart, deps/recipes/rock5_ffmpeg.sh).
+	base=$(ls "$pool"/rock5_ffmpeg-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+	devel=$(ls "$AIROS_ROOT"/image-inputs/arm64/ffmpeg-devel/rock5_ffmpeg_devel-[0-9]*-arm64.hpkg \
+		2>/dev/null | head -n 1 || true)
+	if [[ -n $base && -n $devel ]]; then
+		cp "$base" "$devel" "$WORK/ffmpeg/"
+	else
+		echo "warning: no rock5_ffmpeg_devel (deps/build-deps.sh arm64 rock5_ffmpeg): no MediaConverter" >&2
+	fi
 fi
 # GL stack, EGL vendor files, demos, firmware and add-ons staged by the deps
 # builds.
@@ -206,9 +221,9 @@ gl=$AIROS_ROOT/image-inputs/$TARGET
 [[ -d $gl/demos ]] && cp -a "$gl/demos/." "$WORK/demos/"
 [[ -d $gl/firmware ]] && cp -a "$gl/firmware/." "$WORK/firmware/"
 # x86_64: nvidia_rm, its accelerant, NVDEC and NVENC (deps/build-nvidia.sh), NVK
-# (deps/build-nvk.sh), the Zink renderer (deps/build-zink.sh): each a tree
-# with lib/ and add-ons/
-for part in "$gl"/nvidia "$gl"/nvk "$gl"/zink; do
+# (deps/build-nvk.sh), the Zink renderer (deps/build-zink.sh), libvpx
+# (deps/build-libvpx.sh): each a tree with lib/ and add-ons/
+for part in "$gl"/nvidia "$gl"/nvk "$gl"/zink "$gl"/libvpx; do
 	[[ -d $part/lib ]] && cp -a "$part/lib/." "$WORK/libs/"
 	[[ -d $part/add-ons ]] && cp -a "$part/add-ons/." "$WORK/add-ons/"
 done
@@ -272,6 +287,7 @@ fi
 	[[ -z $(ls "$WORK/fonts") ]] || echo "AIROS_CI_FONTS = $WORK/fonts ;"
 	[[ -z $(ls "$WORK/freetype") ]] || echo "HAIKU_ARM64_FREETYPE_PACKAGES_DIR = $WORK/freetype ;"
 	[[ -z $(ls "$WORK/libpng") ]] || echo "HAIKU_ARM64_LIBPNG_PACKAGES_DIR = $WORK/libpng ;"
+	[[ -z $(ls "$WORK/ffmpeg") ]] || echo "HAIKU_ARM64_FFMPEG_PACKAGES_DIR = $WORK/ffmpeg ;"
 	[[ -z $(ls "$WORK/mupdf") ]] || echo "HAIKU_MUPDF_PACKAGES_DIR = $WORK/mupdf ;"
 	[[ -z $(ls "$WORK/libs") ]] || echo "AIROS_CI_LIBS = $WORK/libs ;"
 	[[ -z $(ls "$WORK/egl") ]] || echo "AIROS_CI_EGL = $WORK/egl ;"
@@ -288,6 +304,17 @@ fi
 	echo "include $HAIKU_SOURCE/tools/airos/ci/UserBuildConfig ;"
 } > UserBuildConfig
 rm -f "$BUILD/$IMAGE"
+# The build's attribute emulation (libroot_build) keeps a symlink's attributes
+# under attributes/symlink-<inode>, and nothing removes them when the link is
+# deleted. $WORK is made anew for every image, so a staged symlink that gets
+# the inode of an old one inherits its attributes - "Error getting info for
+# attribute BEOS:TYPE" when the image copies the add-ons. Links staged here
+# have no attributes of their own.
+if [[ -d $BUILD/attributes ]]; then
+	find "$WORK" -type l -printf '%i\n' | while read -r inode; do
+		rm -rf "$BUILD/attributes/symlink-$inode"
+	done
+fi
 note "jam @$PROFILE $JAM_TARGET"
 build_stage "image" "jam @$PROFILE $JAM_TARGET"
 jam -q -j"$JOBS" "@$PROFILE" $JAM_TARGET

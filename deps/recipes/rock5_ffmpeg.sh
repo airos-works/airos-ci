@@ -8,7 +8,7 @@
 #     built from ($HAIKU_SOURCE).
 # FFmpeg's libraries and headers also go into DEPS, for airTime.
 VERSION=6.1.6
-PKG_REVISION=3
+PKG_REVISION=4
 FORK=ffmpeg
 NO_PACKAGE=1
 STAMP_EXTRA="mpp:$(fork_info mpp commit)"
@@ -115,4 +115,40 @@ EOF
 	with_lock packages-$ARCH bash -c 'rm -f "$1"/rock5_ffmpeg-[0-9]*-arm64.hpkg' _ "$AIROS_PACKAGES/$ARCH"
 	"$TOOLS/package/package" create -q -C "$pkg" "$file"
 	echo "package: $file ($mppsoname)"
+
+	# 5. rock5_ffmpeg_devel, for Haiku's own build: its ffmpeg build feature
+	# (HAIKU_ARM64_FFMPEG_PACKAGES_DIR, which images/build-image.sh fills with
+	# both packages) builds MediaConverter for arm64. Not in the package pool,
+	# whose rock5_* packages all go into the images.
+	local devel=$top/package_devel lib soname
+	rm -rf "$devel"
+	mkdir -p "$devel/develop/headers" "$devel/develop/lib"
+	for lib in avcodec avfilter avformat avutil swresample swscale; do
+		cp -a "$inc/lib$lib" "$devel/develop/headers/"
+		soname=$(${CROSS}readelf -d "$ff/lib/lib$lib.so" | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p')
+		ln -s "../../lib/$soname" "$devel/develop/lib/lib$lib.so"
+	done
+	cat > "$devel/.PackageInfo" <<INFO
+name rock5_ffmpeg_devel
+version $VERSION-$PKG_REVISION
+architecture arm64
+summary "Headers for rock5_ffmpeg's FFmpeg libraries"
+description "The headers and development links of FFmpeg $VERSION as rock5_ffmpeg has it, for building against it. Built by air/OS CI from jmgasper/ffmpeg ${FFMPEG_COMMIT:0:12}."
+packager "air/OS CI"
+vendor "air/OS"
+copyrights { "2000-2024 FFmpeg developers" }
+licenses { "LGPLv2.1" }
+provides {
+	rock5_ffmpeg_devel = $VERSION
+}
+requires {
+	rock5_ffmpeg == $VERSION
+}
+INFO
+	local develDir=$AIROS_ROOT/image-inputs/arm64/ffmpeg-devel
+	mkdir -p "$develDir"
+	rm -f "$develDir"/rock5_ffmpeg_devel-*.hpkg
+	"$TOOLS/package/package" create -q -C "$devel" \
+		"$develDir/rock5_ffmpeg_devel-$VERSION-$PKG_REVISION-$ARCH.hpkg"
+	echo "package: $develDir/rock5_ffmpeg_devel-$VERSION-$PKG_REVISION-$ARCH.hpkg"
 }
