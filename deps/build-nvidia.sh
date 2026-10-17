@@ -15,6 +15,9 @@
 #   nvdec                         media add-on: H.264 on the card's NVDEC engine,
 #                                 with jmgasper/mesa-nvk's RM API; it offers
 #                                 nothing where there is no NVIDIA card
+#   nvenc                         MediaConverter's encoder add-on: H.264 and
+#                                 H.265 on the card's NVENC engine, built the
+#                                 same way (from Haiku revisions that have it)
 #
 # into $AIROS_ROOT/image-inputs/x86_64/add-ons, which the x86_64 image puts in
 # system/non-packaged/add-ons: the boot menu's "Disable user add-ons" turns
@@ -39,6 +42,7 @@ cd "$W"
 driver=$HAIKU_SOURCE/src/add-ons/kernel/drivers/graphics/nvidia_rm/build-cross.sh
 accelerant=$HAIKU_SOURCE/src/add-ons/accelerants/nvidia_rm/build-cross.sh
 nvdec=$HAIKU_SOURCE/src/add-ons/media/plugins/nvdec/build-cross.sh
+nvenc=$HAIKU_SOURCE/src/add-ons/media/encoders/nvenc/build-cross.sh
 for script in "$driver" "$accelerant" "$nvdec"; do
 	[[ -x $script ]] || die "$HAIKU_REVISION has no $script"
 done
@@ -60,6 +64,10 @@ note "nvidia_rm.accelerant"
 OGKM_SRC=$W/open-gpu-kernel-modules "$accelerant" "$HAIKU_BUILD" "$W/work" "$OUT"
 note "nvdec"
 OGKM_SRC=$W/open-gpu-kernel-modules "$nvdec" "$HAIKU_BUILD" "$W/mesa-nvk" "$OUT"
+if [[ -x $nvenc ]]; then
+	note "nvenc"
+	OGKM_SRC=$W/open-gpu-kernel-modules "$nvenc" "$HAIKU_BUILD" "$W/mesa-nvk" "$OUT"
+fi
 
 note "image inputs"
 stage=$W/stage/add-ons
@@ -68,6 +76,7 @@ mkdir -p "$stage"
 cp -a "$OUT/add-ons/kernel" "$OUT/add-ons/accelerants" "$OUT/add-ons/media" "$stage/"
 ${CROSS}strip --strip-debug "$stage/accelerants/nvidia_rm.accelerant" "$stage/media/plugins/nvdec" \
 	"$stage"/kernel/drivers/bin/nvidia_rm "$stage"/kernel/drivers/bin/nvidia_rm_modeset
+[[ ! -f $stage/media/encoders/nvenc ]] || ${CROSS}strip --strip-debug "$stage/media/encoders/nvenc"
 # what went in, and NVIDIA's licence for the RM core
 nv=$(ls -d "$W"/work/NVIDIA-Linux-x86_64-*/ | head -n 1)
 printf 'haiku %s\nopen-gpu-kernel-modules %s\nmesa-nvk %s\nnvidia %s\n' "$HAIKU_REVISION" \
