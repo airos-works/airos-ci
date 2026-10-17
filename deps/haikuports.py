@@ -156,7 +156,13 @@ def installed_provides(arch):
 def resolve(arch, requirements, deps=True):
     pkgs = [p for p in repository(arch) if p.get("architecture") in (arch, "any")
             and not p["name"].endswith(("_debuginfo", "_source"))]
-    base = installed_provides(arch)
+    # The provides of the architecture's base are read only when a
+    # requirement needs them: they come from the architecture's build
+    # directory, which another job may be rebuilding (a fetch of named
+    # packages, such as the arm64 images' architecture-neutral fonts and
+    # certificates from the x86_64 repository, holds no lock on it, and a
+    # half-written haiku.hpkg failed with "Invalid magic").
+    base = None
     chosen, todo = {}, list(requirements)
     while todo:
         req = todo.pop(0)
@@ -164,6 +170,8 @@ def resolve(arch, requirements, deps=True):
         if not op and any(p["name"] == rn for p in pkgs) and rn not in chosen:
             candidates = [p for p in pkgs if p["name"] == rn]
         else:
+            if base is None:
+                base = installed_provides(arch)
             if any(satisfies(p, req) for p in base):
                 continue
             if any(satisfies(prov, req) for c in chosen.values() for prov in c["provides"]):
