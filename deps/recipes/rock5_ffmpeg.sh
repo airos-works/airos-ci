@@ -122,7 +122,8 @@ EOF
 	# whose rock5_* packages all go into the images.
 	local devel=$top/package_devel lib soname
 	rm -rf "$devel"
-	mkdir -p "$devel/develop/headers" "$devel/develop/lib"
+	mkdir -p "$devel/develop/headers" "$devel/develop/lib" "$devel/data/licenses"
+	cp COPYING.LGPLv2.1 "$devel/data/licenses/LGPLv2.1"
 	for lib in avcodec avfilter avformat avutil swresample swscale; do
 		cp -a "$inc/lib$lib" "$devel/develop/headers/"
 		soname=$(${CROSS}readelf -d "$ff/lib/lib$lib.so" | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p')
