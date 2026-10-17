@@ -9,7 +9,7 @@
 # FFmpeg's libraries and headers also go into DEPS, for airTime. With libvpx
 # and LAME (deps/recipes/libvpx.sh, lame.sh) for VP8/VP9 and MP3 encoding.
 VERSION=6.1.6
-PKG_REVISION=5
+PKG_REVISION=6
 FORK=ffmpeg
 NO_PACKAGE=1
 STAMP_EXTRA="mpp:$(fork_info mpp commit)"
@@ -98,6 +98,15 @@ build() {
 		"$pkg/add-ons/media/plugins/00_rockchip_mpp" "$pkg/apps/Rock5MediaPlayer"
 	cp COPYING.LGPLv2.1 "$pkg/data/licenses/LGPLv2.1"
 	cp "$hs/data/system/data/licenses/MIT" "$hs/data/system/data/licenses/Apache v2" "$pkg/data/licenses/"
+	# lib: provides, as HaikuPorts' ffmpeg6 has them: Haiku's own packages
+	# (haiku_datatranslators) require lib:libavcodec and the others when the
+	# build has FFmpeg (HAIKU_ARM64_FFMPEG_PACKAGES_DIR)
+	local libProvides="" real full lib
+	for lib in avcodec avfilter avformat avutil swresample swscale; do
+		real=$(basename "$(readlink -f "$ff/lib/lib$lib.so")")
+		full=${real#lib$lib.so.}
+		libProvides+="	lib:lib$lib = $full compat >= ${full%%.*}"$'\n'
+	done
 	cat > "$pkg/.PackageInfo" <<EOF
 name rock5_ffmpeg
 version $VERSION-$PKG_REVISION
@@ -110,7 +119,7 @@ copyrights { "2000-2024 FFmpeg developers" "2015-2026 Rockchip Electronics Co. L
 licenses { "LGPLv2.1" "Apache v2" "MIT" }
 provides {
 	rock5_ffmpeg = $VERSION
-}
+$libProvides}
 requires {
 	haiku >= r1~beta6
 	lib:libvpx
