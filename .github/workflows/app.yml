@@ -25,7 +25,7 @@ on:
   workflow_call:
     inputs:
       app:
-        description: build-app-packages.sh name (amp, airtime, airshot, burrow, clipper, kiri, natter, turbochook, ...)
+        description: build-app-packages.sh name (amp, airtime, airshot, burrow, clipper, kiri, natter, turbochook, wordcraft, ...)
         required: true
         type: string
       repo-dir:

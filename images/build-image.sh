@@ -64,6 +64,8 @@ fi
 # The applications every image carries (Summit is the default browser).
 IMAGE_APPS=(summit summit_webkit amp airtime kiri clipper airshot turbochook burrow)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
+# WordCraft is Rust, and the Rust toolchain only has a std for Haiku x86_64.
+[[ $ARCH != x86_64 ]] || IMAGE_APPS+=(wordcraft)
 
 # 1. Haiku at REF: the SDK build updates the worktree and the build directory
 #    of the architecture and builds haiku.hpkg and the host tools.

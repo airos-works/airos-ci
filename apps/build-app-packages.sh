@@ -7,11 +7,11 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airpins summit_webkit summit (default: all but
-#               airpins and Summit's two)
+#               natter airtime airpins wordcraft summit_webkit summit (default:
+#               all but airpins and Summit's two; wordcraft is x86_64 only)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime airpins (CI jobs link their checkout there)
+#               airTime airpins wordcraft (CI jobs link their checkout there)
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
 # compiler, sysroot, host rc/xres/resattr/mimeset/package, MIME DB) and the
@@ -56,7 +56,7 @@ SELECTED=("$@")
 
 # APPS: a directory holding the application repositories under the names
 # below (airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-# airTime airpins); CI jobs make one with a link to their checkout.
+# airTime airpins wordcraft); CI jobs make one with a link to their checkout.
 APPS=${APPS:?APPS must name the directory of application repositories}
 APPBUILD=${APPBUILD:-$AIROS_WORK/appbuild-$SDK_NAME}
 # Third-party libraries (curl, OpenSSL, TagLib, SQLite, PCRE2, Scintilla,
@@ -1075,6 +1075,53 @@ INFO
 	finish_package summit apps/Summit
 }
 
+# --- WordCraft --------------------------------------------------------------
+# The Rust word processor (jmgasper/wordcraft, branch haiku): cargo cross-builds
+# apps/wordcraft-haiku with the shared Rust toolchain (sdk/build-rust.sh) and
+# the SDK's compilers for its Be API host (native/host.cpp), staged as the
+# repository's tools/haiku/package.sh does on a Haiku machine. std is built
+# from rust-src with the app (-Zbuild-std; once, the target directory stays):
+# the toolchain's prebuilt sysroot has no bitcode for the release profile's
+# LTO. x86_64 only: the toolchain has no other Haiku target.
+build_wordcraft() {
+	note WordCraft
+	if [[ $ARCH != x86_64 ]]; then
+		echo "WordCraft: no Rust toolchain for $ARCH, skipped"
+		return 0
+	fi
+	snapshot wordcraft wordcraft
+	"$AIROS_CI/sdk/build-rust.sh" "$ARCH"
+	. "$AIROS_TOOLCHAIN/rust/env-$ARCH.sh"
+	local res=$SRC/apps/wordcraft-haiku/resources triple=${RUST_TARGET//-/_}
+	# cargo takes a linker without arguments: wrappers with the sysroot.
+	printf '#!/bin/sh\nexec %s "$@"\n' "$CC_T" > "$HOSTBIN/wordcraft-cc"
+	printf '#!/bin/sh\nexec %s "$@"\n' "$CXX_T" > "$HOSTBIN/wordcraft-c++"
+	chmod 755 "$HOSTBIN/wordcraft-cc" "$HOSTBIN/wordcraft-c++"
+	(
+		cd "$SRC"
+		export CARGO_TARGET_DIR=$BUILDDIR/target
+		export "CARGO_TARGET_${triple^^}_LINKER=$HOSTBIN/wordcraft-cc"
+		export "CC_$triple=$HOSTBIN/wordcraft-cc" "CXX_$triple=$HOSTBIN/wordcraft-c++"
+		export "AR_$triple=${CROSS}ar" "RANLIB_$triple=${CROSS}ranlib"
+		# The snapshot has no .git: the commit for `WordCraft --version`.
+		WORDCRAFT_BUILD_SHA=$(git -C "$APPS/wordcraft" rev-parse HEAD 2>/dev/null || echo dev)
+		export WORDCRAFT_BUILD_SHA
+		cargo build -q --release --locked --target "$RUST_TARGET" -Zbuild-std=std,panic_abort \
+			-j "$JOBS" -p wordcraft-haiku
+	)
+	(cd "$res" && "$TOOLS/rc/rc" -o "$BUILDDIR/WordCraft.rsrc" WordCraft.rdef)
+	stage_begin
+	install_binary "$BUILDDIR/target/$RUST_TARGET/release/WordCraft" "$BUILDDIR/WordCraft.rsrc" apps/WordCraft
+	docs wordcraft README.md LICENSE-MIT LICENSE-APACHE NOTICE docs/haiku.md
+	# The MIME record of this installation, and WordCraft as the preferred application of
+	# the Word document types that have none (a fresh image: before it has ever run).
+	install_file 755 "$res/wordcraft-post-install.sh" boot/post-install/wordcraft.sh
+	deskbar_link apps/WordCraft WordCraft
+	retarget_package_info "$res/WordCraft.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/WordCraft.rsrc" apps/WordCraft
+	finish_package wordcraft apps/WordCraft
+}
+
 main() {
 	check_prerequisites
 	mkdir -p "$APPBUILD" "$OUT" "$TMPDIR"
@@ -1083,7 +1130,7 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
-			summit_webkit summit; do
+			wordcraft summit_webkit summit; do
 		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
 		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"

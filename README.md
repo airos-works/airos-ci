@@ -8,7 +8,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install) |
-| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter and Turbo Chook; a rolling `latest` release and the "Latest builds" section of each README |
+| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter and Turbo Chook, and x86_64 packages of WordCraft (from the `haiku` branch of jmgasper/wordcraft); a rolling `latest` release and the "Latest builds" section of each README |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
@@ -47,7 +47,8 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   preferred app for http/https links, HTML and XHTML), with its engine
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
-- Amp, airTime, Kiri, Clipper, airShot, Turbo Chook and Burrow.
+- Amp, airTime, Kiri, Clipper, airShot, Turbo Chook and Burrow; on x86_64
+  also WordCraft (Rust; the shared Rust toolchain has no std for arm64).
 - x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
   Haiku platform plugin from jmgasper/qt6-haikuplugins `airos`, which draws at
   the desktop's density, at HaikuPorts' revision plus 100
@@ -208,3 +209,7 @@ through locks:
 2. Add `.github/workflows/airos.yml` that calls `app.yml` with the app's
    `build-app-packages.sh` name. Push it over SSH: the gh token cannot write
    workflow files.
+3. Add a `build_APP` function to `apps/build-app-packages.sh` (and the app
+   to its `main` loop), and the package name to `IMAGE_APPS` in
+   `images/build-image.sh`: only the packages listed there go into the
+   images, whatever the pool holds.
