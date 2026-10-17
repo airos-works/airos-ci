@@ -147,6 +147,12 @@ if [[ $ARCH == x86_64 ]]; then
 		[[ $source == */mupdf_devel-* ]] || cp "$source" "$WORK/packages/"
 	done
 	[[ $(ls "$WORK/mupdf" | wc -l) == 3 ]] || die "expected the mupdf, mupdf_devel and jbig2dec packages"
+	# Vision: HaikuPorts' build with its Deskbar entry in the Applications
+	# menu's Utilities folder, for a tree whose UserBuildConfig then keeps the
+	# repository's Vision (in the nightly profile) out of the image.
+	if grep -q "^rule SuppressHaikuImagePackages" "$HAIKU_SOURCE/build/jam/ImageRules"; then
+		"$AIROS_CI/deps/deskbar-repack.sh" x86_64 vision Utilities "$WORK/packages" > /dev/null
+	fi
 else
 	# curl and Summit use /boot/system/data/ssl/CARootCertificates.pem.
 	# This package is architecture-neutral, but the repository copy may use
