@@ -6,9 +6,10 @@
 #   - the Haiku FFmpeg media plugin, the RockchipMppDecoder add-on
 #     (00_rockchip_mpp) and Rock5MediaPlayer from the haiku tree the SDK was
 #     built from ($HAIKU_SOURCE).
-# FFmpeg's libraries and headers also go into DEPS, for airTime.
+# FFmpeg's libraries and headers also go into DEPS, for airTime. With libvpx
+# and LAME (deps/recipes/libvpx.sh, lame.sh) for VP8/VP9 and MP3 encoding.
 VERSION=6.1.6
-PKG_REVISION=4
+PKG_REVISION=5
 FORK=ffmpeg
 NO_PACKAGE=1
 STAMP_EXTRA="mpp:$(fork_info mpp commit)"
@@ -45,7 +46,10 @@ build() {
 		--target-os=haiku --arch=aarch64 --enable-cross-compile --cross-prefix="$CROSS" \
 		--sysroot="$SYSROOT" --disable-programs --disable-doc \
 		--disable-static --enable-shared --enable-pic --disable-avdevice \
-		--disable-network --disable-autodetect --enable-pthreads --enable-small
+		--disable-network --disable-autodetect --enable-pthreads --enable-small \
+		--enable-libvpx --enable-libmp3lame --pkg-config=pkg-config \
+		--extra-cflags="-I$DEPS/develop/headers" \
+		--extra-ldflags="-L$DEPS/develop/lib -Wl,-rpath-link,$DEPS/lib"
 	make -j"$JOBS"
 	make install DESTDIR="$STAGE"
 	local ff=$STAGE$PREFIX inc=$STAGE$PREFIX/develop/headers
@@ -109,6 +113,8 @@ provides {
 }
 requires {
 	haiku >= r1~beta6
+	lib:libvpx
+	lib:libmp3lame
 }
 EOF
 	local file=$AIROS_PACKAGES/$ARCH/rock5_ffmpeg-$VERSION-$PKG_REVISION-$ARCH.hpkg

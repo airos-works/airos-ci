@@ -33,8 +33,8 @@ export AIROS_ARCH=$ARCH
 . "$AIROS_CI/lib/fork.sh"
 
 if [[ $ARCH == arm64 ]]; then
-	ORDER=(openssl nghttp2 curl sqlite taglib pcre2 scintilla lexilla rock5_ffmpeg wpa_supplicant fluidlite
-		libpng freetype)
+	ORDER=(openssl nghttp2 curl sqlite taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
+		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype)
 else
 	ORDER=(haikuports)
 fi
@@ -78,6 +78,23 @@ configure_ac() {
 	./configure --host="$TRIPLET" --build="$BUILD_TRIPLET" --prefix=$PREFIX \
 		--libdir=$PREFIX/lib --includedir=$PREFIX/develop/headers \
 		--datarootdir=$PREFIX/data --sysconfdir=$PREFIX/settings "$@"
+}
+# fetch_tarball URL SHA256: SRC becomes the tree of a release tarball (cached
+# in $AIROS_CACHE/tarballs and checked against SHA256), for the libraries that
+# have no fork: they are built from their release, as HaikuPorts builds them.
+# Their recipes set SOURCE_URL and SOURCE_SHA256, which the package names.
+fetch_tarball() {
+	local url=$1 sha=$2 file
+	file=$AIROS_CACHE/tarballs/${sha:0:16}-$(basename "$url")
+	mkdir -p "$AIROS_CACHE/tarballs"
+	if [[ ! -f $file ]] || ! echo "$sha  $file" | sha256sum -c --quiet; then
+		curl -fsSL -o "$file.part" "$url" || die "cannot download $url"
+		echo "$sha  $file.part" | sha256sum -c --quiet || die "$url: checksum mismatch"
+		mv "$file.part" "$file"
+	fi
+	rm -rf "$SRC"
+	mkdir -p "$SRC"
+	tar xf "$file" -C "$SRC" --strip-components=1
 }
 # cmake_build [args]: configure, build and install a CMake project.
 cmake_build() {
@@ -124,7 +141,12 @@ normalize_stage() {
 
 # package: airos_<name> with lib: provides for every shared library.
 make_package() {
-	local root=$STAGE$PREFIX pkg=airos_${NAME//-/_} file soname provides="" lib
+	local root=$STAGE$PREFIX pkg=airos_${NAME//-/_} file soname provides="" lib origin
+	if [[ -n ${SOURCE_URL:-} ]]; then
+		origin="$SOURCE_URL (sha256 $SOURCE_SHA256)"
+	else
+		origin="$(fork_info "$FORK" url) at $FORK_COMMIT (branch $(fork_info "$FORK" branch))"
+	fi
 	for lib in "$root"/lib/*.so*; do
 		[[ -f $lib && ! -L $lib ]] || continue
 		soname=$(${CROSS}readelf -d "$lib" 2>/dev/null | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p')
@@ -138,7 +160,7 @@ name			$pkg
 version			${VERSION//-/_}-${PKG_REVISION:-1}
 architecture	$ARCH
 summary			"$SUMMARY"
-description		"$SUMMARY. Built by air/OS CI from $(fork_info "$FORK" url) at $FORK_COMMIT (branch $(fork_info "$FORK" branch))."
+description		"$SUMMARY. Built by air/OS CI from $origin."
 packager		"air/OS CI"
 vendor			"air/OS"
 copyrights {
@@ -166,7 +188,8 @@ build_recipe() {
 	NAME=$1
 	local recipe=$AIROS_CI/deps/recipes/$NAME.sh
 	[[ -f $recipe ]] || die "no recipe $recipe"
-	unset VERSION FORK SUMMARY COPYRIGHT LICENSE REQUIRES PKG_REVISION NO_PACKAGE STAMP_EXTRA
+	unset VERSION FORK SUMMARY COPYRIGHT LICENSE REQUIRES PKG_REVISION NO_PACKAGE STAMP_EXTRA \
+		SOURCE_URL SOURCE_SHA256
 	# The previous recipe's functions go too: an up-to-date recipe returns
 	# before the unset below, and its fetch_source would check out its own
 	# fork for the next recipe (rock5_ffmpeg's put FFmpeg in freetype's tree).

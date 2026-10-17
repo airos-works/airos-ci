@@ -1,0 +1,18 @@
+dynamicHDR10: AArch64 is not 32-bit ARM
+
+The main CMakeLists.txt gives ARM64 its own flags; dynamicHDR10's copy of the
+block does not, and hands an AArch64 compiler -marm -mfpu=neon.
+
+--- a/source/dynamicHDR10/CMakeLists.txt
++++ b/source/dynamicHDR10/CMakeLists.txt
+@@ -42,7 +42,9 @@
+             endif()
+         endif()
+     endif()
+-    if(ARM AND CROSS_COMPILE_ARM)
++    if(ARM64)
++        set(ARM_ARGS -fPIC)
++    elseif(ARM AND CROSS_COMPILE_ARM)
+         set(ARM_ARGS -march=armv6 -mfloat-abi=soft -mfpu=vfp -marm -fPIC)
+     elseif(ARM)
+         find_package(Neon)
