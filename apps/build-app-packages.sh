@@ -7,11 +7,14 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airpins wordcraft gridcraft deckcraft pdfcraft aurora summit_webkit summit (default:
+#               natter airtime airpins wordcraft gridcraft deckcraft pdfcraft
+#               photocraft lightcraft aurora summit_webkit summit (default:
 #               all but airpins and Summit's two; aurora only on x86_64)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime airpins wordcraft gridcraft deckcraft pdfcraft aurora (CI jobs link their checkout there)
+#               airTime airpins wordcraft gridcraft deckcraft pdfcraft
+#               photocraft lightcraft aurora (CI jobs link their checkout there),
+#               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
 # compiler, sysroot, host rc/xres/resattr/mimeset/package, MIME DB) and the
@@ -21,6 +24,7 @@
 #   APPBUILD              work tree: snapshots, objects, staging
 #   NATTER_WEB_SIGNIN     auto|1|0: link Natter against the Summit engine
 #                         (summit_webkit staged into DEPS) for Slack web sign-in
+#   CRAFT_FONTS           the craft-fonts checkout (default $APPS/craft-fonts)
 #
 # For every application this:
 #   1. snapshots the working tree of the repository (tracked files plus
@@ -56,8 +60,9 @@ SELECTED=("$@")
 
 # APPS: a directory holding the application repositories under the names
 # below (airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-# airTime airpins wordcraft); CI jobs make one with a link to their checkout.
+# airTime airpins wordcraft ...); CI jobs make one with a link to their checkout.
 APPS=${APPS:?APPS must name the directory of application repositories}
+CRAFT_FONTS=${CRAFT_FONTS:-$APPS/craft-fonts}
 APPBUILD=${APPBUILD:-$AIROS_WORK/appbuild-$SDK_NAME}
 # Third-party libraries (curl, OpenSSL, TagLib, SQLite, PCRE2, Scintilla,
 # Lexilla, FFmpeg, the Summit engine): one prefix per architecture, made by
@@ -1145,11 +1150,12 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 	finish_package aurora "$data/aurora-host" "$data/aurora-tray"
 }
 
-# --- Office applications ----------------------------------------------------
-# The four Craft applications share a native Be API host and Rust build. Build
-# std with each app so its release profile's LTO has the matching bitcode.
+# --- Office and Media applications ------------------------------------------
+# The Craft applications share a native Be API host and Rust build. Build std
+# with each app so its release profile's LTO has the matching bitcode.
+# build_craft <repository> <binary> <Deskbar folder>
 build_craft() {
-	local app=$1 binary=$2
+	local app=$1 binary=$2 folder=$3
 	note "$binary"
 	snapshot "$app" "$app"
 	"$AIROS_CI/sdk/build-rust.sh" "$ARCH"
@@ -1173,6 +1179,11 @@ build_craft() {
 			# without assuming optional AES/SHA instructions on every board.
 			export AWS_LC_SYS_CFLAGS_aarch64_unknown_haiku='-DOPENSSL_STATIC_ARMCAP -march=armv8-a'
 		fi
+		if [[ $app == lightcraft ]]; then
+			# LightCraft's release embeds the craft-fonts collection (pinned
+			# beside it in media.lock.json), as its tools/haiku/build.sh does.
+			export CRAFT_FONTS_DIR=$CRAFT_FONTS CRAFT_FONTS_REQUIRED=1
+		fi
 		# The snapshot has no .git; identify the source used by --version.
 		export "${app^^}_BUILD_SHA=$(git -C "$APPS/$app" rev-parse HEAD)"
 		cargo build --release --locked --target "$RUST_TARGET" -Zbuild-std=std,panic_abort \
@@ -1183,32 +1194,63 @@ build_craft() {
 	install_binary "$BUILDDIR/target/$RUST_TARGET/release/$binary" "$BUILDDIR/$binary.rsrc" "apps/$binary"
 	docs "$app" README.md LICENSE-MIT LICENSE-APACHE NOTICE docs/haiku.md ATTRIBUTION.md ATTRIBUTION.toml
 	install_file 755 "$res/$app-post-install.sh" "boot/post-install/$app.sh"
-	deskbar_link "apps/$binary" "$binary" Office
+	deskbar_link "apps/$binary" "$binary" "$folder"
 	retarget_package_info "$res/$binary.PackageInfo" "$STAGE/.PackageInfo"
-	if [[ $app == pdfcraft ]]; then
+	local license
+	case $app in
+	pdfcraft)
 		install_binary "$BUILDDIR/target/$RUST_TARGET/release/pdfcraft-cli" - bin/pdfcraft-cli
 		binaries+=(bin/pdfcraft-cli)
 		# Keep the embedded fonts, icons and colour profile licences, as in
 		# the application's own tools/haiku/package.sh.
-		local license
 		while IFS= read -r license; do
 			install_file 644 "$SRC/$license" "documentation/packages/$app/licenses/$license"
 		done < <(awk -F '\"' '/^licence_file = / { print $2 }' "$SRC/ATTRIBUTION.toml" | sort -u)
-		for license in "$CARGO_HOME"/registry/src/*/epaint_default_fonts-0.36.2/fonts/*.txt; do
-			install_file 644 "$license" "documentation/packages/$app/licenses/epaint_default_fonts/$(basename "$license")"
-		done
 		for license in "$CARGO_HOME"/registry/src/*/hayro-cmap-0.1.0/assets/LICENSE.txt; do
 			install_file 644 "$license" "documentation/packages/$app/licenses/hayro-cmap/LICENSE.txt"
 		done
-	fi
+		;;
+	photocraft|lightcraft)
+		# The licences of the assets, fonts and vendored crates the editor
+		# embeds, as in the application's own tools/haiku/package.sh.
+		local dirs=(assets crates vendor "apps/$app-haiku" tools/haiku)
+		[[ $app != lightcraft ]] || dirs+=(apps/lightcraft-haiku-host)
+		while IFS= read -r license; do
+			install_file 644 "$SRC/$license" "documentation/packages/$app/licenses/$license"
+		done < <(cd "$SRC" && find "${dirs[@]}" -type f -regextype posix-extended \
+			-regex '(.*/)?(LICENSE|OFL|COPYING)[^/]*' | sort)
+		if [[ $app == lightcraft ]]; then
+			install_file 644 "$SRC/docs/haiku-validation.json" "documentation/packages/$app/haiku-validation.json"
+			install_file 644 "$SRC/assets/ATTRIBUTION.md" "documentation/packages/$app/ASSET-ATTRIBUTION.md"
+			install_file 644 "$SRC/apps/lightcraft-haiku/ATTRIBUTION.md" \
+				"documentation/packages/$app/NATIVE-ATTRIBUTION.md"
+			while IFS= read -r license; do
+				install_file 644 "$CRAFT_FONTS/$license" "documentation/packages/$app/licenses/craft-fonts/$license"
+			done < <(cd "$CRAFT_FONTS" && find . -name .git -prune -o -type f -regextype posix-extended \
+				-regex '(.*/)?(LICENSE|OFL|COPYING)[^/]*' -printf '%P\n' | sort)
+		fi
+		;;
+	esac
+	case $app in
+	pdfcraft|photocraft|lightcraft)
+		for license in "$CARGO_HOME"/registry/src/*/epaint_default_fonts-0.36.2/fonts/*.txt; do
+			install_file 644 "$license" "documentation/packages/$app/licenses/epaint_default_fonts/$(basename "$license")"
+		done
+		;;
+	esac
 	add_attributes "$BUILDDIR/$binary.rsrc" "apps/$binary"
 	finish_package "$app" "${binaries[@]}"
 }
 
-build_wordcraft() { build_craft wordcraft WordCraft; }
-build_gridcraft() { build_craft gridcraft GridCraft; }
-build_deckcraft() { build_craft deckcraft DeckCraft; }
-build_pdfcraft() { build_craft pdfcraft PdfCraft; }
+build_wordcraft() { build_craft wordcraft WordCraft Office; }
+build_gridcraft() { build_craft gridcraft GridCraft Office; }
+build_deckcraft() { build_craft deckcraft DeckCraft Office; }
+build_pdfcraft() { build_craft pdfcraft PdfCraft Office; }
+build_photocraft() { build_craft photocraft PhotoCraft Media; }
+build_lightcraft() {
+	[[ -f $CRAFT_FONTS/fonts/manifest.txt ]] || die "no craft-fonts checkout at $CRAFT_FONTS (CRAFT_FONTS)"
+	build_craft lightcraft LightCraft Media
+}
 
 main() {
 	check_prerequisites
@@ -1218,7 +1260,7 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
-			wordcraft gridcraft deckcraft pdfcraft aurora summit_webkit summit; do
+			wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit summit; do
 		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
 		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		# Aurora is x86_64 only (Node.js)

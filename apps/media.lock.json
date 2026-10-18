@@ -1,0 +1,5 @@
+{
+  "photocraft": {"repository": "https://github.com/jmgasper/photocraft.git", "commit": "38156b86a7dbd036c3e42eba90b756e1eead229c", "binary": "PhotoCraft"},
+  "lightcraft": {"repository": "https://github.com/jmgasper/lightcraft.git", "commit": "0f8e655949b62de12fbab3550bdd25fccb04a0de", "binary": "LightCraft"},
+  "craft-fonts": {"repository": "https://github.com/storytold/craft-fonts.git", "commit": "3d9ab3a132ed0eff457e424226a435a901da30d3"}
+}

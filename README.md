@@ -9,16 +9,19 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter and Turbo Chook, and x86_64 packages of WordCraft (from the `haiku` branch of jmgasper/wordcraft) and Aurora; a rolling `latest` release and the "Latest builds" section of each README |
-| Office | each image build → [`build-office.sh`](apps/build-office.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft for x86_64 and ARM64, with verified Office menu links |
+| Office and Media | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) for x86_64 and ARM64, with verified Deskbar menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
 The applications and Summit go into the **package pool**
 (`/data2/airos/packages/{x86_64,arm64,any}`). Each image build takes the
-newest successful builds from that pool. Office is built directly for each
-image SDK from [`apps/office.lock.json`](apps/office.lock.json), so both
-architectures use the same reviewed sources. Update those pins to select newer
-Office versions; missing apps or incorrect menu links stop the image build.
+newest successful builds from that pool. Office and Media are built directly
+for each image SDK from [`apps/office.lock.json`](apps/office.lock.json) and
+[`apps/media.lock.json`](apps/media.lock.json), so both architectures use the
+same reviewed sources. Update those pins to select newer versions; missing
+apps or incorrect menu links stop the image build. Turbo Chook's own workflow
+still builds its packages into the pool, but no image takes them since
+2026-10-19.
 
 ## Builds for stock Haiku
 
@@ -50,7 +53,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   preferred app for http/https links, HTML and XHTML), with its engine
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
-- Amp, airTime, Kiri, airShot, Turbo Chook and Burrow.
+- Amp, airTime, Kiri, airShot and Burrow.
 - x86_64: **Aurora**, which runs Electron apps (pgAdmin 4's desktop app, for
   one) as native windows on Summit's engine, with HaikuPorts' Node.js 22
   (`nodejs22`, the version its runtime is tested with). arm64 has no Node.js.
@@ -60,6 +63,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   uses `sdk/targets/aarch64-unknown-haiku.json`. PDFCraft’s ARM64 AWS-LC
   build uses static ARMv8-A capabilities because AWS-LC has no Haiku
   runtime CPU probe.
+- **Media**, between Office and Utilities in Deskbar: PhotoCraft (layered
+  image editor) and LightCraft (photo library and RAW developer) on every
+  target, built the same way. LightCraft embeds the craft-fonts collection
+  pinned beside it. Both render with Vulkan where the machine has a hardware
+  driver and fall back to the CPU otherwise.
 - x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
   Haiku platform plugin from jmgasper/qt6-haikuplugins `airos`, which draws at
   the desktop's density, at HaikuPorts' revision plus 100

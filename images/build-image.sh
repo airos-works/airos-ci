@@ -63,9 +63,11 @@ if [[ ${CLEAN:-0} == 1 ]]; then
 	[[ $TARGET == x86_64 || $TARGET == arm64 ]] || rm -rf "$AIROS_BUILD/haiku-$TARGET/objects" "$AIROS_BUILD/haiku-$TARGET/generated"
 fi
 
-# The applications every image carries (Summit is the default browser).
-OFFICE_APPS=(clipper wordcraft gridcraft deckcraft pdfcraft)
-IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot turbochook burrow)
+# The applications every image carries (Summit is the default browser), and
+# the ones built here at the pins in apps/office.lock.json and media.lock.json
+# for the Deskbar menu's Office and Media folders.
+IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow)
+PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
 # Aurora (Electron apps) runs on Node.js, which only x86_64 has.
 [[ $TARGET != x86_64 ]] || IMAGE_APPS+=(aurora)
@@ -126,15 +128,15 @@ for app in "${IMAGE_APPS[@]}"; do
 	file=$(ls "$pool/$app"-[0-9]*-"$ARCH".hpkg 2>/dev/null | head -n 1 || true)
 	if [[ -n $file ]]; then cp "$file" "$WORK/packages/"; else missing+=("$app"); fi
 done
-build_stage "Office" "Clipper, WordCraft, GridCraft, DeckCraft, PdfCraft"
-"$AIROS_CI/apps/build-office.sh" "$ARCH" "$WORK/packages"
-# Office is part of every release image. A missing build must stop the image
-# instead of silently publishing one without a requested application.
-for app in "${OFFICE_APPS[@]}"; do
-	compgen -G "$WORK/packages/$app-[0-9]*-$ARCH.hpkg" > /dev/null \
-		|| die "missing Office package $app for $ARCH; build it with apps/ci-build-app.sh"
+# Office and Media are part of every release image: build-pinned.sh stops the
+# image (and verify-pinned.sh checks it again) instead of silently publishing
+# one without a requested application.
+for set in "${PINNED_SETS[@]}"; do
+	build_stage "${set^}" "$(json "$AIROS_CI/apps/$set.lock.json" \
+		'", ".join(e["binary"] for e in d.values() if "binary" in e)')"
+	"$AIROS_CI/apps/build-pinned.sh" "$set" "$ARCH" "$WORK/packages"
+	"$AIROS_CI/images/verify-pinned.sh" "$TOOLS/package/package" "$ARCH" "$WORK/packages" "$set"
 done
-"$AIROS_CI/images/verify-office.sh" "$TOOLS/package/package" "$ARCH" "$WORK/packages"
 # Libraries and system components CI builds (airos_*, rock5_ffmpeg,
 # wpa_supplicant, ...) and firmware: architecture-neutral packages, and on
 # arm64 HaikuPorts' Wi-Fi firmware recompressed with zlib
@@ -415,6 +417,7 @@ for path in sorted(glob.glob(os.path.join(inputs, "*-sources.txt"))
 json.dump({
     "inputs": sources,
     "office": json.load(open(os.path.join(pkgdir, "office-sources.json"))),
+    "media": json.load(open(os.path.join(pkgdir, "media-sources.json"))),
     "toolchain": {"buildtools_commit": os.environ["AIROS_BUILD_TOOLS_SHA"],
                   "gcc": os.environ["AIROS_CC_VERSION"],
                   "image_recipe_sha256": os.environ["AIROS_IMAGE_RECIPE_SHA"]},
