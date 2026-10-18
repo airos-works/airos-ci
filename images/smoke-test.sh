@@ -32,7 +32,7 @@ if [[ -n $BUILD_ID ]]; then
 	build_stage "smoke test" "$TARGET in QEMU"
 	python3 "$AIROS_CI/lib/status.py" set "$BUILD_ID" "smoke_pid=$$" || true
 fi
-work=$(mktemp -d "$AIROS_DATA/tmp/smoke-$TARGET-XXXXXX")
+work=$(mktemp -d "$TMPDIR/smoke-$TARGET-XXXXXX")
 trap 'status=$?; kill $(jobs -p) 2>/dev/null || true; rm -rf "$work"
 	[[ -z $BUILD_ID ]] || python3 "$AIROS_CI/lib/status.py" end "$BUILD_ID" \
 		$([[ $status == 0 ]] && echo done || echo failed) \
