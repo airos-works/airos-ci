@@ -347,8 +347,12 @@ fi
 	[[ -z $(ls "$WORK/firmware") ]] || echo "AIROS_CI_FIRMWARE = $WORK/firmware ;"
 	[[ -z $(ls "$WORK/add-ons") ]] || echo "AIROS_CI_ADDONS = $WORK/add-ons ;"
 	[[ ! -d $WORK/amdgpu ]] || echo "AIROS_CI_AMDGPU = $WORK/amdgpu ;"
-	[[ ${#system_packages[@]} -eq 0 ]] \
-		|| echo "AIROS_CI_SYSTEM_PACKAGES = ${system_packages[*]} ;"
+	# one per line: jam refuses long lines
+	if [[ ${#system_packages[@]} -gt 0 ]]; then
+		echo "AIROS_CI_SYSTEM_PACKAGES ="
+		printf '\t%s\n' "${system_packages[@]}" | sort -u
+		echo ";"
+	fi
 	# arm64: FluidLite for the MIDI kit (deps/recipes/fluidlite.sh)
 	deps=$AIROS_ROOT/deps/$ARCH/boot/system
 	[[ $ARCH != arm64 || ! -f $deps/develop/lib/libfluidlite.a ]] || echo "AIROS_CI_FLUIDLITE = $deps ;"
