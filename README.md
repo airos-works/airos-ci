@@ -53,8 +53,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - Amp, airTime, Kiri, airShot, Turbo Chook and Burrow.
 - x86_64: **Aurora**, which runs Electron apps (pgAdmin 4's desktop app, for
   one) as native windows on Summit's engine, with HaikuPorts' Node.js 22
-  (`nodejs22`; of what it needs, libuv and c-ares go in as package files, the
-  rest comes from the build system's HaikuPorts list). arm64 has no Node.js.
+  (`nodejs22`, the version its runtime is tested with). arm64 has no Node.js.
 - **Office**, between Applications and Utilities in Deskbar: Clipper,
   WordCraft, GridCraft, DeckCraft and PdfCraft on every target. The Craft
   apps use the pinned Rust nightly with a compiled standard library; ARM64
@@ -93,7 +92,10 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   current packages instead and the bootstrap one stays out.
 - x86_64: HaikuPorts' packages for what the applications need. The x86_64
   `summit_webkit` carries a private Mesa with EGL (llvmpipe, zink), which
-  needs HaikuPorts' LLVM 21 and Vulkan loader.
+  needs HaikuPorts' LLVM 21 and Vulkan loader. Whatever the packages CI puts
+  in the image still require (summit_webkit's libxslt, woff2 and libexecinfo,
+  mupdf's GLib, Aurora's Node.js) is resolved from HaikuPorts: jam installs
+  what its HaikuPorts list has, the rest goes in as package files.
 - x86_64: the X399 workstation's NVIDIA stack, in
   `system/non-packaged`, so the boot menu's "Disable user add-ons" turns it
   off:

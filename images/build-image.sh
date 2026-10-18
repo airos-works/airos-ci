@@ -284,20 +284,38 @@ if [[ $ARCH == x86_64 ]]; then
 			cp "$file" "$WORK/packages/"
 		fi
 	done
-	# Node.js for Aurora (cmd:node): HaikuPorts' nodejs22, the version
-	# Aurora's runtime is tested with. Of what it needs, jam installs the
-	# packages its HaikuPorts list has, the others (libuv, c-ares) go in as
-	# files, as for Qt.
-	for file in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
-			"$AIROS_CI/deps/haikuports.py" fetch x86_64 nodejs22); do
+	# What the packages above require that none of them provides, from
+	# HaikuPorts (haikuports.py skips what the base has): summit_webkit
+	# links libxslt, woff2 and libexecinfo from the system, mupdf needs GLib,
+	# Aurora needs cmd:node, which is nodejs22, the version its runtime is
+	# tested with. As for Qt, jam installs the packages its HaikuPorts list
+	# has (with their dependencies); the others go in as files.
+	requires=$(python3 - "$TOOLS/package/package" "$WORK/packages" "$AIROS_CI/deps" <<'PY'
+import glob, os, re, subprocess, sys
+tool, directory, deps = sys.argv[1:4]
+sys.path.insert(0, deps)
+from haikuports import satisfies
+provides, requires = [], []
+for f in sorted(glob.glob(os.path.join(directory, "*.hpkg"))):
+    out = subprocess.run([tool, "list", "-i", f], check=True, stdout=subprocess.PIPE, text=True).stdout
+    provides += re.findall(r"(?m)^\s*provides:\s*(.*)$", out)
+    requires += re.findall(r"(?m)^\s*requires:\s*(.*)$", out)
+print("\n".join(sorted({r for r in requires if not any(satisfies(p, r) for p in provides)})))
+PY
+)
+	files=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+		"$AIROS_CI/deps/haikuports.py" fetch x86_64 nodejs22 $requires) \
+		|| die "HaikuPorts cannot provide what the image's packages require"
+	for file in $files; do
 		name=$(basename "$file")
 		name=${name%%-[0-9]*}
 		if grep -qE "^[[:space:]]*$name-[0-9]" "$jamlist"; then
 			system_packages+=("$name")
-		else
+		elif [[ ! -e $WORK/packages/$(basename "$file") ]]; then
 			cp "$file" "$WORK/packages/"
 		fi
 	done
+	echo "HaikuPorts packages jam installs: ${system_packages[*]}"
 	compgen -G "$WORK/packages/nodejs22-[0-9]*-x86_64.hpkg" > /dev/null \
 		|| die "no nodejs22 package for Aurora"
 fi

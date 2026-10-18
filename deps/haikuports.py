@@ -104,7 +104,10 @@ def vkey(v):
 
 
 def split(expr):
-    m = re.match(r"\s*([^<>=!\s]+)\s*(>=|<=|==|!=|<|>|=)?\s*([^\s]*)(?:\s+compat\s*>=\s*(\S+))?", expr)
+    # The compatible version is "compat >= X" in a .PackageInfo and
+    # "(compatible >= X)" in package and repository listings.
+    m = re.match(r"\s*([^<>=!\s]+)\s*(>=|<=|==|!=|<|>|=)?\s*([^\s]*)"
+                 r"(?:\s+\(?compat(?:ible)?\s*>=\s*([^\s)]+)\)?)?", expr)
     return m.group(1), m.group(2), m.group(3) or None, m.group(4)
 
 
@@ -119,8 +122,16 @@ def satisfies(provide, require):
         return False
     c = (vkey(pv) > vkey(rv)) - (vkey(pv) < vkey(rv))
     ok = {"==": c == 0, "=": c == 0, ">=": c >= 0, "<=": c <= 0, ">": c > 0, "<": c < 0, "!=": c != 0}[op]
-    if not ok and op in (">=", ">") and pcompat and vkey(rv) >= vkey(pcompat) and c <= 0:
+    # An older version of the same compatible line (the base's zlib 1.3.1 for
+    # lib:libz>=1.3.2) is taken as satisfying; jpeg 9 is no lib:libjpeg>=62.
+    if not ok and op in (">=", ">") and pcompat and vkey(rv) >= vkey(pcompat) and c <= 0 \
+            and vkey(rv)[:1] == vkey(pcompat)[:1]:
         return True
+    # A provide compatible only back to its compatible version does not serve
+    # a requirement for an older one: ffmpeg8's lib:libavcodec 62 (compatible
+    # >= 62) is not airTime's lib:libavcodec>=60, ffmpeg6's 60 is.
+    if ok and op in (">=", ">") and pcompat and vkey(rv) < vkey(pcompat):
+        return False
     return ok
 
 
