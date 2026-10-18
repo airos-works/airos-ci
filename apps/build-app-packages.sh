@@ -7,11 +7,11 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airpins wordcraft gridcraft deckcraft pdfcraft summit_webkit summit (default:
-#               all but airpins and Summit's two)
+#               natter airtime airpins wordcraft gridcraft deckcraft pdfcraft aurora summit_webkit summit (default:
+#               all but airpins and Summit's two; aurora only on x86_64)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime airpins wordcraft gridcraft deckcraft pdfcraft (CI jobs link their checkout there)
+#               airTime airpins wordcraft gridcraft deckcraft pdfcraft aurora (CI jobs link their checkout there)
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
 # compiler, sysroot, host rc/xres/resattr/mimeset/package, MIME DB) and the
@@ -243,18 +243,26 @@ attribute_resources() {
 # add_attributes <rsrc> <app path in package>...: resattr + mimeset for the
 # applications in the stage, as mimeset does on Haiku.
 add_attributes() {
-	local rsrc=$APPBUILD/.attributes.rsrc marker=$APPBUILD/.attr-marker
-	attribute_resources "$1" "$rsrc"
-	shift
+	local marker=$APPBUILD/.attr-marker
 	touch "$marker"
 	sleep 0.05
 	purge_stale_attributes "$marker"
+	resource_attributes "$@"
+	purge_stale_attributes "$marker"
+}
+
+# resource_attributes <rsrc> <path in package>...: the same for a second
+# binary with resources of its own, after add_attributes (whose purge would
+# drop the attributes an earlier call gave the first).
+resource_attributes() {
+	local rsrc=$APPBUILD/.attributes.rsrc
+	attribute_resources "$1" "$rsrc"
+	shift
 	local app
 	for app in "$@"; do
 		"$TOOLS/resattr/resattr" -O -o "$STAGE/$app" "$rsrc"
 	done
 	( cd "$STAGE" && "$TOOLS/mimeset" --all -f --mimedb data/mime_db --mimedb "$MIMEDB" "$@" )
-	purge_stale_attributes "$marker"
 }
 
 # retarget_package_info <source> <destination> [<regex of requires to keep>]
@@ -351,14 +359,17 @@ finish_package() {
 
 # The package must be arm64, and attributes may only sit on applications,
 # add-ons and MIME DB entries (anything else would be stale host state).
+# APP_PATHS: a pattern for applications and add-ons a package keeps
+# elsewhere (Aurora's in data/aurora).
+APP_PATHS='^(apps|add-ons)/'
 verify_package() {
 	local file=$1 tool=$TOOLS/package/package
 	"$tool" list -i "$file" | grep -q "^[[:space:]]*architecture: $ARCH\$" \
 		|| die "$file is not $ARCH"
-	"$tool" list -a "$file" | awk -v file="$file" '
+	"$tool" list -a "$file" | awk -v file="$file" -v apps="$APP_PATHS" '
 		/^[ \t]*</ {
 			attr = $0; sub(/^[ \t]*</, "", attr); sub(/[ \t].*/, "", attr)
-			ok = (path ~ /^(apps|add-ons)\// && attr ~ /^BEOS:/) \
+			ok = (path ~ apps && attr ~ /^BEOS:/) \
 				|| (path ~ /^data\/mime_db\// && attr ~ /^META:/)
 			if (!ok) { print "unexpected attribute " attr " on " path " in " file > "/dev/stderr"; bad = 1 }
 			next
@@ -1076,6 +1087,64 @@ INFO
 	finish_package summit apps/Summit
 }
 
+# --- Aurora -------------------------------------------------------------------
+# Electron apps on Summit's engine: aurora-host (each app's windows, a
+# BApplication that links libWebKit from summit_webkit), its Deskbar add-on
+# for Tray icons, and the JavaScript runtime that HaikuPorts' Node.js runs
+# (cmd:node). x86_64 only: arm64 has no Node.js. Staged as the app's own
+# tools/package-haiku.sh does, whose `aurora` command and package info are
+# taken from it.
+aurora_heredoc() { # aurora_heredoc <path in stage> <terminator>
+	awk -v start="cat > \"\$STAGE/$1\" <<" -v end="$2" '
+		index($0, start) == 1 { inside = 1; next }
+		inside && $0 == end { exit }
+		inside { print }' "$SRC/tools/package-haiku.sh"
+}
+
+build_aurora() {
+	note Aurora
+	[[ $ARCH == x86_64 ]] || die "Aurora needs Node.js, which only x86_64 has (HaikuPorts' nodejs22)"
+	engine_ready || die "no Summit engine in $SUMMIT_ENGINE (summit_webkit not staged)"
+	snapshot aurora aurora
+	local work=$APPBUILD/aurora
+	# The libraries libWebKit needs, for the linker only: the Makefile's RPATH
+	# (the summit_webkit package's lib/, or an engine beside a launcher) stays.
+	local rpath_link="-Wl,-rpath-link,$SUMMIT_ENGINE/lib -Wl,-rpath-link,$SUMMIT_ENGINE/mesa/lib"
+	rpath_link+=" -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib"
+	[[ -z $SUMMIT_SYSLIBS ]] || rpath_link+=" -Wl,-rpath-link,$SUMMIT_SYSLIBS/lib"
+	make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T $rpath_link" \
+		WEBKIT_BUNDLE="$SUMMIT_ENGINE" WEBKIT_INCLUDE="$SUMMIT_WEBKIT_HEADERS" all
+
+	stage_begin
+	local data=data/aurora
+	mkdir -p "$STAGE/$data/runtime" "$STAGE/bin"
+	cp -R "$SRC/runtime/lib" "$SRC/runtime/package.json" "$SRC/runtime/tools" "$STAGE/$data/runtime/"
+	install_binary "$BUILDDIR/aurora-host" "$BUILDDIR/aurora-host.rsrc" "$data/aurora-host"
+	# Deskbar finds the add-on by its signature.
+	install_binary "$BUILDDIR/aurora-tray" "$BUILDDIR/aurora-tray.rsrc" "$data/aurora-tray"
+	aurora_heredoc bin/aurora SCRIPT > "$STAGE/bin/aurora"
+	[[ -s $STAGE/bin/aurora ]] || die "no aurora command in aurora's tools/package-haiku.sh"
+	chmod 755 "$STAGE/bin/aurora"
+	ln -s aurora "$STAGE/bin/electron"
+	docs aurora README.md LICENSE host/vendor/nlohmann/LICENSE.MIT host/vendor/nlohmann/UPSTREAM.md
+	local version revision
+	version=$(sed -n 's/.*"version": "\(.*\)".*/\1/p' "$SRC/runtime/package.json" | head -1)
+	revision=$(sed -n 's/^REVISION=\([0-9][0-9]*\)$/\1/p' "$SRC/tools/package-haiku.sh")
+	aurora_heredoc .PackageInfo INFO > "$work/PackageInfo.template"
+	[[ -s $work/PackageInfo.template ]] || die "no package info in aurora's tools/package-haiku.sh"
+	VERSION=$version REVISION=${revision:-1} ARCH=$ARCH \
+		bash -c 'eval "cat <<INFO
+$(cat "$1")
+INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
+	retarget_package_info "$work/aurora.PackageInfo" "$STAGE/.PackageInfo"
+	# The host and the add-on are applications outside apps/ and add-ons/.
+	local APP_PATHS="^(apps|add-ons)/|^$data/aurora-(host|tray)\$"
+	add_attributes "$BUILDDIR/aurora-host.rsrc" "$data/aurora-host"
+	resource_attributes "$BUILDDIR/aurora-tray.rsrc" "$data/aurora-tray"
+	echo "RPATH: $(readelf -d "$STAGE/$data/aurora-host" | sed -n 's/.*(R\(UN\)\{0,1\}PATH).*\[\(.*\)\]/\2/p')"
+	finish_package aurora "$data/aurora-host" "$data/aurora-tray"
+}
+
 # --- Office applications ----------------------------------------------------
 # The four Craft applications share a native Be API host and Rust build. Build
 # std with each app so its release profile's LTO has the matching bitcode.
@@ -1149,9 +1218,11 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
-			wordcraft gridcraft deckcraft pdfcraft summit_webkit summit; do
+			wordcraft gridcraft deckcraft pdfcraft aurora summit_webkit summit; do
 		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
 		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
+		# Aurora is x86_64 only (Node.js)
+		[[ $app == aurora && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"
 	done
 	note summary

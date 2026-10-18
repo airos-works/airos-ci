@@ -67,6 +67,8 @@ fi
 OFFICE_APPS=(clipper wordcraft gridcraft deckcraft pdfcraft)
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot turbochook burrow)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
+# Aurora (Electron apps) runs on Node.js, which only x86_64 has.
+[[ $TARGET != x86_64 ]] || IMAGE_APPS+=(aurora)
 
 # 1. Haiku at REF: the SDK build updates the worktree and the build directory
 #    of the architecture and builds haiku.hpkg and the host tools.
@@ -282,6 +284,22 @@ if [[ $ARCH == x86_64 ]]; then
 			cp "$file" "$WORK/packages/"
 		fi
 	done
+	# Node.js for Aurora (cmd:node): HaikuPorts' nodejs22, the version
+	# Aurora's runtime is tested with. Of what it needs, jam installs the
+	# packages its HaikuPorts list has, the others (libuv, c-ares) go in as
+	# files, as for Qt.
+	for file in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+			"$AIROS_CI/deps/haikuports.py" fetch x86_64 nodejs22); do
+		name=$(basename "$file")
+		name=${name%%-[0-9]*}
+		if grep -qE "^[[:space:]]*$name-[0-9]" "$jamlist"; then
+			system_packages+=("$name")
+		else
+			cp "$file" "$WORK/packages/"
+		fi
+	done
+	compgen -G "$WORK/packages/nodejs22-[0-9]*-x86_64.hpkg" > /dev/null \
+		|| die "no nodejs22 package for Aurora"
 fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupdf"
