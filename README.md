@@ -7,15 +7,18 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
-| Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install) |
+| Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter and Turbo Chook, and x86_64 packages of WordCraft (from the `haiku` branch of jmgasper/wordcraft); a rolling `latest` release and the "Latest builds" section of each README |
+| Office | each image build → [`build-office.sh`](apps/build-office.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft for x86_64 and ARM64, with verified Office menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
 The applications and Summit go into the **package pool**
 (`/data2/airos/packages/{x86_64,arm64,any}`). Each image build takes the
-newest package of everything from there, so an image always has the latest
-successful build of every application.
+newest successful builds from that pool. Office is built directly for each
+image SDK from [`apps/office.lock.json`](apps/office.lock.json), so both
+architectures use the same reviewed sources. Update those pins to select newer
+Office versions; missing apps or incorrect menu links stop the image build.
 
 ## Builds for stock Haiku
 
@@ -40,15 +43,20 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 ## What the images contain
 
 - Haiku from `jmgasper/haiku` `master`, built with the CI profiles in
-  `tools/airos/ci/UserBuildConfig`: `nightly-airos-x86_64`, `airos-arm64` and
-  `airos-rpi4`. They contain the fork's drivers and settings, and none of the
+  `tools/airos/ci/UserBuildConfig`: `nightly-airos-x86_64`, `airos-arm64`,
+  `airos-rpi4` and `airos-cubie`. They contain the fork's drivers and settings, and none of the
   lab tooling (no telnet shell, no SSH keys or password hashes).
 - **Summit**, the default web browser (a post-install script makes it the
   preferred app for http/https links, HTML and XHTML), with its engine
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
-- Amp, airTime, Kiri, Clipper, airShot, Turbo Chook and Burrow; on x86_64
-  also WordCraft (Rust; the shared Rust toolchain has no std for arm64).
+- Amp, airTime, Kiri, airShot, Turbo Chook and Burrow.
+- **Office**, between Applications and Utilities in Deskbar: Clipper,
+  WordCraft, GridCraft, DeckCraft and PdfCraft on every target. The Craft
+  apps use the pinned Rust nightly with a compiled standard library; ARM64
+  uses `sdk/targets/aarch64-unknown-haiku.json`. PDFCraft’s ARM64 AWS-LC
+  build uses static ARMv8-A capabilities because AWS-LC has no Haiku
+  runtime CPU probe.
 - x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
   Haiku platform plugin from jmgasper/qt6-haikuplugins `airos`, which draws at
   the desktop's density, at HaikuPorts' revision plus 100
@@ -63,7 +71,14 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   in place of the arm64 repository's bootstrap 2.6.3; Haiku is compiled
   against it), and the GL stack:
   - ROCK 5: Mesa Panfrost with the Mali CSF firmware;
-  - Pi 4: Mesa V3D and V3DV.
+  - Pi 4: Mesa V3D and V3DV;
+  - Cubie A7S: Mesa PowerVR Vulkan, Zink OpenGL and its firmware, built by
+    `deps/build-cubie.sh` from the Haiku tree’s pinned Mesa source and patches.
+    The same recipe builds U-Boot and stages the pinned Radxa boot chain and
+    AIC8800 firmware with the distributor’s notices. `sdk/build-cubie-host.sh`
+    unpacks the Linux cross compiler and OpenSSL host headers from the
+    checksum-pinned `sdk/cubie-host.lock.json`, without replacing the host’s
+    Haiku multilib tools or requiring root.
 - Every image includes the CA root certificate package for HTTPS. ARM64
   images stage an architecture-neutral copy using zlib compression so the
   trust store also works with bootstrap package readers.
@@ -101,8 +116,10 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 
 Each image comes with a `manifest.json` listing every package that went in,
 with its SHA-256, and the Haiku commit. Images are smoke-tested in QEMU:
-x86_64 and arm64 must boot to the desktop; for the Pi, the SD card layout is
-checked. x86_64 boots twice, with a legacy BIOS from a CD and with UEFI
+x86_64 and arm64 must reach the graphical session; for the Pi, the SD card
+layout is checked. Cubie validates the GPT, boot-chain sectors and ESP files,
+then boots the image through UEFI on QEMU’s ARM64 virt machine. These checks
+do not emulate the boards’ GPUs or qualify their physical hardware. x86_64 boots twice, with a legacy BIOS from a CD and with UEFI
 (OVMF) from a USB stick through the EFI system partition, as a PC does; the
 UEFI boot's log and screenshot are `serial-uefi-usb.log` and
 `screen-uefi-usb.png`. Images are served at
@@ -111,7 +128,7 @@ After the smoke test, `images/publish-github.py` verifies the compressed and
 uncompressed image hashes, uploads the image, SHA-256 file and manifest to a
 draft GitHub release, verifies GitHub's asset digests, then publishes it as
 an immutable prerelease in `jmgasper/haiku`. Tags start with
-`image-x86_64-`, `image-arm64-` or `image-rpi4-`. Re-running the publisher
+`image-x86_64-`, `image-arm64-`, `image-rpi4-` or `image-cubie-`. Re-running the publisher
 verifies an existing published release without replacing its assets.
 The public website discovers the newest published release for each target.
 
@@ -123,7 +140,7 @@ First-boot setup can grow the Pi's system volume to fill the SD card:
 `http://192.168.1.200/` (also `http://airos-build.local/`) shows:
 - the latest image of each target, with its smoke-test screenshot;
 - buttons that start a new build from the latest master of x86_64,
-  ARM64/EFI, the Raspberry Pi, or all three. Optionally the build is clean,
+  ARM64/EFI, Raspberry Pi, Cubie A7S, or all four. Optionally the build is clean,
   with Haiku compiled from scratch;
 - for every build in progress, whoever started it (the page, CI or a
   shell): its stage, a progress bar, the time elapsed, an estimate of the
@@ -151,7 +168,7 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `deps/build-amdgpu.sh` | x86_64 AMD: the `amdgpu_drm` and `amdgpu_firmwares` packages, the `amduvd` media add-on, the image's AMD user land |
 | `deps/build-amdgpu-userland.sh` | x86_64 AMD GPU user land: libdrm, libva, libglvnd, Mesa (radeonsi, RADV, VA-API), static FFmpeg for `amduvd` |
 | `deps/build-nvk.sh`, `deps/build-zink.sh` | x86_64: NVK (Vulkan) and the Zink renderer add-on of the OpenGL kit |
-| `sdk/build-rust.sh` | a pinned Rust nightly with std built for `x86_64-unknown-haiku`, bindgen and cbindgen (NVK's NAK) |
+| `sdk/build-rust.sh` | a pinned Rust nightly with std for x86_64 and ARM64 Haiku; bindgen and cbindgen for NVK's NAK |
 | `apps/build-app-packages.sh` | cross-builds the applications, `summit_webkit` and `summit` into Haiku packages |
 | `apps/ci-build-app.sh`, `apps/publish.sh` | the CI step of the app pipelines; the release and README update |
 | `summit/` | the Summit pipeline: engine libraries (`build-deps.sh`), WebKit (`build-engine.sh`), packages (`build-summit.sh`) |

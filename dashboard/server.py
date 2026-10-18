@@ -46,12 +46,14 @@ TARGETS = {
                "arch": "x86_64"},
     "arm64": {"label": "ARM64 / EFI", "for": "ROCK 5 ITX and other UEFI arm64 boards (USB stick)",
               "arch": "arm64"},
+    "cubie": {"label": "Cubie A7S", "for": "SD card with Radxa boot chain and U-Boot",
+              "arch": "arm64"},
     "rpi4": {"label": "Raspberry Pi 4", "for": "SD card for Balena Etcher; boots with no install",
              "arch": "arm64"},
 }
 # Until there is history: rough active build times in seconds.
-DEFAULT_SECONDS = {("x86_64", False): 900, ("arm64", False): 1000, ("rpi4", False): 700,
-                   ("x86_64", True): 3000, ("arm64", True): 3300, ("rpi4", True): 3300}
+DEFAULT_SECONDS = {("x86_64", False): 900, ("arm64", False): 1000, ("rpi4", False): 700, ("cubie", False): 1000,
+                   ("x86_64", True): 3000, ("arm64", True): 3300, ("rpi4", True): 3300, ("cubie", True): 4000}
 PASSIVE = ("queued", "done", "failed", "cancelled")
 start_lock = threading.Lock()
 

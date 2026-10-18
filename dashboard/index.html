@@ -102,6 +102,7 @@ tr:last-child td { border-bottom: 0; }
     <button class="primary" data-build="x86_64">x86_64</button>
     <button class="primary" data-build="arm64">ARM64 / EFI</button>
     <button class="primary" data-build="rpi4">Raspberry Pi</button>
+    <button class="primary" data-build="cubie">Cubie A7S</button>
     <button class="primary" data-build="all">All 3</button>
     <label class="clean"><input type="checkbox" id="clean"> Clean build (Haiku from scratch; much slower)</label>
   </div>
@@ -120,7 +121,7 @@ tr:last-child td { border-bottom: 0; }
 </main>
 <div id="zoom"><img alt=""></div>
 <script>
-const ORDER = ["x86_64", "arm64", "rpi4"];
+const ORDER = ["x86_64", "arm64", "rpi4", "cubie"];
 const ORIGIN = {web: "dashboard", ci: "CI (GitHub)", shell: "shell"};
 let state = null, logId = null;
 

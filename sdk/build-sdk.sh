@@ -38,10 +38,10 @@ fi
 update_sources() {
 	note "sources: $HAIKU_REPO $REF"
 	build_stage "Haiku sources" "$REF"
-	if [[ ! -d $CLONE/.git ]]; then
-		# Full clone with tags: the hrev tags make the revision (hrevNNNNN-NN).
-		git clone -q "$HAIKU_REPO" "$CLONE"
-	fi
+	# Both architectures can start on a fresh worker at once. Serialize the
+	# initial clone as well as later fetches. Keep tags for the hrev revision.
+	with_lock haiku-clone bash -c \
+		'[[ -d $2/.git ]] || git clone -q "$1" "$2"' _ "$HAIKU_REPO" "$CLONE"
 	# Only one job fetches at a time; worktrees of other arches are untouched.
 	with_lock haiku-clone git -C "$CLONE" fetch -q --tags --prune --force origin
 	if [[ $REF =~ ^[0-9a-f]{40}$ ]]; then
@@ -76,9 +76,8 @@ update_buildtools() {
 	local pin
 	pin=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["buildtools_revision"])' \
 		"$WT/tools/rock5-itx/sources.json")
-	if [[ ! -d $AIROS_SRC/buildtools/.git ]]; then
-		git clone -q "$BUILDTOOLS_REPO" "$AIROS_SRC/buildtools"
-	fi
+	with_lock buildtools bash -c \
+		'[[ -d $2/.git ]] || git clone -q "$1" "$2"' _ "$BUILDTOOLS_REPO" "$AIROS_SRC/buildtools"
 	if ! git -C "$AIROS_SRC/buildtools" cat-file -e "$pin^{commit}" 2>/dev/null; then
 		git -C "$AIROS_SRC/buildtools" fetch -q origin
 	fi

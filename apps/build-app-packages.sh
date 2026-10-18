@@ -7,11 +7,11 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airpins wordcraft summit_webkit summit (default:
-#               all but airpins and Summit's two; wordcraft is x86_64 only)
+#               natter airtime airpins wordcraft gridcraft deckcraft pdfcraft summit_webkit summit (default:
+#               all but airpins and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime airpins wordcraft (CI jobs link their checkout there)
+#               airTime airpins wordcraft gridcraft deckcraft pdfcraft (CI jobs link their checkout there)
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
 # compiler, sysroot, host rc/xres/resattr/mimeset/package, MIME DB) and the
@@ -203,9 +203,10 @@ docs() { # docs <package name> <source paths relative to SRC>...
 	done
 }
 
-deskbar_link() { # deskbar_link <path in package of the app> <menu name>
-	mkdir -p "$STAGE/data/deskbar/menu/Applications"
-	ln -s "../../../../$1" "$STAGE/data/deskbar/menu/Applications/$2"
+deskbar_link() { # deskbar_link <app path> <menu name> [folder]
+	local folder=${3:-Applications}
+	mkdir -p "$STAGE/data/deskbar/menu/$folder"
+	ln -s "../../../../$1" "$STAGE/data/deskbar/menu/$folder/$2"
 }
 
 # Stale attributes: any attribute file of a staged node older than $1. The
@@ -422,7 +423,7 @@ build_clipper() {
 	install_binary "$BUILDDIR/Clipper_device" - add-ons/input_server/devices/Clipper_paste
 	docs clipper README.md LICENSE docs
 	install_file 644 "$SRC/LICENSE" data/licenses/MIT
-	deskbar_link apps/Clipper Clipper
+	deskbar_link apps/Clipper Clipper Office
 	# its requires list is on one line; the retargeting reads one per line
 	sed 's/^requires { *\(.*\) *}$/requires {\n\t\1\n}/' \
 		"$SRC/resources/Clipper.PackageInfo" > "$BUILDDIR/Clipper.PackageInfo"
@@ -1075,52 +1076,70 @@ INFO
 	finish_package summit apps/Summit
 }
 
-# --- WordCraft --------------------------------------------------------------
-# The Rust word processor (jmgasper/wordcraft, branch haiku): cargo cross-builds
-# apps/wordcraft-haiku with the shared Rust toolchain (sdk/build-rust.sh) and
-# the SDK's compilers for its Be API host (native/host.cpp), staged as the
-# repository's tools/haiku/package.sh does on a Haiku machine. std is built
-# from rust-src with the app (-Zbuild-std; once, the target directory stays):
-# the toolchain's prebuilt sysroot has no bitcode for the release profile's
-# LTO. x86_64 only: the toolchain has no other Haiku target.
-build_wordcraft() {
-	note WordCraft
-	if [[ $ARCH != x86_64 ]]; then
-		echo "WordCraft: no Rust toolchain for $ARCH, skipped"
-		return 0
-	fi
-	snapshot wordcraft wordcraft
+# --- Office applications ----------------------------------------------------
+# The four Craft applications share a native Be API host and Rust build. Build
+# std with each app so its release profile's LTO has the matching bitcode.
+build_craft() {
+	local app=$1 binary=$2
+	note "$binary"
+	snapshot "$app" "$app"
 	"$AIROS_CI/sdk/build-rust.sh" "$ARCH"
 	. "$AIROS_TOOLCHAIN/rust/env-$ARCH.sh"
-	local res=$SRC/apps/wordcraft-haiku/resources triple=${RUST_TARGET//-/_}
-	# cargo takes a linker without arguments: wrappers with the sysroot.
-	printf '#!/bin/sh\nexec %s "$@"\n' "$CC_T" > "$HOSTBIN/wordcraft-cc"
-	printf '#!/bin/sh\nexec %s "$@"\n' "$CXX_T" > "$HOSTBIN/wordcraft-c++"
-	chmod 755 "$HOSTBIN/wordcraft-cc" "$HOSTBIN/wordcraft-c++"
+	local res=$SRC/apps/$app-haiku/resources triple=${RUST_TARGET//-/_}
+	local crates=(-p "$app-haiku") binaries=("apps/$binary")
+	[[ $app != pdfcraft ]] || crates+=(-p pdfcraft-cli)
+	# Cargo takes a linker without arguments: wrappers carry the sysroot.
+	printf '#!/bin/sh\nexec %s "$@"\n' "$CC_T" > "$HOSTBIN/craft-cc"
+	printf '#!/bin/sh\nexec %s "$@"\n' "$CXX_T" > "$HOSTBIN/craft-c++"
+	chmod 755 "$HOSTBIN/craft-cc" "$HOSTBIN/craft-c++"
 	(
 		cd "$SRC"
 		export CARGO_TARGET_DIR=$BUILDDIR/target
-		export "CARGO_TARGET_${triple^^}_LINKER=$HOSTBIN/wordcraft-cc"
-		export "CC_$triple=$HOSTBIN/wordcraft-cc" "CXX_$triple=$HOSTBIN/wordcraft-c++"
+		export "CARGO_TARGET_${triple^^}_LINKER=$HOSTBIN/craft-cc"
+		export "CC_$triple=$HOSTBIN/craft-cc" "CXX_$triple=$HOSTBIN/craft-c++"
 		export "AR_$triple=${CROSS}ar" "RANLIB_$triple=${CROSS}ranlib"
-		# The snapshot has no .git: the commit for `WordCraft --version`.
-		WORDCRAFT_BUILD_SHA=$(git -C "$APPS/wordcraft" rev-parse HEAD 2>/dev/null || echo dev)
-		export WORDCRAFT_BUILD_SHA
-		cargo build -q --release --locked --target "$RUST_TARGET" -Zbuild-std=std,panic_abort \
-			-j "$JOBS" -p wordcraft-haiku
+		if [[ $app == pdfcraft && $ARCH == arm64 ]]; then
+			# AWS-LC has no Haiku ARM64 runtime capability probe. Its static
+			# path uses only the compiler's ARMv8-A baseline (including NEON),
+			# without assuming optional AES/SHA instructions on every board.
+			export AWS_LC_SYS_CFLAGS_aarch64_unknown_haiku='-DOPENSSL_STATIC_ARMCAP -march=armv8-a'
+		fi
+		# The snapshot has no .git; identify the source used by --version.
+		export "${app^^}_BUILD_SHA=$(git -C "$APPS/$app" rev-parse HEAD)"
+		cargo build --release --locked --target "$RUST_TARGET" -Zbuild-std=std,panic_abort \
+			-j "$JOBS" "${crates[@]}"
 	)
-	(cd "$res" && "$TOOLS/rc/rc" -o "$BUILDDIR/WordCraft.rsrc" WordCraft.rdef)
+	(cd "$res" && "$TOOLS/rc/rc" -o "$BUILDDIR/$binary.rsrc" "$binary.rdef")
 	stage_begin
-	install_binary "$BUILDDIR/target/$RUST_TARGET/release/WordCraft" "$BUILDDIR/WordCraft.rsrc" apps/WordCraft
-	docs wordcraft README.md LICENSE-MIT LICENSE-APACHE NOTICE docs/haiku.md
-	# The MIME record of this installation, and WordCraft as the preferred application of
-	# the Word document types that have none (a fresh image: before it has ever run).
-	install_file 755 "$res/wordcraft-post-install.sh" boot/post-install/wordcraft.sh
-	deskbar_link apps/WordCraft WordCraft
-	retarget_package_info "$res/WordCraft.PackageInfo" "$STAGE/.PackageInfo"
-	add_attributes "$BUILDDIR/WordCraft.rsrc" apps/WordCraft
-	finish_package wordcraft apps/WordCraft
+	install_binary "$BUILDDIR/target/$RUST_TARGET/release/$binary" "$BUILDDIR/$binary.rsrc" "apps/$binary"
+	docs "$app" README.md LICENSE-MIT LICENSE-APACHE NOTICE docs/haiku.md ATTRIBUTION.md ATTRIBUTION.toml
+	install_file 755 "$res/$app-post-install.sh" "boot/post-install/$app.sh"
+	deskbar_link "apps/$binary" "$binary" Office
+	retarget_package_info "$res/$binary.PackageInfo" "$STAGE/.PackageInfo"
+	if [[ $app == pdfcraft ]]; then
+		install_binary "$BUILDDIR/target/$RUST_TARGET/release/pdfcraft-cli" - bin/pdfcraft-cli
+		binaries+=(bin/pdfcraft-cli)
+		# Keep the embedded fonts, icons and colour profile licences, as in
+		# the application's own tools/haiku/package.sh.
+		local license
+		while IFS= read -r license; do
+			install_file 644 "$SRC/$license" "documentation/packages/$app/licenses/$license"
+		done < <(awk -F '\"' '/^licence_file = / { print $2 }' "$SRC/ATTRIBUTION.toml" | sort -u)
+		for license in "$CARGO_HOME"/registry/src/*/epaint_default_fonts-0.36.2/fonts/*.txt; do
+			install_file 644 "$license" "documentation/packages/$app/licenses/epaint_default_fonts/$(basename "$license")"
+		done
+		for license in "$CARGO_HOME"/registry/src/*/hayro-cmap-0.1.0/assets/LICENSE.txt; do
+			install_file 644 "$license" "documentation/packages/$app/licenses/hayro-cmap/LICENSE.txt"
+		done
+	fi
+	add_attributes "$BUILDDIR/$binary.rsrc" "apps/$binary"
+	finish_package "$app" "${binaries[@]}"
 }
+
+build_wordcraft() { build_craft wordcraft WordCraft; }
+build_gridcraft() { build_craft gridcraft GridCraft; }
+build_deckcraft() { build_craft deckcraft DeckCraft; }
+build_pdfcraft() { build_craft pdfcraft PdfCraft; }
 
 main() {
 	check_prerequisites
@@ -1130,7 +1149,7 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
-			wordcraft summit_webkit summit; do
+			wordcraft gridcraft deckcraft pdfcraft summit_webkit summit; do
 		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
 		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"

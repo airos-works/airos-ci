@@ -9,7 +9,8 @@
 # image reads.
 #
 #   APP       build-app-packages.sh name: amp airtime airshot burrow clipper
-#             kiri natter turbochook lcdmonitor airpins wordcraft, or several
+#             kiri natter turbochook lcdmonitor airpins wordcraft gridcraft
+#             deckcraft pdfcraft, or several
 #             with commas (summit_webkit,summit)
 #   REPO_DIR  the directory name build-app-packages.sh knows the repository by
 #             (tasamp for Amp, airTime, airShot, turbochook, ...)

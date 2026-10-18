@@ -25,8 +25,16 @@ ARCH=${1:-x86_64}
 TOOLCHAIN=${RUST_TOOLCHAIN:-nightly-2026-09-15}
 case $ARCH in
 	x86_64) TARGET=x86_64-unknown-haiku ;;
+	arm64) TARGET=aarch64-unknown-haiku ;;
 	*) die "no Rust target for $ARCH" ;;
 esac
+# Rust does not ship an ARM64 Haiku target yet. Keep its ABI description in
+# this repository, using Haiku's linking defaults and the AArch64 data layout.
+if [[ $ARCH == arm64 ]]; then
+	export RUST_TARGET_PATH=$AIROS_CI/sdk/targets
+	[[ ${RUSTFLAGS:-} == *-Zunstable-options* ]] \
+		|| export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zunstable-options"
+fi
 R=$AIROS_TOOLCHAIN/rust
 export RUSTUP_HOME=$R/rustup CARGO_HOME=$R/cargo
 export PATH="$CARGO_HOME/bin:$PATH"
@@ -64,7 +72,12 @@ done
 . "$R/sdk-$ARCH.env"
 
 SYSROOT_OUT=$R/sysroot-$ARCH
-key=$({ "$rustc" -vV; "${CROSS}gcc" --version | head -n 1; echo rmeta unwind; } | sha256sum | cut -c1-16)
+key=$({
+	"$rustc" -vV
+	"${CROSS}gcc" --version | head -n 1
+	echo rmeta unwind
+	[[ $ARCH != arm64 ]] || cat "$RUST_TARGET_PATH/$TARGET.json"
+} | sha256sum | cut -c1-16)
 if [[ $(cat "$SYSROOT_OUT/.key" 2>/dev/null) != "$key" ]]; then
 	note "std for $TARGET ($("$rustc" --version))"
 	W=$AIROS_WORK/rust-std-$ARCH
@@ -113,4 +126,11 @@ export PATH="$CARGO_HOME/bin:\$PATH"
 RUST_TARGET=$TARGET
 RUST_SYSROOT=$SYSROOT_OUT
 EOF
+if [[ $ARCH == arm64 ]]; then
+	cat >> "$R/env-$ARCH.sh" <<EOF
+export RUST_TARGET_PATH=$AIROS_CI/sdk/targets
+[[ \${RUSTFLAGS:-} == *-Zunstable-options* ]] \\
+	|| export RUSTFLAGS="\${RUSTFLAGS:+\$RUSTFLAGS }-Zunstable-options"
+EOF
+fi
 echo "Rust $("$rustc" --version) for $TARGET: sysroot $SYSROOT_OUT ($(ls "$SYSROOT_OUT/lib/rustlib/$TARGET/lib" | wc -l) rlibs)"

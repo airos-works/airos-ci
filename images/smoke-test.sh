@@ -18,7 +18,7 @@
 set -euo pipefail
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
 
-TARGET=${1:?usage: smoke-test.sh x86_64|arm64|rpi4 [image dir]}
+TARGET=${1:?usage: smoke-test.sh x86_64|arm64|rpi4|cubie [image dir]}
 DIR=${2:-$AIROS_ARTIFACTS/images/$TARGET/latest}
 DIR=$(readlink -f "$DIR")
 TIMEOUT=${SMOKE_TIMEOUT:-240}
@@ -40,6 +40,28 @@ trap 'status=$?; kill $(jobs -p) 2>/dev/null || true; rm -rf "$work"
 
 image=$(ls "$DIR"/*.xz | head -n 1)
 xz -dc "$image" > "$work/image"
+
+if [[ $TARGET == cubie ]]; then
+	# The board boot chain is outside the GPT partitions. Verify it and the
+	# ESP before the UEFI boot below (QEMU does not emulate the A733 SoC).
+	sgdisk -v "$work/image" > "$DIR/layout.log"
+	grep -q 'No problems found' "$DIR/layout.log" || die "invalid Cubie GPT"
+	python3 - "$work/image" <<'PY_CHECK'
+import json, subprocess, sys
+path = sys.argv[1]
+parts = json.loads(subprocess.check_output(['sfdisk', '-J', path]))['partitiontable']['partitions']
+assert len(parts) == 2 and parts[0]['start'] == 32768
+assert parts[0]['type'].upper() == 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
+assert parts[1]['type'].upper() == '42465331-3BA3-10F1-802A-4861696B7521'
+with open(path, 'rb') as image:
+    for sector in [256, 2064, 24576]:
+        image.seek(sector * 512)
+        assert any(image.read(512)), f'boot chain missing at sector {sector}'
+PY_CHECK
+	for required in boot.scr airos/u-boot.bin EFI/BOOT/BOOTAA64.EFI dtb/allwinner/sun60i-a733-cubie-a7s.dtb; do
+		mdir -i "$work/image@@16777216" "::/$required" >> "$DIR/layout.log"
+	done
+fi
 
 if [[ $TARGET == rpi4 ]]; then
 	{
@@ -80,7 +102,7 @@ qemu_for() {
 				-drive if=none,id=stick,format=qcow2,file="$work/stick.qcow2"
 				-device usb-storage,drive=stick,removable=on
 				-vga std) ;;
-		arm64/uefi-usb)
+		arm64/uefi-usb|cubie/uefi-usb)
 			fw=/usr/share/AAVMF/AAVMF_CODE.fd
 			[[ -f $fw ]] || fw=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd
 			cp /usr/share/AAVMF/AAVMF_VARS.fd "$work/vars.fd" 2>/dev/null || truncate -s 64M "$work/vars.fd"
@@ -148,7 +170,7 @@ boot() {
 
 case $TARGET in
 	x86_64) boots=(bios-cd uefi-usb) ;;
-	arm64) boots=(uefi-usb) ;;
+	arm64|cubie) boots=(uefi-usb) ;;
 	*) die "unknown target $TARGET" ;;
 esac
 overall=PASS

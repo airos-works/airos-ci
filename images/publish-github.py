@@ -20,7 +20,7 @@ def gh(*args, data=None):
 
 def validate(directory, target):
     manifest = json.loads((directory / 'manifest.json').read_text())
-    expected = 'airos-rpi4.img' if target == 'rpi4' else f'airos-{target}.iso'
+    expected = f'airos-{target}.img' if target in ('rpi4', 'cubie') else f'airos-{target}.iso'
     if manifest['target'] != target or manifest['image'] != expected:
         raise ValueError('Image target does not match manifest')
     commit = manifest['haiku']['commit']
@@ -55,7 +55,7 @@ def validate(directory, target):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('target', choices=['x86_64', 'arm64', 'rpi4'])
+    parser.add_argument('target', choices=['x86_64', 'arm64', 'rpi4', 'cubie'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--repo', default='jmgasper/haiku')
     parser.add_argument('--check', action='store_true')

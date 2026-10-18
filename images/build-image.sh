@@ -9,6 +9,7 @@
 #   arm64   airos-arm64.iso    hybrid ISO with an EFI system partition
 #                              (ROCK 5 ITX and other UEFI arm64 machines)
 #   rpi4    airos-rpi4.img     Raspberry Pi 4 SD card image, boots directly
+#   cubie   airos-cubie.img    Radxa Cubie A7S SD card with its boot chain
 #
 # The image (xz-compressed, with SHA-256 sums and a manifest of everything that
 # went in) is published to $AIROS_ARTIFACTS/images/TARGET/<stamp>/ and
@@ -21,12 +22,13 @@ set -euo pipefail
 umask 002
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
 
-TARGET=${1:?usage: build-image.sh x86_64|arm64|rpi4 [ref]}
+TARGET=${1:?usage: build-image.sh x86_64|arm64|rpi4|cubie [ref]}
 REF=${2:-origin/master}
 case $TARGET in
 	x86_64) ARCH=x86_64 PROFILE=nightly-airos-x86_64 JAM_TARGET= IMAGE=airos-x86_64.iso ;;
 	arm64)  ARCH=arm64 PROFILE=airos-arm64 JAM_TARGET= IMAGE=airos-arm64.iso ;;
 	rpi4)   ARCH=arm64 PROFILE=airos-rpi4 JAM_TARGET=airos-rpi-image IMAGE=airos-rpi4.img ;;
+	cubie)  ARCH=arm64 PROFILE=airos-cubie JAM_TARGET= IMAGE=airos-cubie.img ;;
 	*) die "unknown target $TARGET" ;;
 esac
 # The build's record for the build dashboard (lib/status.py): opened before the
@@ -58,14 +60,13 @@ trap 'status=$?; [[ $status == 0 || -z $BUILD_ID ]] \
 if [[ ${CLEAN:-0} == 1 ]]; then
 	build_stage "cleaning" "removing the $ARCH build objects"
 	rm -rf "$AIROS_BUILD/haiku-$ARCH/objects" "$AIROS_BUILD/haiku-$ARCH/generated"
-	[[ $TARGET != rpi4 ]] || rm -rf "$AIROS_BUILD/haiku-rpi4/objects" "$AIROS_BUILD/haiku-rpi4/generated"
+	[[ $TARGET == x86_64 || $TARGET == arm64 ]] || rm -rf "$AIROS_BUILD/haiku-$TARGET/objects" "$AIROS_BUILD/haiku-$TARGET/generated"
 fi
 
 # The applications every image carries (Summit is the default browser).
-IMAGE_APPS=(summit summit_webkit amp airtime kiri clipper airshot turbochook burrow)
+OFFICE_APPS=(clipper wordcraft gridcraft deckcraft pdfcraft)
+IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot turbochook burrow)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
-# WordCraft is Rust, and the Rust toolchain only has a std for Haiku x86_64.
-[[ $ARCH != x86_64 ]] || IMAGE_APPS+=(wordcraft)
 
 # 1. Haiku at REF: the SDK build updates the worktree and the build directory
 #    of the architecture and builds haiku.hpkg and the host tools.
@@ -102,9 +103,9 @@ if [[ $ARCH == arm64 ]]; then
 fi
 
 BUILD=$HAIKU_BUILD
-if [[ $TARGET == rpi4 ]]; then
+if [[ $TARGET == rpi4 || $TARGET == cubie ]]; then
 	# Its own build directory (its own UserBuildConfig) with the arm64 compiler.
-	BUILD=$AIROS_BUILD/haiku-rpi4
+	BUILD=$AIROS_BUILD/haiku-$TARGET
 fi
 
 WORK=$AIROS_WORK/image-$TARGET
@@ -123,6 +124,15 @@ for app in "${IMAGE_APPS[@]}"; do
 	file=$(ls "$pool/$app"-[0-9]*-"$ARCH".hpkg 2>/dev/null | head -n 1 || true)
 	if [[ -n $file ]]; then cp "$file" "$WORK/packages/"; else missing+=("$app"); fi
 done
+build_stage "Office" "Clipper, WordCraft, GridCraft, DeckCraft, PdfCraft"
+"$AIROS_CI/apps/build-office.sh" "$ARCH" "$WORK/packages"
+# Office is part of every release image. A missing build must stop the image
+# instead of silently publishing one without a requested application.
+for app in "${OFFICE_APPS[@]}"; do
+	compgen -G "$WORK/packages/$app-[0-9]*-$ARCH.hpkg" > /dev/null \
+		|| die "missing Office package $app for $ARCH; build it with apps/ci-build-app.sh"
+done
+"$AIROS_CI/images/verify-office.sh" "$TOOLS/package/package" "$ARCH" "$WORK/packages"
 # Libraries and system components CI builds (airos_*, rock5_ffmpeg,
 # wpa_supplicant, ...) and firmware: architecture-neutral packages, and on
 # arm64 HaikuPorts' Wi-Fi firmware recompressed with zlib
@@ -215,6 +225,10 @@ else
 		echo "warning: no rock5_ffmpeg_devel (deps/build-deps.sh arm64 rock5_ffmpeg): no MediaConverter" >&2
 	fi
 fi
+if [[ $TARGET == cubie ]]; then
+	build_stage "Cubie inputs" "PowerVR graphics, firmware and U-Boot"
+	"$AIROS_CI/deps/build-cubie.sh"
+fi
 # GL stack, EGL vendor files, demos, firmware and add-ons staged by the deps
 # builds.
 gl=$AIROS_ROOT/image-inputs/$TARGET
@@ -276,7 +290,7 @@ ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupd
 # 3. + 4. The image.
 mkdir -p "$BUILD"
 cd "$BUILD"
-if [[ $TARGET == rpi4 ]] && { [[ ! -f build/BuildConfig ]] \
+if [[ $TARGET == rpi4 || $TARGET == cubie ]] && { [[ ! -f build/BuildConfig ]] \
 		|| ! grep -q "^#c $HAIKU_SOURCE/configure" build/BuildConfig; }; then
 	"$HAIKU_SOURCE/configure" --distro-compatibility compatible --no-full-xattr \
 		--cross-tools-prefix "$CROSS"
@@ -320,9 +334,15 @@ fi
 note "jam @$PROFILE $JAM_TARGET"
 build_stage "image" "jam @$PROFILE $JAM_TARGET"
 jam -q -j"$JOBS" "@$PROFILE" $JAM_TARGET
-[[ -f $BUILD/$IMAGE ]] || die "jam made no $IMAGE"
+if [[ $TARGET == cubie ]]; then
+	jam -q -j"$JOBS" '<build>fat_shell' haiku_loader.efi
+	CUBIE_BUILD=$BUILD CUBIE_BOOTLOADER_DIR=$gl/boot UBOOT_BIN=$gl/boot/u-boot.bin \
+		"$HAIKU_SOURCE/tools/cubie-a7s/build-sd-image.sh" \
+		"$BUILD/haiku-airos-cubie.image" "$BUILD/$IMAGE"
+fi
+[[ -f $BUILD/$IMAGE ]] || die "build made no $IMAGE"
 # The SDK's build directory must not keep this UserBuildConfig.
-[[ $TARGET == rpi4 ]] || rm -f "$BUILD/UserBuildConfig"
+[[ $TARGET == rpi4 || $TARGET == cubie ]] || rm -f "$BUILD/UserBuildConfig"
 
 # 5. Publish.
 note "publish"
@@ -334,6 +354,9 @@ size=$(stat -c %s "$BUILD/$IMAGE")
 xz -T0 -6 -c "$BUILD/$IMAGE" > "$dest/$IMAGE.xz"
 ( cd "$dest" && sha256sum "$IMAGE.xz" > "$IMAGE.xz.sha256" )
 image_sha=$(sha256sum "$BUILD/$IMAGE" | cut -d' ' -f1)
+AIROS_BUILD_TOOLS_SHA=$(cat "$HAIKU_BUILD/cross-tools-$ARCH/.buildtools-revision") \
+AIROS_CC_VERSION=$("${CROSS}gcc" -dumpfullversion) \
+AIROS_IMAGE_RECIPE_SHA=$(sha256sum "$AIROS_CI/images/build-image.sh" | cut -d' ' -f1) \
 python3 - "$dest/manifest.json" "$TARGET" "$IMAGE" "$size" "$image_sha" "$HAIKU_REVISION" \
 	"$HAIKU_SHA" "$WORK/packages" "$gl" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" <<'EOF'
 import glob, hashlib, json, os, sys, datetime
@@ -341,7 +364,7 @@ out, target, image, size, sha, rev, haiku_sha, pkgdir, inputs = sys.argv[1:10]
 # The packages CI put in the image: AIROS_CI_PACKAGES, the fonts, FreeType and
 # libpng (whose _devel packages only build Haiku).
 pkgs = sorted((os.path.join(d, p) for d in [pkgdir] + sys.argv[10:] for p in os.listdir(d)
-               if "_devel-" not in p), key=os.path.basename)
+               if p.endswith(".hpkg") and "_devel-" not in p), key=os.path.basename)
 # What the files outside packages were built from (the *-sources.txt the deps
 # builds leave with them: GL stacks, NVIDIA, NVK, Zink).
 sources = {}
@@ -351,6 +374,10 @@ for path in sorted(glob.glob(os.path.join(inputs, "*-sources.txt"))
     sources[name] = dict(line.split(" ", 1) for line in open(path).read().splitlines() if " " in line)
 json.dump({
     "inputs": sources,
+    "office": json.load(open(os.path.join(pkgdir, "office-sources.json"))),
+    "toolchain": {"buildtools_commit": os.environ["AIROS_BUILD_TOOLS_SHA"],
+                  "gcc": os.environ["AIROS_CC_VERSION"],
+                  "image_recipe_sha256": os.environ["AIROS_IMAGE_RECIPE_SHA"]},
     "target": target, "image": image, "image_bytes": int(size), "image_sha256": sha,
     "built": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     "haiku": {"repository": "https://github.com/jmgasper/haiku", "revision": rev, "commit": haiku_sha},
