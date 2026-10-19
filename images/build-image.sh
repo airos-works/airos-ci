@@ -63,10 +63,10 @@ if [[ ${CLEAN:-0} == 1 ]]; then
 	[[ $TARGET == x86_64 || $TARGET == arm64 ]] || rm -rf "$AIROS_BUILD/haiku-$TARGET/objects" "$AIROS_BUILD/haiku-$TARGET/generated"
 fi
 
-# The applications every image carries (Summit is the default browser), and
-# the ones built here at the pins in apps/office.lock.json and media.lock.json
-# for the Deskbar menu's Office and Media folders.
-IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow)
+# The applications every image carries (Summit is the default browser; Snap
+# is in the Deskbar menu's Demos folder), and the ones built here at the pins
+# in apps/office.lock.json and media.lock.json for the Office and Media folders.
+IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
 PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
 # Aurora (Electron apps) runs on Node.js, which only x86_64 has.

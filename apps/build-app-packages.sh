@@ -7,12 +7,13 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airpins wordcraft gridcraft deckcraft pdfcraft
-#               photocraft lightcraft aurora summit_webkit summit (default:
-#               all but airpins and Summit's two; aurora only on x86_64)
+#               natter airtime airpins snap wordcraft gridcraft deckcraft
+#               pdfcraft photocraft lightcraft aurora summit_webkit summit
+#               (default: all but airpins and Summit's two; aurora only on
+#               x86_64)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime airpins wordcraft gridcraft deckcraft pdfcraft
+#               airTime airpins snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
@@ -420,6 +421,34 @@ build_airshot() {
 	retarget_package_info "$SRC/resources/airShot.PackageInfo" "$STAGE/.PackageInfo"
 	add_attributes "$BUILDDIR/airShot.rsrc" apps/airShot
 	finish_package airshot apps/airShot add-ons/input_server/filters/airShot
+}
+
+# --- Snap -------------------------------------------------------------------
+# The photo booth demo (jmgasper/snap): one application, in demos/ with a link
+# in Deskbar's Demos menu like GLTeapot; its GLSL shaders are resources of the
+# application. It links libGL: the x86_64 SDK has it (Mesa's BGLView), arm64
+# takes libglvnd's (BGLView over EGL) from the GL stack deps/build-gl.sh builds.
+build_snap() {
+	note Snap
+	snapshot snap snap
+	local gl=""
+	if [[ ! -e $SYSROOT/boot/system/develop/lib/libGL.so ]]; then
+		local glvnd=$AIROS_WORK/gl/glvnd-install/boot/system
+		[[ -e $glvnd/lib/libGL.so ]] || die "no libGL for $ARCH (deps/build-gl.sh builds it)"
+		local headers=$glvnd/develop/headers/os/opengl
+		gl="-I$headers -I$headers/opengl -L$glvnd/lib -Wl,-rpath-link,$glvnd/lib"
+	fi
+	make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T $gl" \
+		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true all
+	stage_begin
+	install_binary "$BUILDDIR/Snap" "$BUILDDIR/Snap.rsrc" demos/Snap
+	docs snap README.md LICENSE docs
+	deskbar_link demos/Snap Snap Demos
+	retarget_package_info "$SRC/resources/Snap.PackageInfo" "$STAGE/.PackageInfo"
+	# An application outside apps/ (verify_package).
+	local APP_PATHS='^(apps|add-ons|demos)/'
+	add_attributes "$BUILDDIR/Snap.rsrc" demos/Snap
+	finish_package snap demos/Snap
 }
 
 # --- Clipper ----------------------------------------------------------------
@@ -1260,7 +1289,8 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
-			wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit summit; do
+			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
+			summit; do
 		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
 		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		# Aurora is x86_64 only (Node.js)

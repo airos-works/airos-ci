@@ -8,7 +8,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
-| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter and Turbo Chook, and x86_64 packages of WordCraft (from the `haiku` branch of jmgasper/wordcraft) and Aurora; a rolling `latest` release and the "Latest builds" section of each README |
+| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook and Snap, and x86_64 packages of WordCraft (from the `haiku` branch of jmgasper/wordcraft) and Aurora; a rolling `latest` release and the "Latest builds" section of each README |
 | Office and Media | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) for x86_64 and ARM64, with verified Deskbar menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
@@ -54,6 +54,12 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
 - Amp, airTime, Kiri, airShot and Burrow.
+- **Snap** (jmgasper/snap), in Deskbar's Demos folder beside GLTeapot: a
+  photo booth whose camera effects are GLSL shaders on the GPU, some of them
+  reacting to the microphone or to music. It runs only where OpenGL is
+  hardware accelerated (AMD, NVIDIA, the ROCK 5, the Pi 4, the Cubie) and
+  says so elsewhere. arm64 builds link the GL stack's libglvnd
+  (`deps/build-gl.sh`), which the arm64 SDK does not have.
 - x86_64: **Aurora**, which runs Electron apps (pgAdmin 4's desktop app, for
   one) as native windows on Summit's engine, with HaikuPorts' Node.js 22
   (`nodejs22`, the version its runtime is tested with). arm64 has no Node.js.
