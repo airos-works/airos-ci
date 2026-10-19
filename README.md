@@ -56,10 +56,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - Amp, airTime, Kiri, airShot and Burrow.
 - **Snap** (jmgasper/snap), in Deskbar's Demos folder beside GLTeapot: a
   photo booth whose camera effects are GLSL shaders on the GPU, some of them
-  reacting to the microphone or to music. It runs only where OpenGL is
-  hardware accelerated (AMD, NVIDIA, the ROCK 5, the Pi 4, the Cubie) and
-  says so elsewhere. arm64 builds link the GL stack's libglvnd
-  (`deps/build-gl.sh`), which the arm64 SDK does not have.
+  reacting to the microphone or to music. It runs only where OpenGL 3.1 is
+  hardware accelerated (tested on AMD's radeonsi; NVIDIA's Zink and the ARM
+  boards' drivers where they offer 3.1) and says why elsewhere. arm64
+  builds link the GL stack's libglvnd (`deps/build-gl.sh`), which the arm64
+  SDK does not have.
 - x86_64: **Aurora**, which runs Electron apps (pgAdmin 4's desktop app, for
   one) as native windows on Summit's engine, with HaikuPorts' Node.js 22
   (`nodejs22`, the version its runtime is tested with). arm64 has no Node.js.
