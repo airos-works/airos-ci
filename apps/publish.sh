@@ -68,6 +68,8 @@ rm -f "$notes"
 assets=$(gh release view "$TAG" --json assets --jq '.assets[] | "\(.name)\t\(.url)"')
 
 note "README section"
+# Writes this build's section into $README, wherever the checkout stands.
+write_readme() {
 python3 - "$README" "$GITHUB_REPOSITORY" "$short" "$date" "$SDK_TEXT" "$INSTALL_TEXT" "$assets" \
 	"$TARGET" "$TAG" "$SECTION" <<'EOF'
 import re, sys
@@ -109,21 +111,25 @@ else:
         text = text.rstrip('\n') + '\n\n' + new + '\n'
 open(readme, 'w').write(text)
 EOF
+}
 
-if git diff --quiet -- "$README"; then
-	echo "README unchanged"
-	exit 0
-fi
-# The rebase below makes commits too.
 ci_git() { git -c user.name="air/OS CI" -c user.email="airos-ci@users.noreply.github.com" "$@"; }
-ci_git commit -q -m "README: $COMMIT_TEXT ($short) [skip ci]" -- "$README"
 for attempt in 1 2 3 4 5; do
+	write_readme
+	if git diff --quiet -- "$README"; then
+		echo "README unchanged"
+		exit 0
+	fi
+	ci_git commit -q -m "README: $COMMIT_TEXT ($short) [skip ci]" -- "$README"
 	if git push -q origin "HEAD:$GITHUB_REF_NAME"; then
 		echo "README pushed"
 		exit 0
 	fi
-	# Someone pushed meanwhile: put the README commit on top and retry.
-	git fetch -q origin "$GITHUB_REF_NAME" && ci_git rebase -q FETCH_HEAD
+	# Someone pushed meanwhile, often the README of the other build (stock
+	# Haiku or air/OS), whose section sits next to this one: a rebase of this
+	# commit then conflicted and the job failed. Start again from theirs.
+	git fetch -q origin "$GITHUB_REF_NAME"
+	git reset -q --hard FETCH_HEAD
 	sleep $((attempt * 2))
 done
 die "could not push the README update"
