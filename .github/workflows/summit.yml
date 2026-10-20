@@ -128,3 +128,11 @@ jobs:
             mapfile -t packages < "${{ runner.temp }}/packages-$release.txt"
             AIROS_TARGET=$release "$RUNNER_TEMP/airos-ci/apps/publish.sh" "${packages[@]}"
           done
+
+      # The stock Haiku build may fail without holding up the air/OS release
+      # (continue-on-error above), but the run must not look green then.
+      - name: Report a failed stock Haiku build
+        if: steps.haiku.outcome == 'failure'
+        run: |
+          echo "::error title=Stock Haiku build failed::The air/OS packages were built and published; the build for Haiku ${{ inputs.haiku-releases }} failed (see 'Build for stock Haiku')."
+          exit 1
