@@ -11,11 +11,17 @@
 # "Latest Haiku builds" section. A failed Haiku build does not hold back the
 # air/OS packages.
 #
+# A scheduled (nightly) run of a commit the releases already carry only
+# refreshes the package pool, rebuilt against the current SDK, for the image
+# nightly: no new release and no README commit.
+#
 # Called from jmgasper/summit:
 #
 #   on:
 #     push:
 #       branches: [main]
+#     schedule:
+#       - cron: '17 13 * * *'
 #     workflow_dispatch:
 #   jobs:
 #     airos:
@@ -111,8 +117,17 @@ jobs:
           path: ${{ runner.temp }}/out-*/*.hpkg
           retention-days: 14
 
+      - name: Published already
+        id: published
+        if: github.event_name == 'schedule'
+        run: |
+          if git ls-remote origin refs/tags/latest 'refs/tags/latest^{}' | grep -q "^$GITHUB_SHA"; then
+            echo "The latest release has ${GITHUB_SHA:0:10} already: the pool is refreshed, nothing published"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish release and README links
-        if: github.ref_name == (inputs.publish-branch != '' && inputs.publish-branch || github.event.repository.default_branch)
+        if: steps.published.outputs.skip != '1' && github.ref_name == (inputs.publish-branch != '' && inputs.publish-branch || github.event.repository.default_branch)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -120,7 +135,7 @@ jobs:
           "$RUNNER_TEMP/airos-ci/apps/publish.sh" "${packages[@]}"
 
       - name: Publish the stock Haiku builds
-        if: steps.haiku.outcome == 'success' && github.ref_name == (inputs.publish-branch != '' && inputs.publish-branch || github.event.repository.default_branch)
+        if: steps.haiku.outcome == 'success' && steps.published.outputs.skip != '1' && github.ref_name == (inputs.publish-branch != '' && inputs.publish-branch || github.event.repository.default_branch)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
