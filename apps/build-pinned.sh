@@ -42,6 +42,10 @@ if [[ $(cat "$W/key" 2>/dev/null) != "$key" ]]; then
 		[[ -d $source/.git ]] || git clone -q --no-checkout "$repo" "$source"
 		git -C "$source" cat-file -e "$commit^{commit}" 2>/dev/null \
 			|| git -C "$source" fetch -q origin "$commit"
+		# Images are built from main only: a pin must be a commit on main.
+		git -C "$source" fetch -q origin main
+		git -C "$source" merge-base --is-ancestor "$commit" FETCH_HEAD \
+			|| die "$name: the pin $commit is not on $repo main"
 		git -C "$source" checkout -q --detach --force "$commit"
 		git -C "$source" clean -qfdx
 	done <<< "$pins"

@@ -8,17 +8,19 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
-| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook and Snap, and x86_64 packages of WordCraft (from the `haiku` branch of jmgasper/wordcraft) and Aurora; a rolling `latest` release and the "Latest builds" section of each README |
+| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to the default branch | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook and Snap, and x86_64 packages of WordCraft and Aurora; every app builds from its `main` branch (Burrow: `master`); a rolling `latest` release and the "Latest builds" section of each README |
 | Office and Media | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) for x86_64 and ARM64, with verified Deskbar menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main` | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
 The applications and Summit go into the **package pool**
 (`/data2/airos/packages/{x86_64,arm64,any}`). Each image build takes the
-newest successful builds from that pool. Office and Media are built directly
+newest successful builds from that pool, and stops if any application in
+`IMAGE_APPS` (`images/build-image.sh`) is missing from it. Office and Media are built directly
 for each image SDK from [`apps/office.lock.json`](apps/office.lock.json) and
 [`apps/media.lock.json`](apps/media.lock.json), so both architectures use the
-same reviewed sources. Update those pins to select newer versions; missing
+same reviewed sources. Update those pins to select newer versions; a pin
+must be a commit on the repository's `main`, and a pin off `main`, missing
 apps or incorrect menu links stop the image build. Turbo Chook's own workflow
 still builds its packages into the pool, but no image takes them since
 2026-10-19.
@@ -136,7 +138,8 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   Pi) from `jmgasper/airos-firmware` and the Raspberry Pi firmware forks.
 
 Each image comes with a `manifest.json` listing every package that went in,
-with its SHA-256, and the Haiku commit. Images are smoke-tested in QEMU:
+with its SHA-256, the Haiku commit and the airos-ci commit that built it
+(`recipe`: its fork, Office and Media pins), also named in the GitHub release. Images are smoke-tested in QEMU:
 x86_64 and arm64 must reach the graphical session; for the Pi, the SD card
 layout is checked. Cubie validates the GPT, boot-chain sectors and ESP files,
 then boots the image through UEFI on QEMU’s ARM64 virt machine. These checks
@@ -183,12 +186,12 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `sdk/build-release-sdk.sh ARCH RELEASE` | the SDK of a stock Haiku release (`x86_64 r1beta6`) from the release's own packages. Writes `/data1/airos/sdk/ARCH-RELEASE` |
 | `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages, and libpng and FreeType as HaikuPorts' `libpng16`, `freetype` and their `_devel` packages (also run by each arm64 image build). x86_64: HaikuPorts packages (`deps/haikuports.py`) |
 | `deps/build-firmware.sh` | firmware packages and image inputs, checked against pinned hashes |
-| `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot |
+| `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot; run by every ROCK 5 and Pi image build |
 | `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink); with `AIROS_TARGET=r1beta6`, against that release |
 | `deps/build-nvidia.sh` | x86_64 NVIDIA: `nvidia_rm`, `nvidia_rm_modeset`, the accelerant, the NVDEC media add-on |
 | `deps/build-amdgpu.sh` | x86_64 AMD: the `amdgpu_drm` and `amdgpu_firmwares` packages, the `amduvd` media add-on, the image's AMD user land |
 | `deps/build-amdgpu-userland.sh` | x86_64 AMD GPU user land: libdrm, libva, libglvnd, Mesa (radeonsi, RADV, VA-API), static FFmpeg for `amduvd` |
-| `deps/build-nvk.sh`, `deps/build-zink.sh` | x86_64: NVK (Vulkan) and the Zink renderer add-on of the OpenGL kit |
+| `deps/build-nvk.sh`, `deps/build-zink.sh` | x86_64: NVK (Vulkan) and the Zink renderer add-on of the OpenGL kit; run by every x86_64 image build |
 | `sdk/build-rust.sh` | a pinned Rust nightly with std for x86_64 and ARM64 Haiku; bindgen and cbindgen for NVK's NAK |
 | `apps/build-app-packages.sh` | cross-builds the applications, `summit_webkit` and `summit` into Haiku packages |
 | `apps/ci-build-app.sh`, `apps/publish.sh` | the CI step of the app pipelines; the release and README update |
@@ -250,4 +253,4 @@ through locks:
 3. Add a `build_APP` function to `apps/build-app-packages.sh` (and the app
    to its `main` loop), and the package name to `IMAGE_APPS` in
    `images/build-image.sh`: only the packages listed there go into the
-   images, whatever the pool holds.
+   images, whatever the pool holds, and an image build stops without them.

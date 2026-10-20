@@ -71,6 +71,13 @@ PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
 # Aurora (Electron apps) runs on Node.js, which only x86_64 has.
 [[ $TARGET != x86_64 ]] || IMAGE_APPS+=(aurora)
+# Every one of them is required: stop now, before the long builds, rather than
+# publish an image without an application.
+missing=()
+for app in "${IMAGE_APPS[@]}"; do
+	compgen -G "$AIROS_PACKAGES/$ARCH/$app-[0-9]*-$ARCH.hpkg" > /dev/null || missing+=("$app")
+done
+[[ ${#missing[@]} -eq 0 ]] || die "not in the package pool $AIROS_PACKAGES/$ARCH: ${missing[*]}"
 
 # 1. Haiku at REF: the SDK build updates the worktree and the build directory
 #    of the architecture and builds haiku.hpkg and the host tools.
@@ -96,6 +103,13 @@ if [[ $TARGET == x86_64 ]]; then
 	# HaikuPorts' generic build (deps/build-libvpx.sh; once per version)
 	build_stage "libvpx" "VP8/VP9 with SIMD and 10-bit VP9"
 	"$AIROS_CI/deps/build-libvpx.sh"
+	# and NVK (Vulkan on nvidia_rm) and the Zink OpenGL renderer on it, against
+	# this Haiku revision (deps/build-nvk.sh, build-zink.sh; their build trees
+	# are kept, so ninja rebuilds only what the new headers or pins change)
+	build_stage "NVK" "Vulkan for NVIDIA"
+	"$AIROS_CI/deps/build-nvk.sh"
+	build_stage "Zink" "OpenGL on Vulkan for NVIDIA"
+	"$AIROS_CI/deps/build-zink.sh"
 fi
 # arm64: libpng and FreeType for the system, which Haiku's arm64 repository
 # has not (libpng) or only as the bootstrap FreeType 2.6.3
@@ -104,6 +118,14 @@ fi
 if [[ $ARCH == arm64 ]]; then
 	build_stage "libpng and FreeType" "deps/recipes/libpng.sh, freetype.sh"
 	"$AIROS_CI/deps/build-deps.sh" arm64 libpng freetype
+fi
+# ROCK 5 and Pi: the GL stack (Panfrost; V3D and V3DV) against this Haiku
+# revision, which also refuses a Mali CSF ABI that differs from the tree's
+# driver (deps/build-gl.sh; incremental like NVK). The Cubie's comes from
+# deps/build-cubie.sh below.
+if [[ $TARGET == arm64 || $TARGET == rpi4 ]]; then
+	build_stage "GL stack" "Mesa Panfrost, V3D and V3DV, libglvnd, GLU"
+	"$AIROS_CI/deps/build-gl.sh"
 fi
 
 BUILD=$HAIKU_BUILD
@@ -121,12 +143,12 @@ note "inputs"
 build_stage "inputs" "packages, GL stacks, firmware"
 pool=$AIROS_PACKAGES/$ARCH
 any=$AIROS_PACKAGES/any
-missing=()
 # HaikuPorts packages for jam to install (AIROS_CI_SYSTEM_PACKAGES)
 system_packages=()
 for app in "${IMAGE_APPS[@]}"; do
 	file=$(ls "$pool/$app"-[0-9]*-"$ARCH".hpkg 2>/dev/null | head -n 1 || true)
-	if [[ -n $file ]]; then cp "$file" "$WORK/packages/"; else missing+=("$app"); fi
+	[[ -n $file ]] || die "$app left the package pool during the build"
+	cp "$file" "$WORK/packages/"
 done
 # Office and Media are part of every release image: build-pinned.sh stops the
 # image (and verify-pinned.sh checks it again) instead of silently publishing
@@ -332,7 +354,6 @@ PY
 fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupdf"
-[[ ${#missing[@]} -eq 0 ]] || echo "warning: not in the package pool yet: ${missing[*]}" >&2
 
 # 3. + 4. The image.
 mkdir -p "$BUILD"
@@ -405,6 +426,11 @@ size=$(stat -c %s "$BUILD/$IMAGE")
 xz -T0 -6 -c "$BUILD/$IMAGE" > "$dest/$IMAGE.xz"
 ( cd "$dest" && sha256sum "$IMAGE.xz" > "$IMAGE.xz.sha256" )
 image_sha=$(sha256sum "$BUILD/$IMAGE" | cut -d' ' -f1)
+# The airos-ci revision that made the image: its fork pins, Office and Media
+# pins and recipes; "modified" when the checkout had uncommitted changes.
+AIROS_CI_COMMIT=$(git -C "$AIROS_CI" rev-parse HEAD 2>/dev/null || echo unknown) \
+AIROS_CI_MODIFIED=$(git -C "$AIROS_CI" status --porcelain --untracked-files=no 2>/dev/null | head -c1) \
+AIROS_FORKS_LOCK_SHA=$(sha256sum "$AIROS_CI/forks/forks.lock.json" | cut -d' ' -f1) \
 AIROS_BUILD_TOOLS_SHA=$(cat "$HAIKU_BUILD/cross-tools-$ARCH/.buildtools-revision") \
 AIROS_CC_VERSION=$("${CROSS}gcc" -dumpfullversion) \
 AIROS_IMAGE_RECIPE_SHA=$(sha256sum "$AIROS_CI/images/build-image.sh" | cut -d' ' -f1) \
@@ -427,6 +453,10 @@ json.dump({
     "inputs": sources,
     "office": json.load(open(os.path.join(pkgdir, "office-sources.json"))),
     "media": json.load(open(os.path.join(pkgdir, "media-sources.json"))),
+    "recipe": {"repository": "https://github.com/jmgasper/airos-ci",
+               "commit": os.environ["AIROS_CI_COMMIT"],
+               "modified": bool(os.environ["AIROS_CI_MODIFIED"]),
+               "forks_lock_sha256": os.environ["AIROS_FORKS_LOCK_SHA"]},
     "toolchain": {"buildtools_commit": os.environ["AIROS_BUILD_TOOLS_SHA"],
                   "gcc": os.environ["AIROS_CC_VERSION"],
                   "image_recipe_sha256": os.environ["AIROS_IMAGE_RECIPE_SHA"]},

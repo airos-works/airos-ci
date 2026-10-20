@@ -69,8 +69,13 @@ def main():
         return
     test = ('Booted to the desktop in QEMU. This is not a test on every physical device.'
             if args.target != 'rpi4' else 'SD card boot files and partition layout checked. This CI check does not boot a physical Pi.')
+    recipe = manifest.get('recipe', {}).get('commit', '')
+    recipe_line = (f'Build recipe: [airos-ci {recipe[:10]}](https://github.com/jmgasper/airos-ci/commit/{recipe})'
+                   f'{" with local changes" if manifest["recipe"].get("modified") else ""}.\n\n'
+                   if re.fullmatch(r'[0-9a-f]{40}', recipe) else '')
     notes = (f'airOS development image for **{args.target}**, built {manifest["built"]}.\n\n'
              f'Haiku source: [{commit[:10]}](https://github.com/jmgasper/haiku/commit/{commit}).\n\n'
+             f'{recipe_line}'
              f'Validation: {test}\n\n'
              'Download the compressed image, checksum and package manifest below. '
              'Check hardware notes at https://jmgasper.github.io/airos-website/hardware/ before installing. '
