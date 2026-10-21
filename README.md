@@ -20,7 +20,7 @@ newest successful builds from that pool, and stops if any application in
 for each image SDK from [`apps/office.lock.json`](apps/office.lock.json) and
 [`apps/media.lock.json`](apps/media.lock.json), so both architectures use the
 same reviewed sources. Update those pins to select newer versions; a pin
-must be a commit on the repository's `main`, and a pin off `main`, missing
+must be a commit on its declared release branch (`main` by default), and a pin off that branch, missing
 apps or incorrect menu links stop the image build. Turbo Chook's own workflow
 still builds its packages into the pool, but no image takes them since
 2026-10-19.
@@ -56,6 +56,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
 - Amp, airTime, Kiri, airShot and Burrow.
+- x86_64: **Proton Mail Bridge**, built from the reviewed `master` commit in
+  `apps/bridge.lock.json`, with the native system key store and Qt Quick desktop.
+  `build-pinned.sh bridge` builds it during image assembly and verifies its
+  Applications menu entry. Qt, gRPC and protobuf runtime dependencies are
+  resolved with the image's other packages. ARM64 is not supported yet.
 - **Snap** (jmgasper/snap), in Deskbar's Demos folder beside GLTeapot: a
   photo booth whose camera effects are GLSL shaders on the GPU, some of them
   reacting to the microphone or to music. It runs only where OpenGL 3.1 is
@@ -254,3 +259,17 @@ through locks:
    to its `main` loop), and the package name to `IMAGE_APPS` in
    `images/build-image.sh`: only the packages listed there go into the
    images, whatever the pool holds, and an image build stops without them.
+
+## Proton Mail Bridge builds
+
+`apps/build-app-packages.sh OUTPUT proton_bridge` expects the checkout at
+`$APPS/proton-bridge`. The app fork contains checksum-pinned host generators,
+the Haiku Go bootstrap and desktop cross-build scripts. The image builder uses
+`apps/bridge.lock.json`; its pin must be reachable from the fork's `master`.
+No separate repository runner is required for this core-image build.
+
+Host tools default to `$AIROS_TOOLCHAIN/proton-bridge`; downloads and Go caches
+use `$AIROS_CACHE/proton-bridge`. For local development these can be overridden
+with `PROTON_BRIDGE_HOST_BUILD`, `PROTON_BRIDGE_CACHE`, and an existing
+`PROTON_BRIDGE_GOROOT`. `PROTON_BRIDGE_DEPS` selects a dedicated, disposable
+HaikuPorts staging directory; its contents are replaced on each rebuild.

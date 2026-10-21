@@ -8,7 +8,7 @@
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
 #               natter airtime airpins snap wordcraft gridcraft deckcraft
-#               pdfcraft photocraft lightcraft aurora summit_webkit summit
+#               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
 #               (default: all but airpins and Summit's two; aurora only on
 #               x86_64)
 #   APPS        a directory with the application repositories under the names
@@ -1179,6 +1179,106 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 	finish_package aurora "$data/aurora-host" "$data/aurora-tray"
 }
 
+# --- Proton Mail Bridge ------------------------------------------------------
+# Qt desktop + Go engine. HaikuPorts currently provides this dependency set
+# only for x86_64. All source changes and toolchain pins live in the app fork.
+build_proton_bridge() {
+    note "Proton Mail Bridge"
+    [[ $ARCH == x86_64 ]] || die "Proton Mail Bridge's Qt/gRPC dependency set is x86_64 only"
+    snapshot proton-bridge proton_bridge
+    local work=$APPBUILD/proton_bridge
+    local host=${PROTON_BRIDGE_HOST_BUILD:-$AIROS_TOOLCHAIN/proton-bridge}
+    local deps=${PROTON_BRIDGE_DEPS:-$work/deps}
+    local goroot=${PROTON_BRIDGE_GOROOT:-$host/go-haiku}
+    local cache=${PROTON_BRIDGE_CACHE:-$AIROS_CACHE/proton-bridge}
+    local jobs=${PROTON_BRIDGE_JOBS:-8}
+    local revision version stamp
+    revision=$(git -C "$APPS/proton-bridge" describe --always --dirty --match "")
+    stamp=$(git -C "$APPS/proton-bridge" show -s --format=%ct HEAD)
+    version=$("$SRC/utils/bridge_app_version.sh")
+    version=${version%%+*}~airos$stamp-1
+    mkdir -p "$host" "$deps"
+    (
+        # Core generators and dependency prefix are shared by app builds.
+        flock 8
+        export BRIDGE_HOST_BUILD=$host BRIDGE_DOWNLOAD_CACHE=$cache JOBS=$jobs
+        if [[ -z ${PROTON_BRIDGE_GOROOT:-} ]]; then
+            "$SRC/tools/haiku/build-go-toolchain.sh"
+        fi
+        "$SRC/tools/haiku/build-host-tools.sh"
+        # Package extraction restores read-only directory modes. Stage into a
+        # fresh sibling so a second build cannot fail while overwriting files.
+        local staged
+        staged=$(mktemp -d "${deps}.stage.XXXXXX")
+        AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+            "$AIROS_CI/deps/haikuports.py" stage x86_64 "$staged" \
+            qt6_base_devel qt6_declarative_devel qt6_svg_devel grpc_devel protobuf_devel
+        if [[ -d $deps ]]; then
+            [[ -f $deps/.haikuports.json || -z $(ls -A "$deps") ]] || die "refusing to replace an unrecognized Bridge dependency prefix: $deps"
+            chmod -R u+w "$deps"
+            rm -rf "$deps"
+        fi
+        mv "$staged" "$deps"
+        export BRIDGE_REVISION=$revision BRIDGE_BUILD_DIR=$BUILDDIR
+        (
+            export GOROOT=$goroot GOPATH=$cache/gopath
+            export GOCACHE=$cache/go-build
+            export HAIKU_CROSS=${CROSS%-} HAIKU_SYSROOT=$SYSROOT
+            . "$SRC/tools/haiku/env.sh"
+            "$SRC/tools/haiku/build-engine.sh"
+        )
+        HAIKU_SDK_ENV=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_GUI_DEPS=$deps \
+            BRIDGE_GUI_BUILD=$work/gui "$SRC/tools/haiku/build-gui.sh"
+    ) 8>"$host/build.lock"
+    "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/Bridge.rsrc" "$SRC/dist/haiku/Bridge.rdef"
+    sed 's/Bridge-Launcher/Bridge-GUI/' "$SRC/dist/haiku/Bridge.rdef" > "$BUILDDIR/BridgeGUI.rdef"
+    "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/BridgeGUI.rsrc" "$BUILDDIR/BridgeGUI.rdef"
+    stage_begin
+    local app=apps/ProtonMailBridge
+    install_binary "$BUILDDIR/launcher" "$BUILDDIR/Bridge.rsrc" "$app/launcher"
+    install_binary "$BUILDDIR/bridge-gui" "$BUILDDIR/BridgeGUI.rsrc" "$app/bridge-gui"
+    install_binary "$BUILDDIR/bridge" - "$app/bridge"
+    install_binary "$BUILDDIR/bridge-autostart" - "$app/bridge-autostart"
+    install_file 644 "$SRC/LICENSE" "$app/LICENSE"
+    mkdir -p "$STAGE/bin"
+    ln -s ../apps/ProtonMailBridge/launcher "$STAGE/bin/proton-bridge"
+    deskbar_link "$app/launcher" "Proton Mail Bridge"
+    docs proton_bridge README.md LICENSE docs/haiku/README.md
+    install_file 644 "$deps/.haikuports.json" documentation/packages/proton_bridge/build-dependencies.json
+    cat > "$STAGE/.PackageInfo" <<INFO
+name            proton_bridge
+version         $version
+architecture    x86_64
+summary         "Proton Mail IMAP and SMTP bridge"
+description     "Community air/OS port of Proton Mail Bridge, with the native system key store. Built from $revision. Requires a Proton plan supporting Bridge."
+packager        "air/OS CI"
+vendor          "Proton AG and air/OS contributors"
+copyrights { "2026 Proton AG" "2026 air/OS contributors" }
+licenses { "GNU GPL v3" }
+provides {
+    proton_bridge = ${version%-*}
+    app:ProtonMailBridge = ${version%-*}
+    cmd:proton_bridge = ${version%-*}
+}
+requires {
+    haiku >= r1~beta6
+    qt6_base >= 6.10.3
+    qt6_declarative >= 6.10.3
+    qt6_svg >= 6.10.3
+    grpc >= 1.53.0
+    protobuf >= 3.20.1
+}
+INFO
+    DROPPED="(none)"
+    add_attributes "$BUILDDIR/Bridge.rsrc" "$app/launcher"
+    resource_attributes "$BUILDDIR/BridgeGUI.rsrc" "$app/bridge-gui"
+    # Include this app's separate dependency prefix in the library report.
+    local FARM=$work/report-deps
+    mkdir -p "$FARM"
+    ln -sfn "$deps/develop/lib" "$FARM/lib"
+    finish_package proton_bridge "$app/launcher" "$app/bridge" "$app/bridge-gui"
+}
+
 # --- Office and Media applications ------------------------------------------
 # The Craft applications share a native Be API host and Rust build. Build std
 # with each app so its release profile's LTO has the matching bitcode.
@@ -1290,11 +1390,11 @@ main() {
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit; do
+			summit proton_bridge; do
 		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
 		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		# Aurora is x86_64 only (Node.js)
-		[[ $app == aurora && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
+		[[ $app =~ ^(aurora|proton_bridge)$ && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"
 	done
 	note summary

@@ -69,8 +69,12 @@ fi
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
 PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
-# Aurora (Electron apps) runs on Node.js, which only x86_64 has.
-[[ $TARGET != x86_64 ]] || IMAGE_APPS+=(aurora)
+# Aurora needs Node.js; Proton Mail Bridge needs Qt Quick/gRPC. Their current
+# packaged dependency sets are available on x86_64 only.
+if [[ $TARGET == x86_64 ]]; then
+	IMAGE_APPS+=(aurora)
+	PINNED_SETS+=(bridge)
+fi
 # Every one of them is required: stop now, before the long builds, rather than
 # publish an image without an application.
 missing=()
@@ -453,6 +457,7 @@ json.dump({
     "inputs": sources,
     "office": json.load(open(os.path.join(pkgdir, "office-sources.json"))),
     "media": json.load(open(os.path.join(pkgdir, "media-sources.json"))),
+    "bridge": json.load(open(os.path.join(pkgdir, "bridge-sources.json"))) if os.path.exists(os.path.join(pkgdir, "bridge-sources.json")) else None,
     "recipe": {"repository": "https://github.com/jmgasper/airos-ci",
                "commit": os.environ["AIROS_CI_COMMIT"],
                "modified": bool(os.environ["AIROS_CI_MODIFIED"]),

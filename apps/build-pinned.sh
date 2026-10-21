@@ -3,14 +3,14 @@
 #
 # Build the packages of one Deskbar folder at the reviewed revisions in
 # apps/SET.lock.json: office (Clipper, WordCraft, GridCraft, DeckCraft,
-# PdfCraft) or media (PhotoCraft, LightCraft). An entry with a "binary" is an
+# PdfCraft), media (PhotoCraft, LightCraft), or bridge (Proton Mail Bridge). An entry with a "binary" is an
 # application; one without is a source the applications build with
 # (craft-fonts). Called under the image's architecture lock, after its SDK has
 # been built. Copies the packages and SET-sources.json (the pins, for the
 # image manifest) to OUTPUT_DIR.
 set -euo pipefail
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
-SET=${1:?usage: build-pinned.sh office|media ARCH OUTPUT_DIR}
+SET=${1:?usage: build-pinned.sh office|media|bridge ARCH OUTPUT_DIR}
 ARCH=${2:?architecture}
 OUT=${3:?output directory}
 LOCK=$AIROS_CI/apps/$SET.lock.json
@@ -21,14 +21,14 @@ fi
 . "$AIROS_SDK/$ARCH/env.sh"
 W=$AIROS_WORK/$SET-$ARCH
 mkdir -p "$W/sources" "$W/packages" "$OUT"
-# name, repository, commit and binary (empty for a source) of each entry
+# name, repository, commit, release branch, source directory, binary of each entry
 pins=$(python3 - "$LOCK" <<'PY'
 import json, sys
 for name, source in json.load(open(sys.argv[1])).items():
-    print(name, source['repository'], source['commit'], source.get('binary', ''), sep='\t')
+    print(name, source['repository'], source['commit'], source.get('branch', 'main'), source.get('source_directory', name), source.get('binary', ''), sep='\t')
 PY
 )
-apps=($(awk -F '\t' '$4 != "" { print $1 }' <<< "$pins"))
+apps=($(awk -F '\t' '$6 != "" { print $1 }' <<< "$pins"))
 key=$({
 	cat "$LOCK" "$AIROS_CI/apps/build-app-packages.sh" \
 		"$AIROS_CI/apps/build-pinned.sh" "$AIROS_CI/sdk/build-rust.sh" \
@@ -37,15 +37,15 @@ key=$({
 	"${CROSS}gcc" --version
 } | sha256sum | cut -d' ' -f1)
 if [[ $(cat "$W/key" 2>/dev/null) != "$key" ]]; then
-	while IFS=$'\t' read -r name repo commit binary; do
-		source=$W/sources/$name
+	while IFS=$'\t' read -r name repo commit branch directory binary; do
+		source=$W/sources/$directory
 		[[ -d $source/.git ]] || git clone -q --no-checkout "$repo" "$source"
 		git -C "$source" cat-file -e "$commit^{commit}" 2>/dev/null \
 			|| git -C "$source" fetch -q origin "$commit"
-		# Images are built from main only: a pin must be a commit on main.
-		git -C "$source" fetch -q origin main
+		# A pin must be on the declared release branch (main by default).
+		git -C "$source" fetch -q origin "$branch"
 		git -C "$source" merge-base --is-ancestor "$commit" FETCH_HEAD \
-			|| die "$name: the pin $commit is not on $repo main"
+			|| die "$name: the pin $commit is not on $repo $branch"
 		git -C "$source" checkout -q --detach --force "$commit"
 		git -C "$source" clean -qfdx
 	done <<< "$pins"
