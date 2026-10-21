@@ -13,12 +13,12 @@
 # goes into: the newest of HaikuPorts, whose version the script takes from the
 # package. Its moc comes from the qtbase source of that version, built for this
 # machine once (cached). The package keeps its name and version and gets the
-# revision plus 100, so a Qt program installed later from HaikuDepot (Telegram)
+# revision plus 101, so a Qt program installed later from HaikuDepot (Telegram)
 # uses it; HaikuPorts' next Qt version replaces it until an image brings the
 # next one.
 #
 # Results in $AIROS_ROOT/qt/x86_64 (QT_AIROS_OUT for trial runs):
-#   packages/   qt6_base-<version>-<revision + 100>-x86_64.hpkg and the
+#   packages/   qt6_base-<version>-<revision + 101>-x86_64.hpkg and the
 #               HaikuPorts packages it needs that the Haiku base does not
 #               provide; images/build-image.sh installs all of them
 #   sources.txt what went in
@@ -41,7 +41,7 @@ OUT=${QT_AIROS_OUT:-$AIROS_ROOT/qt/x86_64}
 mkdir -p "$W" "$OUT"
 cd "$W"
 TLS=-mtls-dialect=gnu
-REVISION_OFFSET=100
+REVISION_OFFSET=101
 
 note "sources"
 fork_checkout qt6-haikuplugins "$W/qt6-haikuplugins"; PLUGIN_COMMIT=$FORK_COMMIT
@@ -172,7 +172,7 @@ info=$pkg/.PackageInfo
 grep -qE "^version[[:space:]]+$QTVERSION-$QTREVISION\$" "$info" \
 	|| die "unexpected version line in $qtname"
 sed -i -E "s/^version([[:space:]]+)$QTVERSION-$QTREVISION\$/version\\1$QTVERSION-$NEWREVISION/" "$info"
-sed -i -E "s/^(description[[:space:]]+\".*)\"\$/\\1 air\\/OS: the Haiku platform plugin draws at the desktop's density (jmgasper\\/qt6-haikuplugins ${PLUGIN_COMMIT:0:12}).\"/" "$info"
+sed -i -E "s/^(description[[:space:]]+\".*)\"\$/\\1 air\\/OS: desktop density support and stable Deskbar tray icons (jmgasper\\/qt6-haikuplugins ${PLUGIN_COMMIT:0:12}).\"/" "$info"
 sed -i -E 's/^packager([[:space:]]+).*/packager\1"air\/OS CI"/' "$info"
 mkdir -p "$OUT/packages"
 rm -f "$OUT"/packages/*.hpkg

@@ -345,7 +345,7 @@
     "base": "1d255f2f8e58d66c1d3f2fc12cf651e4ca0aa80d",
     "base_commit": "1d255f2f8e58d66c1d3f2fc12cf651e4ca0aa80d",
     "branch": "airos",
-    "commit": "cfd62e66d57e9c33010d56645fcca5025569f69d",
+    "commit": "58ec975977c7a54c5d16c68c67df653c8d33d219",
     "repo": "qt6-haikuplugins",
     "upstream": "https://github.com/threedeyes/qt6-haikuplugins.git",
     "url": "https://github.com/jmgasper/qt6-haikuplugins.git"

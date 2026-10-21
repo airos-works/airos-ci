@@ -84,7 +84,8 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   driver and fall back to the CPU otherwise.
 - x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
   Haiku platform plugin from jmgasper/qt6-haikuplugins `airos`, which draws at
-  the desktop's density, at HaikuPorts' revision plus 100
+  the desktop's density and reconnects existing tray icons after missed
+  heartbeats, at HaikuPorts' revision plus 101
   (`deps/build-qt-airos.sh`). Qt programs installed from HaikuDepot, such as
   Telegram, use it and are sharp at 125 to 175 percent.
 - arm64: libraries built from the jmgasper forks (`airos_*` packages:
