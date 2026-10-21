@@ -1231,13 +1231,13 @@ build_proton_bridge() {
             BRIDGE_GUI_BUILD=$work/gui "$SRC/tools/haiku/build-gui.sh"
     ) 8>"$host/build.lock"
     "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/Bridge.rsrc" "$SRC/dist/haiku/Bridge.rdef"
-    sed 's/Bridge-Launcher/Bridge-GUI/' "$SRC/dist/haiku/Bridge.rdef" > "$BUILDDIR/BridgeGUI.rdef"
-    "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/BridgeGUI.rsrc" "$BUILDDIR/BridgeGUI.rdef"
+    "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/BridgeGUI.rsrc" "$SRC/dist/haiku/BridgeGUI.rdef"
+    "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/BridgeEngine.rsrc" "$SRC/dist/haiku/BridgeEngine.rdef"
     stage_begin
     local app=apps/ProtonMailBridge
     install_binary "$BUILDDIR/launcher" "$BUILDDIR/Bridge.rsrc" "$app/launcher"
-    install_binary "$BUILDDIR/bridge-gui" "$BUILDDIR/BridgeGUI.rsrc" "$app/bridge-gui"
-    install_binary "$BUILDDIR/bridge" - "$app/bridge"
+    install_binary "$BUILDDIR/Proton Mail Bridge" "$BUILDDIR/BridgeGUI.rsrc" "$app/Proton Mail Bridge"
+    install_binary "$BUILDDIR/bridge" "$BUILDDIR/BridgeEngine.rsrc" "$app/bridge"
     install_binary "$BUILDDIR/bridge-autostart" - "$app/bridge-autostart"
     install_file 644 "$SRC/LICENSE" "$app/LICENSE"
     mkdir -p "$STAGE/bin"
@@ -1271,12 +1271,13 @@ requires {
 INFO
     DROPPED="(none)"
     add_attributes "$BUILDDIR/Bridge.rsrc" "$app/launcher"
-    resource_attributes "$BUILDDIR/BridgeGUI.rsrc" "$app/bridge-gui"
+    resource_attributes "$BUILDDIR/BridgeGUI.rsrc" "$app/Proton Mail Bridge"
+    resource_attributes "$BUILDDIR/BridgeEngine.rsrc" "$app/bridge"
     # Include this app's separate dependency prefix in the library report.
     local FARM=$work/report-deps
     mkdir -p "$FARM"
     ln -sfn "$deps/develop/lib" "$FARM/lib"
-    finish_package proton_bridge "$app/launcher" "$app/bridge" "$app/bridge-gui"
+    finish_package proton_bridge "$app/launcher" "$app/bridge" "$app/Proton Mail Bridge"
 }
 
 # --- Office and Media applications ------------------------------------------
