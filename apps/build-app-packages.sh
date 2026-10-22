@@ -9,13 +9,14 @@
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
 #               natter airtime airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
-#               airos_mail
+#               airos_mail proton_vpn
 #               (default: all but airpins, airos_mail and Summit's two; aurora
 #               and proton_bridge only on x86_64)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime airpins snap wordcraft gridcraft deckcraft pdfcraft
-#               photocraft lightcraft aurora mail (CI jobs link their checkout there),
+#               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
+#               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
@@ -1332,6 +1333,74 @@ build_airos_mail() {
 	finish_package airos_mail apps/Mail lib/mail/MailPreview
 }
 
+# --- Proton VPN -------------------------------------------------------------
+# jmgasper/proton-vpn-airos-app: the native app, its userspace WireGuard helper,
+# the command-line client and proton-openvpn, staged as its
+# tools/package-haiku.sh does. proton-openvpn is OpenVPN 2.6.13 from the
+# upstream tarball with the patches in the repository's openvpn/ (as its
+# openvpn/build.sh, cross-compiled); without LZO and LZ4, which Proton does
+# not use. arm64 links OpenSSL statically into it, as Burrow's.
+build_proton_vpn() {
+	note "Proton VPN"
+	snapshot proton-vpn-airos-app proton_vpn
+	local private=$SYSROOT/boot/system/develop/headers/private
+	local version=2.6.13 sum=730ad13ab0d8efda24b7e8e0df660e4c358ad89105aca47f2bf26da44d8ab020
+	local tarball=$AIROS_CACHE/openvpn-$version.tar.gz ovpn=$APPBUILD/proton_vpn/openvpn-src
+	if [[ ! -f $tarball ]]; then
+		curl -fsSL -o "$tarball.part" "https://github.com/OpenVPN/openvpn/archive/refs/tags/v$version.tar.gz"
+		mv "$tarball.part" "$tarball"
+	fi
+	echo "$sum  $tarball" | sha256sum -c - >/dev/null || die "$tarball: wrong SHA-256"
+	rm -rf "$ovpn"
+	mkdir -p "$ovpn"
+	tar xzf "$tarball" -C "$ovpn" --strip-components=1
+	local patch
+	for patch in "$SRC"/openvpn/patches/0*.patch*; do
+		patch -d "$ovpn" -p1 -s < "$patch"
+	done
+	( cd "$ovpn" && autoreconf -fi >/dev/null 2>&1 )
+	local ssl_libs="-L$FARM/lib -lssl -lcrypto"
+	# configure probes for LZO even with --disable-lzo, and fails on the
+	# x86_64 farm's liblzo2 without its headers: say there is none.
+	[[ $ARCH == arm64 ]] && ssl_libs="$DEPS/develop/lib/libssl.a $DEPS/develop/lib/libcrypto.a"
+	( cd "$ovpn" && ./configure -q --host="$TRIPLET" --build=x86_64-pc-linux-gnu \
+		CC="$CC_T" CPPFLAGS="-I$FARM/include" \
+		OPENSSL_CFLAGS="-I$FARM/include" OPENSSL_LIBS="$ssl_libs" LDFLAGS="-lnetwork" \
+		IFCONFIG=/boot/system/bin/ifconfig ROUTE=/boot/system/bin/route \
+		NETSTAT=/boot/system/bin/netstat IPROUTE=/bin/false \
+		--disable-lzo --disable-lz4 --disable-plugins --disable-pkcs11 --disable-debug \
+		--disable-unit-tests ac_cv_lib_lzo2_lzo1x_1_15_compress=no \
+		ac_cv_lib_lzo_lzo1x_1_15_compress=no >/dev/null )
+	make -C "$ovpn" -s -j"$JOBS" >/dev/null
+	cp "$ovpn/src/openvpn/openvpn" "$BUILDDIR/proton-openvpn"
+
+	# The app's link and resource steps run the Haiku tools by name; link here.
+	CPATH=$(FARM_CPATH) make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH TARGET_OS=Haiku \
+		CXX="$CXX_T" CC="$CC_T" UI_CPPFLAGS="-I$private/interface" objects tools
+	( cd "$SRC" && $CXX_T -o "$BUILDDIR/ProtonVPN" "$BUILDDIR"/src/core/*.o \
+		"$BUILDDIR"/third_party/crypt_blowfish/*.o "$BUILDDIR"/src/ui/*.o "$BUILDDIR/src/main.o" \
+		-lbe -ltracker -ltranslation -lcurl -lssl -lcrypto -lnetwork -Wl,--export-dynamic )
+	( cd "$SRC" && "$TOOLS/rc/rc" -I resources -o "$BUILDDIR/ProtonVPN.rsrc" \
+		resources/ProtonVPN.rdef resources/Assets.rdef )
+
+	stage_begin
+	local app="apps/Proton VPN"
+	install_binary "$BUILDDIR/ProtonVPN" "$BUILDDIR/ProtonVPN.rsrc" "$app/Proton VPN"
+	install_binary "$BUILDDIR/proton-wireguard" - "$app/helpers/proton-wireguard"
+	install_binary "$BUILDDIR/proton-openvpn" - "$app/helpers/proton-openvpn"
+	install_binary "$BUILDDIR/proton-vpn-cli" - bin/proton-vpn-cli
+	docs proton_vpn README.md LICENSE docs
+	# OpenVPN is GPL 2: ship how proton-openvpn was made next to the binary.
+	mkdir -p "$STAGE/documentation/packages/proton_vpn/openvpn"
+	cp -R "$SRC/openvpn/patches" "$SRC/openvpn/build.sh" "$SRC/openvpn/SOURCE.md" \
+		"$STAGE/documentation/packages/proton_vpn/openvpn/"
+	deskbar_link "$app/Proton VPN" "Proton VPN"
+	retarget_package_info "$SRC/resources/ProtonVPN.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/ProtonVPN.rsrc" "$app/Proton VPN"
+	finish_package proton_vpn "$app/Proton VPN" "$app/helpers/proton-wireguard" \
+		"$app/helpers/proton-openvpn" bin/proton-vpn-cli
+}
+
 # --- Office and Media applications ------------------------------------------
 # The Craft applications share a native Be API host and Rust build. Build std
 # with each app so its release profile's LTO has the matching bitcode.
@@ -1443,7 +1512,7 @@ main() {
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit proton_bridge airos_mail; do
+			summit proton_bridge airos_mail proton_vpn; do
 		# Only when asked for: Air Pins, Summit (its engine is a pipeline of its
 		# own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library)
