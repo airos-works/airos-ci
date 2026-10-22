@@ -9,12 +9,13 @@
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
 #               natter airtime airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
-#               (default: all but airpins and Summit's two; aurora only on
-#               x86_64)
+#               airos_mail
+#               (default: all but airpins, airos_mail and Summit's two; aurora
+#               and proton_bridge only on x86_64)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime airpins snap wordcraft gridcraft deckcraft pdfcraft
-#               photocraft lightcraft aurora (CI jobs link their checkout there),
+#               photocraft lightcraft aurora mail (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
@@ -1280,6 +1281,57 @@ INFO
     finish_package proton_bridge "$app/launcher" "$app/bridge" "$app/Proton Mail Bridge"
 }
 
+# --- Mail -------------------------------------------------------------------
+# air/OS's Mail (jmgasper/mail) replaces Haiku's: the image leaves Haiku's Mail
+# out, this package installs apps/Mail with Haiku's Mail icon, its Deskbar
+# entry and a post-install script that opens email messages and mailto links
+# in it. It reads messages with the Summit engine (summit_webkit).
+build_airos_mail() {
+	note Mail
+	[[ $ARCH == x86_64 ]] || die "Mail's dependency set (Summit engine, ICU 74, HarfBuzz) is staged for x86_64 only"
+	snapshot mail airos_mail
+	local work=$APPBUILD/airos_mail stamp version staged
+	stamp=$(TZ=UTC git -C "$APPS/mail" show -s --format=%cd --date=format-local:%Y%m%d.%H%M HEAD)
+	version=0.1.0~git$stamp-1
+	# The HaikuPorts development packages it links, as a root of their own.
+	staged=$(mktemp -d "$work/deps.XXXXXX")
+	AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage x86_64 \
+		"$staged/boot/system" sqlite_devel libiconv_devel curl_devel openssl3_devel \
+		libxml2_devel icu74_devel harfbuzz_devel
+	rm -rf "$work/deps"
+	mv "$staged" "$work/deps"
+	local libs=$work/deps/boot/system
+	MAIL_CXX=${CROSS}g++ MAIL_SYSROOT=$SYSROOT MAIL_TOOLS=$TOOLS MAIL_BUILD=$BUILDDIR \
+		MAIL_BUILD_TYPE=Release MAIL_EXTRA_ROOTS=$work/deps \
+		MAIL_CXX_FLAGS="-Wl,-rpath-link,$libs/lib -Wl,-rpath-link,$libs/develop/lib -Wl,-rpath-link,$SUMMIT_ENGINE/lib" \
+		MAIL_WEBKIT_LIBRARY=$SUMMIT_ENGINE/lib/libWebKit.so.1 MAIL_WEBKIT_INCLUDE_DIR=$SUMMIT_WEBKIT_HEADERS \
+		MAIL_CMAKE_ARGS=-DBUILD_TESTING=OFF JOBS=$JOBS bash "$SRC/tools/cross-build.sh"
+	stage_begin
+	cmake --install "$BUILDDIR" --prefix "$STAGE" >/dev/null
+	local binary
+	for binary in apps/Mail lib/mail/MailPreview; do
+		# GNU strip drops the appended resources: the app's and its fonts and icons.
+		"$STRIP" --strip-debug "$STAGE/$binary"
+		"$TOOLS/xres" -o "$STAGE/$binary" "$BUILDDIR/$(basename "$binary").fonts.rsrc" \
+			"$BUILDDIR/$(basename "$binary").rsrc"
+	done
+	sed -e "s/@VERSION@/$version/g" -e "s/@SHORT_VERSION@/${version%-*}/g" -e "s/@ARCH@/$ARCH/g" \
+		"$SRC/resources/Mail.PackageInfo.in" > "$STAGE/.PackageInfo"
+	deskbar_link apps/Mail Mail
+	install_file 644 "$SRC/third_party/noto-emoji/OFL.txt" "data/licenses/Mail Noto Emoji OFL 1.1"
+	install_file 755 "$SRC/resources/mail-post-install.sh" boot/post-install/mail-default-email.sh
+	install_file 644 "$work/deps/boot/system/.haikuports.json" documentation/packages/airos_mail/build-dependencies.json
+	DROPPED="(none)"
+	add_attributes "$BUILDDIR/Mail.rsrc" apps/Mail
+	resource_attributes "$BUILDDIR/MailPreview.rsrc" lib/mail/MailPreview
+	# The preview helper is an application outside apps/.
+	local APP_PATHS='^(apps|add-ons|lib/mail)/'
+	local FARM=$work/report-deps
+	mkdir -p "$FARM"
+	ln -sfn "$libs/develop/lib" "$FARM/lib"
+	finish_package airos_mail apps/Mail lib/mail/MailPreview
+}
+
 # --- Office and Media applications ------------------------------------------
 # The Craft applications share a native Be API host and Rust build. Build std
 # with each app so its release profile's LTO has the matching bitcode.
@@ -1391,9 +1443,11 @@ main() {
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit proton_bridge; do
-		# Only when asked for: Air Pins, and Summit (its engine is a pipeline of its own)
-		[[ $app =~ ^(airpins|summit_webkit|summit)$ && ${#SELECTED[@]} -eq 0 ]] && continue
+			summit proton_bridge airos_mail; do
+		# Only when asked for: Air Pins, Summit (its engine is a pipeline of its
+		# own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
+		# its airos_ name would also be copied into images as a library)
+		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		# Aurora is x86_64 only (Node.js)
 		[[ $app =~ ^(aurora|proton_bridge)$ && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"

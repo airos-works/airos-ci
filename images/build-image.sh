@@ -69,11 +69,13 @@ fi
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
 PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
-# Aurora needs Node.js; Proton Mail Bridge needs Qt Quick/gRPC. Their current
-# packaged dependency sets are available on x86_64 only.
+# Aurora needs Node.js; Proton Mail Bridge needs Qt Quick/gRPC; Mail (which
+# replaces Haiku's: the tree leaves Haiku's Mail out of x86_64 images) needs the
+# Summit engine, ICU 74 and HarfBuzz. Their current packaged dependency sets
+# are available on x86_64 only.
 if [[ $TARGET == x86_64 ]]; then
 	IMAGE_APPS+=(aurora)
-	PINNED_SETS+=(bridge)
+	PINNED_SETS+=(bridge mail)
 fi
 # Every one of them is required: stop now, before the long builds, rather than
 # publish an image without an application.
@@ -458,6 +460,7 @@ json.dump({
     "office": json.load(open(os.path.join(pkgdir, "office-sources.json"))),
     "media": json.load(open(os.path.join(pkgdir, "media-sources.json"))),
     "bridge": json.load(open(os.path.join(pkgdir, "bridge-sources.json"))) if os.path.exists(os.path.join(pkgdir, "bridge-sources.json")) else None,
+    "mail": json.load(open(os.path.join(pkgdir, "mail-sources.json"))) if os.path.exists(os.path.join(pkgdir, "mail-sources.json")) else None,
     "recipe": {"repository": "https://github.com/jmgasper/airos-ci",
                "commit": os.environ["AIROS_CI_COMMIT"],
                "modified": bool(os.environ["AIROS_CI_MODIFIED"]),

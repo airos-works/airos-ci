@@ -4,7 +4,7 @@
 # apps/SET.lock.json, including each binary and its exact Deskbar link.
 # Office/Media use their named folders; an entry can declare another folder.
 set -euo pipefail
-tool=${1:?usage: verify-pinned.sh PACKAGE_TOOL ARCH PACKAGE_DIR office|media|bridge}
+tool=${1:?usage: verify-pinned.sh PACKAGE_TOOL ARCH PACKAGE_DIR office|media|bridge|mail}
 arch=${2:?architecture}
 packages=${3:?package directory}
 set=${4:?package set}
