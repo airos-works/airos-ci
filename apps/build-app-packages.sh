@@ -1287,20 +1287,72 @@ INFO
 # out, this package installs apps/Mail with Haiku's Mail icon, its Deskbar
 # entry and a post-install script that opens email messages and mailto links
 # in it. It reads messages with the Summit engine (summit_webkit).
+
+# mail_arm64_deps ROOT: arm64 has no HaikuPorts libraries. Mail links ICU 74
+# from the Haiku base (the SDK's, as on x86_64), and the libraries the Summit
+# engine carries (libxml2, HarfBuzz, curl, OpenSSL and SQLite in
+# /boot/system/lib/summit-webkit/lib, which is Mail's RPATH), so the process
+# has one copy of each, with their headers from the engine's deps prefix; GNU
+# libiconv from DEPS (airos_libiconv); and HarfBuzz's subsetter, which the
+# engine does not build, as a static library from the engine's HarfBuzz
+# commit. ROOT/boot/system holds only these.
+mail_arm64_deps() {
+	local root=$1/boot/system name file header hb=$APPBUILD/.harfbuzz-subset commit
+	rm -rf "$1"
+	mkdir -p "$root/develop/headers" "$root/develop/lib" "$hb"
+	for header in libxml2 curl openssl sqlite3.h sqlite3ext.h; do
+		[[ -e $SUMMIT_LIBS/include/$header ]] || die "no $header in $SUMMIT_LIBS/include (summit/build-deps.sh arm64)"
+		ln -s "$SUMMIT_LIBS/include/$header" "$root/develop/headers/"
+	done
+	for name in xml2 harfbuzz curl ssl crypto sqlite3; do
+		file=$(compgen -G "$SUMMIT_ENGINE/lib/lib$name.so*" | sort | head -n 1 || true)
+		[[ -n $file ]] || die "no lib$name in $SUMMIT_ENGINE/lib (summit_webkit not staged)"
+		ln -s "$file" "$root/develop/lib/lib$name.so"
+	done
+	for header in iconv.h libcharset.h localcharset.h; do
+		[[ -e $DEPS/develop/headers/$header ]] || die "no $header in $DEPS (deps/build-deps.sh arm64 libiconv)"
+		ln -s "$DEPS/develop/headers/$header" "$root/develop/headers/"
+	done
+	ln -s "$DEPS/lib/libiconv.so.2" "$root/develop/lib/libiconv.so"
+	commit=$(fork_info harfbuzz commit)
+	if [[ $(cat "$hb/commit" 2>/dev/null) != "$commit" ]]; then
+		fork_checkout harfbuzz "$hb/src"
+		rm -rf "$hb/build" "$hb/install"
+		printf '%s\n' "set(CMAKE_SYSTEM_NAME Haiku)" "set(CMAKE_SYSTEM_PROCESSOR $CMAKE_PROCESSOR)" \
+			"set(CMAKE_SYSROOT $SYSROOT)" "set(CMAKE_C_COMPILER ${CROSS}gcc)" \
+			"set(CMAKE_CXX_COMPILER ${CROSS}g++)" "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)" \
+			"set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)" "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" \
+			> "$hb/toolchain.cmake"
+		cmake -S "$hb/src" -B "$hb/build" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$hb/toolchain.cmake" \
+			-DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF \
+			-DCMAKE_INSTALL_PREFIX="$hb/install" -DHB_BUILD_SUBSET=ON -DHB_BUILD_UTILS=OFF \
+			-DHB_HAVE_FREETYPE=OFF -DHB_HAVE_ICU=OFF -DHB_HAVE_GLIB=OFF -DHB_HAVE_GOBJECT=OFF >/dev/null
+		cmake --build "$hb/build" -j"$JOBS" >/dev/null
+		cmake --install "$hb/build" >/dev/null
+		echo "$commit" > "$hb/commit"
+	fi
+	# The engine's HarfBuzz headers are this commit's; the subsetter's come with them.
+	cp -R "$hb/install/include/harfbuzz" "$root/develop/headers/"
+	cp "$hb/install/lib/libharfbuzz-subset.a" "$root/develop/lib/"
+}
+
 build_airos_mail() {
 	note Mail
-	[[ $ARCH == x86_64 ]] || die "Mail's dependency set (Summit engine, ICU 74, HarfBuzz) is staged for x86_64 only"
 	snapshot mail airos_mail
 	local work=$APPBUILD/airos_mail stamp version staged
 	stamp=$(TZ=UTC git -C "$APPS/mail" show -s --format=%cd --date=format-local:%Y%m%d.%H%M HEAD)
 	version=0.1.0~git$stamp-1
-	# The HaikuPorts development packages it links, as a root of their own.
-	staged=$(mktemp -d "$work/deps.XXXXXX")
-	AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage x86_64 \
-		"$staged/boot/system" sqlite_devel libiconv_devel curl_devel openssl3_devel \
-		libxml2_devel icu74_devel harfbuzz_devel
-	rm -rf "$work/deps"
-	mv "$staged" "$work/deps"
+	if [[ $ARCH == x86_64 ]]; then
+		# The HaikuPorts development packages it links, as a root of their own.
+		staged=$(mktemp -d "$work/deps.XXXXXX")
+		AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage x86_64 \
+			"$staged/boot/system" sqlite_devel libiconv_devel curl_devel openssl3_devel \
+			libxml2_devel icu74_devel harfbuzz_devel
+		rm -rf "$work/deps"
+		mv "$staged" "$work/deps"
+	else
+		mail_arm64_deps "$work/deps"
+	fi
 	local libs=$work/deps/boot/system
 	MAIL_CXX=${CROSS}g++ MAIL_SYSROOT=$SYSROOT MAIL_TOOLS=$TOOLS MAIL_BUILD=$BUILDDIR \
 		MAIL_BUILD_TYPE=Release MAIL_EXTRA_ROOTS=$work/deps \
@@ -1317,12 +1369,14 @@ build_airos_mail() {
 			"$BUILDDIR/$(basename "$binary").rsrc"
 	done
 	sed -e "s/@VERSION@/$version/g" -e "s/@SHORT_VERSION@/${version%-*}/g" -e "s/@ARCH@/$ARCH/g" \
-		"$SRC/resources/Mail.PackageInfo.in" > "$STAGE/.PackageInfo"
+		"$SRC/resources/Mail.PackageInfo.in" > "$work/Mail.PackageInfo"
+	# arm64 keeps the engine, which its images have
+	retarget_package_info "$work/Mail.PackageInfo" "$STAGE/.PackageInfo" '^summit_webkit'
 	deskbar_link apps/Mail Mail
 	install_file 644 "$SRC/third_party/noto-emoji/OFL.txt" "data/licenses/Mail Noto Emoji OFL 1.1"
 	install_file 755 "$SRC/resources/mail-post-install.sh" boot/post-install/mail-default-email.sh
-	install_file 644 "$work/deps/boot/system/.haikuports.json" documentation/packages/airos_mail/build-dependencies.json
-	DROPPED="(none)"
+	[[ ! -f $libs/.haikuports.json ]] \
+		|| install_file 644 "$libs/.haikuports.json" documentation/packages/airos_mail/build-dependencies.json
 	add_attributes "$BUILDDIR/Mail.rsrc" apps/Mail
 	resource_attributes "$BUILDDIR/MailPreview.rsrc" lib/mail/MailPreview
 	# The preview helper is an application outside apps/.

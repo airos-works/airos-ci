@@ -69,10 +69,10 @@ fi
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
 PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
-# Aurora needs Node.js; Proton Mail Bridge needs Qt Quick/gRPC; Mail (which
-# replaces Haiku's: the tree leaves Haiku's Mail out of x86_64 images) needs the
-# Summit engine, ICU 74 and HarfBuzz. Their current packaged dependency sets
-# are available on x86_64 only.
+# Aurora needs Node.js; Proton Mail Bridge needs Qt Quick/gRPC. Their current
+# packaged dependency sets are available on x86_64 only. Mail replaces Haiku's
+# (the tree leaves Haiku's Mail out of x86_64 and arm64 images); arm64 images
+# get it below, once the tree is known.
 if [[ $TARGET == x86_64 ]]; then
 	IMAGE_APPS+=(aurora)
 	PINNED_SETS+=(bridge mail)
@@ -90,6 +90,13 @@ done
 build_stage "Haiku and the SDK"
 "$AIROS_CI/sdk/build-sdk.sh" "$ARCH" "$REF"
 . "$AIROS_SDK/$ARCH/env.sh"
+# arm64 (ROCK 5, Pi, Cubie): Mail, with the base ICU and the Summit engine's
+# libraries (apps/build-app-packages.sh mail_arm64_deps), where the tree leaves
+# Haiku's Mail out of arm64 images; an older tree's would be a second apps/Mail.
+if [[ $ARCH == arm64 ]] && grep -qF '$(TARGET_ARCH) = arm64 {' \
+		"$HAIKU_SOURCE/build/jam/images/definitions/regular"; then
+	PINNED_SETS+=(mail)
+fi
 
 # x86_64: the NVIDIA driver, its accelerant and the NVDEC add-on are not built
 # by jam; build them from this same Haiku revision (deps/build-nvidia.sh, under
@@ -277,6 +284,8 @@ gl=$AIROS_ROOT/image-inputs/$TARGET
 [[ -d $gl/egl ]] && cp -a "$gl/egl/." "$WORK/egl/"
 [[ -d $gl/demos ]] && cp -a "$gl/demos/." "$WORK/demos/"
 [[ -d $gl/firmware ]] && cp -a "$gl/firmware/." "$WORK/firmware/"
+# arm64: Terminal's OpenGL renderer, built with the GL stack
+[[ -d $gl/add-ons ]] && cp -a "$gl/add-ons/." "$WORK/add-ons/"
 # x86_64: nvidia_rm, its accelerant, NVDEC and NVENC (deps/build-nvidia.sh), NVK
 # (deps/build-nvk.sh), the Zink renderer (deps/build-zink.sh), libvpx
 # (deps/build-libvpx.sh): each a tree with lib/ and add-ons/

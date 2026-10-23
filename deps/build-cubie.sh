@@ -14,7 +14,7 @@ INPUTS=$AIROS_ROOT/image-inputs/cubie
 BOARD=$HAIKU_SOURCE/tools/cubie-a7s
 GL=$AIROS_ROOT/gl/arm64/boot/system
 [[ -f $GL/lib/libGL.so.1 ]] || "$AIROS_CI/deps/build-gl.sh"
-mkdir -p "$W/base/sysroot" "$INPUTS"/{lib,egl,demos,firmware,boot}
+mkdir -p "$W/base/sysroot" "$INPUTS"/{lib,egl,demos,firmware,boot} "$INPUTS/add-ons/Terminal"
 
 note "Cubie graphics sysroot"
 # Use this image's SDK, with only the common GL headers/libraries overlaid.
@@ -58,6 +58,7 @@ done
 cp "$W/mesa/out/"{libEGL_mesa.so.0,libvulkan_powervr_mesa.so,libvulkan.so.1} "$INPUTS/lib/"
 cp "$W/mesa/out/10_mesa.json" "$INPUTS/egl/"
 cp "$AIROS_ROOT/image-inputs/arm64/demos/GLTeapot" "$INPUTS/demos/"
+cp "$AIROS_ROOT/image-inputs/arm64/add-ons/Terminal/Terminal-OpenGL" "$INPUTS/add-ons/Terminal/"
 
 note "Cubie firmware"
 "$BOARD/fetch-gpu-firmware.sh" "$INPUTS/firmware/powervr"

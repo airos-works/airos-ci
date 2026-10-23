@@ -8,8 +8,8 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
-| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook, Snap and Proton VPN, and x86_64 packages of WordCraft, Aurora and Proton Mail Bridge; every app builds from its `main` branch; a rolling `latest` release and the "Latest builds" section of each README |
-| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) for x86_64 and ARM64; Proton Mail Bridge and Mail for x86_64; with verified Deskbar menu links |
+| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook, Snap, WordCraft and Proton VPN, and x86_64 packages of Aurora and Proton Mail Bridge; every app builds from its `main` branch; a rolling `latest` release and the "Latest builds" section of each README |
+| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) and Mail for x86_64 and ARM64; Proton Mail Bridge for x86_64; with verified Deskbar menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
@@ -64,15 +64,19 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   Each push to the fork's `master` also builds the package in its own
   workflow and publishes it as the rolling `latest` release; images keep
   using the reviewed pin.
-- x86_64: **Mail** (jmgasper/mail), which replaces Haiku's Mail: built from
+- **Mail** (jmgasper/mail), which replaces Haiku's Mail: built from
   the reviewed `main` commit in `apps/mail.lock.json` by `build-pinned.sh mail`
   during image assembly, installed as `apps/Mail` with Haiku's Mail icon and
   its **Applications → Mail** Deskbar entry (verified), and made the preferred
   application for email messages and mailto links by a post-install script.
-  It reads mail with Summit's engine and links HaikuPorts' ICU 74, HarfBuzz,
-  libxml2, curl and SQLite. The tree leaves Haiku's Mail out of x86_64 images
-  (`build/jam/images/definitions/regular`); ARM64 keeps Haiku's Mail until
-  Mail's dependency set is staged there.
+  It reads mail with Summit's engine. x86_64 links HaikuPorts' ICU 74,
+  HarfBuzz, libxml2, curl and SQLite; ARM64 links the base system's ICU 74,
+  GNU libiconv (`deps/recipes/libiconv.sh`, `airos_libiconv`), the libraries
+  the arm64 `summit_webkit` carries (HarfBuzz, libxml2, curl, OpenSSL, SQLite)
+  and HarfBuzz's subsetter statically from the engine's HarfBuzz commit. The
+  tree leaves Haiku's Mail out of x86_64 and arm64 images
+  (`build/jam/images/definitions/regular`); arm64 images take Mail only from a
+  tree that does.
 - **Snap** (jmgasper/snap), in Deskbar's Demos folder beside GLTeapot: a
   photo booth whose camera effects are GLSL shaders on the GPU, some of them
   reacting to the microphone or to music. It runs only where OpenGL 3.1 is
@@ -204,7 +208,7 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `sdk/build-release-sdk.sh ARCH RELEASE` | the SDK of a stock Haiku release (`x86_64 r1beta6`) from the release's own packages. Writes `/data1/airos/sdk/ARCH-RELEASE` |
 | `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages, and libpng and FreeType as HaikuPorts' `libpng16`, `freetype` and their `_devel` packages (also run by each arm64 image build). x86_64: HaikuPorts packages (`deps/haikuports.py`) |
 | `deps/build-firmware.sh` | firmware packages and image inputs, checked against pinned hashes |
-| `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot; run by every ROCK 5 and Pi image build |
+| `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot, GLInfo and Terminal's OpenGL renderer (`system/non-packaged/add-ons/Terminal`; Haiku builds it only with its mesa build feature, which arm64 lacks); run by every ROCK 5 and Pi image build |
 | `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink); with `AIROS_TARGET=r1beta6`, against that release |
 | `deps/build-nvidia.sh` | x86_64 NVIDIA: `nvidia_rm`, `nvidia_rm_modeset`, the accelerant, the NVDEC media add-on |
 | `deps/build-amdgpu.sh` | x86_64 AMD: the `amdgpu_drm` and `amdgpu_firmwares` packages, the `amduvd` media add-on, the image's AMD user land |

@@ -12,11 +12,11 @@
 #      Haiku GL kit headers) into a GL sysroot;
 #   3. Mesa three times: Panfrost (ROCK 5), V3D (Raspberry Pi 4), and the
 #      V3D Vulkan driver;
-#   4. GLU, the GLTeapot demo and GLInfo.
+#   4. GLU, the GLTeapot demo, GLInfo and Terminal's OpenGL renderer.
 #
 # Results:
-#   $AIROS_ROOT/image-inputs/arm64/{lib,egl,demos}   ROCK 5 / EFI image
-#   $AIROS_ROOT/image-inputs/rpi4/{lib,egl,demos}    Raspberry Pi 4 image
+#   $AIROS_ROOT/image-inputs/arm64/{lib,egl,demos,add-ons}   ROCK 5 / EFI image
+#   $AIROS_ROOT/image-inputs/rpi4/{lib,egl,demos,add-ons}    Raspberry Pi 4 image
 #   $AIROS_ROOT/deps/arm64/boot/system               GL headers and libraries
 #                                                     for app builds
 #   $AIROS_ROOT/gl/arm64/boot/system                  the same as an overlay of
@@ -215,13 +215,21 @@ ${CROSS}g++ --sysroot="$GLROOT" -specs="$UNWIND_SPECS" -std=gnu++17 -O2 "$W"/gli
 "$TOOLS/rc/rc" -o "$W/GLInfo.rsrc" "$app/GLInfo.rdef"
 ${CROSS}strip --strip-debug "$W/GLInfo"
 "$TOOLS/xres" -o "$W/GLInfo" "$W/GLInfo.rsrc"
+# Terminal's OpenGL renderer. Haiku builds it with its mesa build feature, which
+# arm64 has not (its GL stack is this one); Terminal loads it from
+# system/non-packaged/add-ons/Terminal.
+app=$HAIKU_SOURCE/src/apps/terminal
+${CROSS}g++ --sysroot="$GLROOT" -specs="$UNWIND_SPECS" -std=gnu++17 -O2 -fPIC -shared \
+	-I"$app/emulator" -I"$app/render" -I"$headers/os/opengl" "$app/render/opengl/GLRenderer.cpp" \
+	-L"$glvnd/lib" -Wl,-rpath-link,"$system/lib" -lbe -lGL -o "$W/Terminal-OpenGL"
+${CROSS}strip --strip-debug "$W/Terminal-OpenGL"
 
 note "image inputs"
 stage_target() { # stage_target TARGET EGL_LIBRARY VENDOR_FILE [extra libs...]
 	local target=$1 out=$INPUTS/$1 egl=$2 vendor=$3
 	shift 3
-	rm -rf "$out/lib" "$out/egl" "$out/demos"
-	mkdir -p "$out/lib" "$out/egl" "$out/demos"
+	rm -rf "$out/lib" "$out/egl" "$out/demos" "$out/add-ons"
+	mkdir -p "$out/lib" "$out/egl" "$out/demos" "$out/add-ons/Terminal"
 	cp "$egl" "$out/lib/libEGL_mesa.so.0"
 	local name version
 	for name in libEGL:1.1.0 libGLESv2:2.1.0 libGLdispatch:0.0.0 libOpenGL:0.0.0 libGL:1.0.0; do
@@ -234,6 +242,7 @@ stage_target() { # stage_target TARGET EGL_LIBRARY VENDOR_FILE [extra libs...]
 	printf '{\n  "file_format_version": "1.0.0",\n  "ICD": {\n    "library_path": "/boot/system/non-packaged/lib/libEGL_mesa.so.0"\n  }\n}\n' \
 		> "$out/egl/$vendor"
 	cp "$W/GLTeapot" "$W/GLInfo" "$out/demos/"
+	cp "$W/Terminal-OpenGL" "$out/add-ons/Terminal/"
 	printf 'mesa %s\nlibglvnd %s\nglu %s\nhaiku %s\n' "$MESA_COMMIT" "$GLVND_COMMIT" "$GLU_COMMIT" \
 		"$HAIKU_REVISION" > "$out/gl-sources.txt"
 	echo "$target: $(ls "$out/lib" | tr '\n' ' ')"
