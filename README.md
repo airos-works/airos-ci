@@ -8,7 +8,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
-| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook, Snap, WordCraft and Proton VPN, and x86_64 packages of Aurora and Proton Mail Bridge; every app builds from its `main` branch; a rolling `latest` release and the "Latest builds" section of each README |
+| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN and Proton Mail Bridge, and x86_64 packages of Aurora; every app builds from its `main` branch; a rolling `latest` release and the "Latest builds" section of each README |
 | Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) and Mail for x86_64 and ARM64; Proton Mail Bridge for x86_64; with verified Deskbar menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
@@ -290,3 +290,19 @@ use `$AIROS_CACHE/proton-bridge`. For local development these can be overridden
 with `PROTON_BRIDGE_HOST_BUILD`, `PROTON_BRIDGE_CACHE`, and an existing
 `PROTON_BRIDGE_GOROOT`. `PROTON_BRIDGE_DEPS` selects a dedicated, disposable
 HaikuPorts staging directory; its contents are replaced on each rebuild.
+
+arm64 has no HaikuPorts Qt, gRPC or protobuf. The fork's
+`tools/haiku/build-gui-deps.sh` cross-builds the versions HaikuPorts has for
+x86_64 (Qt 6.10.3 qtbase, qtdeclarative and qtsvg with HaikuPorts' patches and
+the pinned `qt6-haikuplugins` platform plugin; protobuf 3.20.1, abseil,
+re2, c-ares and gRPC 1.53.0 as static libraries, with OpenSSL from `DEPS`) into
+`$AIROS_TOOLCHAIN/proton-bridge/gui-deps-arm64` (`PROTON_BRIDGE_DEPS`), with a
+host Qt of the same version for the code generators; the first build takes
+about an hour and later ones reuse it. The package carries that Qt privately:
+`apps/ProtonMailBridge/lib`, `plugins` and the QML modules the interface
+imports in `qml` (Qt's relocatable prefix and `qt.conf`), so arm64 images
+need nothing beyond the GL stack, FreeType, libpng, the base system and
+`qsystray`: the Deskbar tray helper the Haiku Qt plugin runs as
+`/bin/qsystray`, which HaikuPorts packages for x86_64 only; the arm64 build
+makes the same release (5.15.2.14) as its own `qsystray` package, published
+with Bridge's.

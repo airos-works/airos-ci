@@ -11,7 +11,7 @@
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
 #               airos_mail proton_vpn
 #               (default: all but airpins, airos_mail and Summit's two; aurora
-#               and proton_bridge only on x86_64)
+#               only on x86_64)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime airpins snap wordcraft gridcraft deckcraft pdfcraft
@@ -1182,15 +1182,22 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 }
 
 # --- Proton Mail Bridge ------------------------------------------------------
-# Qt desktop + Go engine. HaikuPorts currently provides this dependency set
-# only for x86_64. All source changes and toolchain pins live in the app fork.
+# Qt desktop + Go engine. All source changes and toolchain pins live in the app
+# fork. x86_64 links HaikuPorts' Qt, gRPC and protobuf packages. arm64, which
+# HaikuPorts has none of, builds the same versions with the fork's
+# tools/haiku/build-gui-deps.sh (once, kept in the host tree): Qt goes into the
+# package privately (apps/ProtonMailBridge/lib, plugins and qml, where Qt's
+# relocatable prefix finds them), gRPC and protobuf are linked statically.
 build_proton_bridge() {
     note "Proton Mail Bridge"
-    [[ $ARCH == x86_64 ]] || die "Proton Mail Bridge's Qt/gRPC dependency set is x86_64 only"
     snapshot proton-bridge proton_bridge
     local work=$APPBUILD/proton_bridge
     local host=${PROTON_BRIDGE_HOST_BUILD:-$AIROS_TOOLCHAIN/proton-bridge}
-    local deps=${PROTON_BRIDGE_DEPS:-$work/deps}
+    local deps goarch
+    case $ARCH in
+        x86_64) deps=${PROTON_BRIDGE_DEPS:-$work/deps} goarch=amd64 ;;
+        arm64) deps=${PROTON_BRIDGE_DEPS:-$host/gui-deps-$SDK_NAME} goarch=arm64 ;;
+    esac
     local goroot=${PROTON_BRIDGE_GOROOT:-$host/go-haiku}
     local cache=${PROTON_BRIDGE_CACHE:-$AIROS_CACHE/proton-bridge}
     local jobs=${PROTON_BRIDGE_JOBS:-8}
@@ -1208,28 +1215,37 @@ build_proton_bridge() {
             "$SRC/tools/haiku/build-go-toolchain.sh"
         fi
         "$SRC/tools/haiku/build-host-tools.sh"
-        # Package extraction restores read-only directory modes. Stage into a
-        # fresh sibling so a second build cannot fail while overwriting files.
-        local staged
-        staged=$(mktemp -d "${deps}.stage.XXXXXX")
-        AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
-            "$AIROS_CI/deps/haikuports.py" stage x86_64 "$staged" \
-            qt6_base_devel qt6_declarative_devel qt6_svg_devel grpc_devel protobuf_devel
-        if [[ -d $deps ]]; then
-            [[ -f $deps/.haikuports.json || -z $(ls -A "$deps") ]] || die "refusing to replace an unrecognized Bridge dependency prefix: $deps"
-            chmod -R u+w "$deps"
-            rm -rf "$deps"
+        if [[ $ARCH == x86_64 ]]; then
+            # Package extraction restores read-only directory modes. Stage into a
+            # fresh sibling so a second build cannot fail while overwriting files.
+            local staged
+            staged=$(mktemp -d "${deps}.stage.XXXXXX")
+            AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+                "$AIROS_CI/deps/haikuports.py" stage x86_64 "$staged" \
+                qt6_base_devel qt6_declarative_devel qt6_svg_devel grpc_devel protobuf_devel
+            if [[ -d $deps ]]; then
+                [[ -f $deps/.haikuports.json || -z $(ls -A "$deps") ]] || die "refusing to replace an unrecognized Bridge dependency prefix: $deps"
+                chmod -R u+w "$deps"
+                rm -rf "$deps"
+            fi
+            mv "$staged" "$deps"
+        else
+            # Qt's platform plugin from the pinned fork, as the x86_64 images' Qt
+            fork_checkout qt6-haikuplugins "$host/qt6-haikuplugins-$SDK_NAME"
+            HAIKU_SDK_ENV=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_GUI_DEPS=$deps HAIKU_EXTRA_DEPS=$DEPS \
+                HAIKU_QT_PLUGINS_SRC=$host/qt6-haikuplugins-$SDK_NAME "$SRC/tools/haiku/build-gui-deps.sh"
         fi
-        mv "$staged" "$deps"
         export BRIDGE_REVISION=$revision BRIDGE_BUILD_DIR=$BUILDDIR
         (
             export GOROOT=$goroot GOPATH=$cache/gopath
-            export GOCACHE=$cache/go-build
+            export GOCACHE=$cache/go-build GOARCH=$goarch
             export HAIKU_CROSS=${CROSS%-} HAIKU_SYSROOT=$SYSROOT
             . "$SRC/tools/haiku/env.sh"
             "$SRC/tools/haiku/build-engine.sh"
         )
-        HAIKU_SDK_ENV=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_GUI_DEPS=$deps \
+        local extra=()
+        [[ $ARCH == x86_64 ]] || extra=(HAIKU_GUI_EXTRA="$DEPS")
+        env "${extra[@]}" HAIKU_SDK_ENV=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_GUI_DEPS=$deps \
             BRIDGE_GUI_BUILD=$work/gui "$SRC/tools/haiku/build-gui.sh"
     ) 8>"$host/build.lock"
     "$TOOLS/rc/rc" -I "$SRC/dist/haiku" -o "$BUILDDIR/Bridge.rsrc" "$SRC/dist/haiku/Bridge.rdef"
@@ -1238,7 +1254,15 @@ build_proton_bridge() {
     stage_begin
     local app=apps/ProtonMailBridge
     install_binary "$BUILDDIR/launcher" "$BUILDDIR/Bridge.rsrc" "$app/launcher"
-    install_binary "$BUILDDIR/Proton Mail Bridge" "$BUILDDIR/BridgeGUI.rsrc" "$app/Proton Mail Bridge"
+    local gui=$BUILDDIR/Proton\ Mail\ Bridge
+    if [[ $ARCH != x86_64 ]]; then
+        # its private Qt, explicitly (the library path has %A/lib too); before
+        # the resources go on
+        cp "$gui" "$work/Proton Mail Bridge"
+        gui=$work/Proton\ Mail\ Bridge
+        set_rpath "$gui" "/boot/system/$app/lib"
+    fi
+    install_binary "$gui" "$BUILDDIR/BridgeGUI.rsrc" "$app/Proton Mail Bridge"
     install_binary "$BUILDDIR/bridge" "$BUILDDIR/BridgeEngine.rsrc" "$app/bridge"
     install_binary "$BUILDDIR/bridge-autostart" - "$app/bridge-autostart"
     install_file 644 "$SRC/LICENSE" "$app/LICENSE"
@@ -1246,11 +1270,16 @@ build_proton_bridge() {
     ln -s ../apps/ProtonMailBridge/launcher "$STAGE/bin/proton-bridge"
     deskbar_link "$app/launcher" "Proton Mail Bridge"
     docs proton_bridge README.md LICENSE docs/haiku/README.md
-    install_file 644 "$deps/.haikuports.json" documentation/packages/proton_bridge/build-dependencies.json
-    cat > "$STAGE/.PackageInfo" <<INFO
+    if [[ $ARCH == x86_64 ]]; then
+        install_file 644 "$deps/.haikuports.json" documentation/packages/proton_bridge/build-dependencies.json
+    else
+        bridge_private_qt "$deps" "$app"
+        install_file 644 "$deps/sources.txt" documentation/packages/proton_bridge/build-dependencies.txt
+    fi
+    cat > "$work/PackageInfo" <<INFO
 name            proton_bridge
 version         $version
-architecture    x86_64
+architecture    $ARCH
 summary         "Proton Mail IMAP and SMTP bridge"
 description     "Community air/OS port of Proton Mail Bridge, with the native system key store. Built from $revision. Requires a Proton plan supporting Bridge."
 packager        "air/OS CI"
@@ -1271,15 +1300,151 @@ requires {
     protobuf >= 3.20.1
 }
 INFO
-    DROPPED="(none)"
+    # arm64 carries Qt and links gRPC and protobuf; its tray icons need
+    # qsystray (build_qsystray: on x86_64 qt6_base requires HaikuPorts')
+    retarget_package_info "$work/PackageInfo" "$STAGE/.PackageInfo"
+    [[ $ARCH == x86_64 ]] || sed -i '/^requires[[:space:]]*{/a\\tcmd:qsystray' "$STAGE/.PackageInfo"
+    [[ $ARCH == x86_64 ]] && DROPPED="(none)"
     add_attributes "$BUILDDIR/Bridge.rsrc" "$app/launcher"
     resource_attributes "$BUILDDIR/BridgeGUI.rsrc" "$app/Proton Mail Bridge"
     resource_attributes "$BUILDDIR/BridgeEngine.rsrc" "$app/bridge"
     # Include this app's separate dependency prefix in the library report.
     local FARM=$work/report-deps
     mkdir -p "$FARM"
-    ln -sfn "$deps/develop/lib" "$FARM/lib"
+    if [[ $ARCH == x86_64 ]]; then
+        ln -sfn "$deps/develop/lib" "$FARM/lib"
+    else
+        # what the package carries, and the image's GL stack
+        local lib
+        rm -rf "$FARM/lib"
+        mkdir -p "$FARM/lib"
+        for lib in "$STAGE/$app"/lib/*.so.* "$DEPS/lib/libGL.so.1"; do
+            ln -sfn "$lib" "$FARM/lib/$(basename "${lib%%.so*}").so"
+        done
+    fi
     finish_package proton_bridge "$app/launcher" "$app/bridge" "$app/Proton Mail Bridge"
+    [[ $ARCH == x86_64 ]] || build_qsystray
+}
+
+# The Haiku Qt platform plugin shows tray icons through /bin/qsystray, which
+# HaikuPorts packages on its own (qsystray, which its qt6_base requires) for
+# x86_64 only: on arm64 the same release, as the same package, beside Bridge's.
+QSYSTRAY_VERSION=5.15.2.14
+QSYSTRAY_SHA256=6156338b7b523c4045b54e3a2e5af99d07def72842083a01758bbdf5799cba27
+build_qsystray() {
+    note "qsystray $QSYSTRAY_VERSION"
+    local work=$APPBUILD/qsystray tool signature
+    local tarball=$AIROS_CACHE/tarballs/qthaikuplugins-$QSYSTRAY_VERSION.tar.gz
+    mkdir -p "$work" "$AIROS_CACHE/tarballs"
+    if [[ ! -f $tarball ]]; then
+        curl -fsSL --retry 3 -o "$tarball.part" \
+            "https://github.com/threedeyes/qthaikuplugins/archive/$QSYSTRAY_VERSION.tar.gz"
+        mv "$tarball.part" "$tarball"
+    fi
+    echo "$QSYSTRAY_SHA256  $tarball" | sha256sum -c --quiet - || die "$tarball: wrong SHA-256"
+    rm -rf "$work/src"
+    mkdir -p "$work/src"
+    tar -xzf "$tarball" -C "$work/src" --strip-components=1
+    # as tools/qsystray and tools/qnotify's Makefiles build them
+    for tool in qsystray qnotify; do
+        case $tool in
+            qsystray) signature=application/x-vnd.QtSystrayManager ;;
+            qnotify) signature=application/x-vnd.qnotify-gate ;;
+        esac
+        $CXX_T -O2 -DAPP_SIGNATURE="\"$signature\"" "$work/src/tools/$tool/$tool.cpp" \
+            -ltracker -lbe -o "$work/$tool"
+        "$TOOLS/rc/rc" -o "$work/$tool.rsrc" "$work/src/tools/$tool/$tool.rdef"
+    done
+    stage_begin
+    for tool in qsystray qnotify; do
+        install_binary "$work/$tool" "$work/$tool.rsrc" "bin/$tool"
+    done
+    install_file 644 "$work/src/LICENSE" documentation/packages/qsystray/LICENSE
+    cat > "$STAGE/.PackageInfo" <<INFO
+name            qsystray
+version         $QSYSTRAY_VERSION-1
+architecture    $ARCH
+summary         "Deskbar shelf helper for Qt applications"
+description     "Qt system tray tools for interaction with Deskbar shelf (threedeyes/qthaikuplugins $QSYSTRAY_VERSION, as HaikuPorts packages it), built by air/OS CI."
+packager        "air/OS CI"
+vendor          "Haiku Project"
+copyrights { "2012-2021 Gerasim Troeglazov" }
+licenses { "GNU LGPL v2.1" "GNU LGPL v3" }
+provides {
+    qsystray = $QSYSTRAY_VERSION
+    cmd:qsystray = $QSYSTRAY_VERSION
+    cmd:qnotify = $QSYSTRAY_VERSION
+}
+requires {
+    haiku >= r1~beta6
+}
+INFO
+    DROPPED="(none)"
+    # the tools are applications in bin/
+    local APP_PATHS='^(apps|add-ons)/|^bin/q(systray|notify)$'
+    add_attributes "$work/qsystray.rsrc" bin/qsystray
+    resource_attributes "$work/qnotify.rsrc" bin/qnotify
+    finish_package qsystray bin/qsystray bin/qnotify
+}
+
+# bridge_private_qt PREFIX APP: the Qt of PREFIX (build-gui-deps.sh) that the
+# interface uses, in APP's lib/ (Haiku's library path has the application's
+# lib/), plugins/ and qml/ (Qt's relocatable prefix is lib/.., and qt.conf
+# says the same): the platform plugin, image formats, icon engines and TLS
+# backends, the QML modules the interface imports (qmlimportscanner) and the
+# libraries all of them need.
+bridge_private_qt() {
+    local prefix=$1 app=$2 dir module needed lib item
+    local root=$STAGE/$app hostqt
+    hostqt=$(compgen -G "${PROTON_BRIDGE_HOST_BUILD:-$AIROS_TOOLCHAIN/proton-bridge}/qt-6.*" | head -n 1)
+    [[ -x $hostqt/libexec/qmlimportscanner ]] || die "no host qmlimportscanner in $hostqt (build-gui-deps.sh)"
+    mkdir -p "$root/lib" "$root/plugins" "$root/qml"
+    for dir in platforms imageformats iconengines tls; do
+        [[ -d $prefix/plugins/$dir ]] && cp -R "$prefix/plugins/$dir" "$root/plugins/"
+    done
+    [[ -f $root/plugins/platforms/libqhaiku.so ]] || die "no Haiku platform plugin in $prefix"
+    "$hostqt/libexec/qmlimportscanner" -rootPath "$SRC/internal/frontend/bridge-gui/bridge-gui/qml" \
+        -importPath "$prefix/qml" > "$APPBUILD/proton_bridge/qml-imports.json"
+    while IFS= read -r module; do
+        [[ -n $module ]] || continue
+        mkdir -p "$root/qml/$module"
+        rsync -a --exclude='*.qmltypes' --exclude='plugins.qmltypes' "$prefix/qml/$module/" "$root/qml/$module/"
+    done < <(python3 - "$prefix/qml" "$APPBUILD/proton_bridge/qml-imports.json" <<'PY'
+import json, os, sys
+base = os.path.realpath(sys.argv[1])
+paths = set()
+for entry in json.load(open(sys.argv[2])):
+    path = os.path.realpath(entry.get("path", ""))
+    if entry.get("type") == "module" and path.startswith(base + "/"):
+        paths.add(os.path.relpath(path, base))
+# a module's directory holds its child modules: copy each tree once
+for path in sorted(paths):
+    if not any(path.startswith(other + "/") for other in paths):
+        print(path)
+PY
+)
+    [[ -d $root/qml/QtQuick/Controls ]] || die "qmlimportscanner found no QtQuick.Controls"
+    printf '[Paths]\nPrefix=.\n' > "$root/qt.conf"
+    # the libraries, from the interface and everything Qt loads into it
+    local pending=("$app/Proton Mail Bridge")
+    while IFS= read -r -d '' item; do
+        pending+=("${item#"$STAGE/"}")
+    done < <(find "$root/plugins" "$root/qml" -name '*.so' -print0)
+    declare -A seen=()
+    while [[ ${#pending[@]} -gt 0 ]]; do
+        item=${pending[0]}
+        pending=("${pending[@]:1}")
+        for needed in $(readelf -d "$STAGE/$item" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p'); do
+            [[ -n ${seen[$needed]:-} ]] && continue
+            seen[$needed]=1
+            lib=$prefix/lib/$needed
+            [[ -e $lib ]] || continue
+            cp "$(readlink -f "$lib")" "$root/lib/$needed"
+            pending+=("$app/lib/$needed")
+        done
+    done
+    find "$root/lib" "$root/plugins" "$root/qml" -name '*.so*' -type f -exec chmod 644 {} + \
+        -exec "$STRIP" --strip-unneeded {} +
 }
 
 # --- Mail -------------------------------------------------------------------
@@ -1572,7 +1737,7 @@ main() {
 		# its airos_ name would also be copied into images as a library)
 		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		# Aurora is x86_64 only (Node.js)
-		[[ $app =~ ^(aurora|proton_bridge)$ && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
+		[[ $app == aurora && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"
 	done
 	note summary
