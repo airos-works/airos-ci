@@ -10,8 +10,7 @@
 #               natter airtime airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
 #               airos_mail proton_vpn
-#               (default: all but airpins, airos_mail and Summit's two; aurora
-#               only on x86_64)
+#               (default: all but airpins, airos_mail and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime airpins snap wordcraft gridcraft deckcraft pdfcraft
@@ -1139,7 +1138,6 @@ aurora_heredoc() { # aurora_heredoc <path in stage> <terminator>
 
 build_aurora() {
 	note Aurora
-	[[ $ARCH == x86_64 ]] || die "Aurora needs Node.js, which only x86_64 has (HaikuPorts' nodejs22)"
 	engine_ready || die "no Summit engine in $SUMMIT_ENGINE (summit_webkit not staged)"
 	snapshot aurora aurora
 	local work=$APPBUILD/aurora
@@ -1172,7 +1170,9 @@ build_aurora() {
 		bash -c 'eval "cat <<INFO
 $(cat "$1")
 INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
-	retarget_package_info "$work/aurora.PackageInfo" "$STAGE/.PackageInfo"
+	# arm64 keeps Node.js (airos-ci's nodejs22, deps/recipes/nodejs22.sh) and the
+	# engine: an image with Aurora carries both
+	retarget_package_info "$work/aurora.PackageInfo" "$STAGE/.PackageInfo" '^(cmd:node|summit_webkit)'
 	# The host and the add-on are applications outside apps/ and add-ons/.
 	local APP_PATHS="^(apps|add-ons)/|^$data/aurora-(host|tray)\$"
 	add_attributes "$BUILDDIR/aurora-host.rsrc" "$data/aurora-host"
@@ -1736,8 +1736,6 @@ main() {
 		# own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library)
 		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail)$ && ${#SELECTED[@]} -eq 0 ]] && continue
-		# Aurora is x86_64 only (Node.js)
-		[[ $app == aurora && $ARCH != x86_64 && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"
 	done
 	note summary

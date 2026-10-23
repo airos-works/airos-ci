@@ -34,7 +34,7 @@ export AIROS_ARCH=$ARCH
 
 if [[ $ARCH == arm64 ]]; then
 	ORDER=(openssl nghttp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
-		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype)
+		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22)
 else
 	ORDER=(haikuports)
 fi
@@ -83,7 +83,8 @@ configure_ac() {
 # in $AIROS_CACHE/tarballs and checked against SHA256), for the libraries that
 # have no fork: they are built from their release, as HaikuPorts builds them.
 # Their recipes set SOURCE_URL and SOURCE_SHA256, which the package names.
-fetch_tarball() {
+# fetch_file URL SHA256: print the path of the cached, checked download.
+fetch_file() {
 	local url=$1 sha=$2 file
 	file=$AIROS_CACHE/tarballs/${sha:0:16}-$(basename "$url")
 	mkdir -p "$AIROS_CACHE/tarballs"
@@ -92,6 +93,11 @@ fetch_tarball() {
 		echo "$sha  $file.part" | sha256sum -c --quiet || die "$url: checksum mismatch"
 		mv "$file.part" "$file"
 	fi
+	echo "$file"
+}
+fetch_tarball() {
+	local file
+	file=$(fetch_file "$1" "$2")
 	rm -rf "$SRC"
 	mkdir -p "$SRC"
 	tar xf "$file" -C "$SRC" --strip-components=1

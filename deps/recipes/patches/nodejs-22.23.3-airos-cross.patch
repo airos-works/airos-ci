@@ -1,0 +1,165 @@
+diff --git a/common.gypi b/common.gypi
+index b21bddc2..ffdb3ac4 100644
+--- a/common.gypi
++++ b/common.gypi
+@@ -730,8 +730,13 @@
+         ],
+       }],
+       ['OS=="haiku"', {
+-          'ldflags': [ '-lroot', '-lbsd', '-lstdc++', '-lnetwork', '-Wl,-Bsymbolic', '-Wl,--export-dynamic', '-fPIC' ],
+-          'ldflags!': [ '-pthreads', '-pthread', '-rdynamic' ],
++          # Cross builds: the host tools link as on Linux.
++          'target_conditions': [
++            ['_toolset=="target"', {
++              'ldflags': [ '-lroot', '-lbsd', '-lstdc++', '-lnetwork', '-Wl,-Bsymbolic', '-Wl,--export-dynamic', '-fPIC' ],
++              'ldflags!': [ '-pthreads', '-pthread', '-rdynamic' ],
++            }],
++          ],
+           'clang%': 0,
+           '%v8_use_snapshot':0,
+       }],
+diff --git a/configure.py b/configure.py
+index 95bd8bc3..a955740d 100755
+--- a/configure.py
++++ b/configure.py
+@@ -2333,6 +2333,19 @@ if 'make_global_settings' in output:
+ else:
+   make_global_settings = False
+ 
++# air/OS: in a cross build for Haiku, the libraries and headers found above are
++# the target's. The host tools (node_js2c) link the host build of libuv in
++# HOST_LIBUV_PREFIX instead.
++if options.cross_compiling and options.dest_os == 'haiku':
++  target_only = {k: output.pop(k) for k in ('libraries', 'include_dirs') if k in output}
++  host_libuv = os.environ.get('HOST_LIBUV_PREFIX')
++  host_only = {}
++  if host_libuv:
++    host_only = {'include_dirs': [host_libuv + '/include'],
++                 'libraries': [host_libuv + '/lib/libuv.a', '-lpthread', '-ldl']}
++  output['target_conditions'] = [['_toolset=="target"', target_only],
++                                 ['_toolset=="host"', host_only]]
++
+ # Add configurations to target defaults
+ output['configurations'] = configurations
+ 
+diff --git a/deps/v8/src/base/debug/stack_trace_posix.cc b/deps/v8/src/base/debug/stack_trace_posix.cc
+index 59c375c4..e5a72f78 100644
+--- a/deps/v8/src/base/debug/stack_trace_posix.cc
++++ b/deps/v8/src/base/debug/stack_trace_posix.cc
+@@ -25,7 +25,8 @@
+ #include <string>
+ #include <vector>
+ 
+-#if V8_LIBC_GLIBC || V8_LIBC_BSD || V8_LIBC_UCLIBC || V8_OS_SOLARIS || V8_OS_HAIKU
++#if V8_LIBC_GLIBC || V8_LIBC_BSD || V8_LIBC_UCLIBC || V8_OS_SOLARIS || \
++    (V8_OS_HAIKU && !defined(__aarch64__))  // arm64 Haiku has no libexecinfo
+ #define HAVE_EXECINFO_H 1
+ #endif
+ 
+diff --git a/deps/v8/src/wasm/std-object-sizes.h b/deps/v8/src/wasm/std-object-sizes.h
+index 6b16ef29..1f393a33 100644
+--- a/deps/v8/src/wasm/std-object-sizes.h
++++ b/deps/v8/src/wasm/std-object-sizes.h
+@@ -62,7 +62,7 @@ inline size_t ContentSize(std::unordered_set<T> set) {
+ // When one of these checks fails, that probably means you've added fields to
+ // a class guarded by it. Update the respective EstimateCurrentMemoryConsumption
+ // function accordingly, and then update the check's expected size.
+-#if V8_TARGET_ARCH_X64 && defined(__clang__) && V8_TARGET_OS_LINUX &&          \
++#if V8_TARGET_ARCH_X64 && defined(__clang__) && defined(V8_TARGET_OS_LINUX) &&          \
+     !V8_USE_ADDRESS_SANITIZER && !V8_USE_MEMORY_SANITIZER && defined(DEBUG) && \
+     V8_COMPRESS_POINTERS && !defined(V8_GC_MOLE) && defined(_LIBCPP_VERSION)
+ #define UPDATE_WHEN_CLASS_CHANGES(classname, size)                       \
+diff --git a/src/debug_utils.cc b/src/debug_utils.cc
+index 2166e54a..623fb7ee 100644
+--- a/src/debug_utils.cc
++++ b/src/debug_utils.cc
+@@ -14,7 +14,8 @@
+ 
+ #if defined(__linux__) && !defined(__GLIBC__) || \
+     defined(__UCLIBC__) || \
+-    defined(_AIX)
++    defined(_AIX) || \
++    defined(__HAIKU__) && defined(__aarch64__)  // arm64 Haiku: no libexecinfo
+ #define HAVE_EXECINFO_H 0
+ #else
+ #define HAVE_EXECINFO_H 1
+diff --git a/tools/v8_gypfiles/v8.gyp b/tools/v8_gypfiles/v8.gyp
+index 81f9ddf7..6b40c6be 100644
+--- a/tools/v8_gypfiles/v8.gyp
++++ b/tools/v8_gypfiles/v8.gyp
+@@ -749,12 +749,12 @@
+               }],
+               ['v8_enable_webassembly==1', {
+                 'conditions': [
+-                  ['((_toolset=="host" and host_arch=="arm64" or _toolset=="target" and target_arch=="arm64") and (OS in "linux mac openharmony")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac openharmony"))', {
++                  ['(((_toolset=="host" and host_arch=="arm64" or _toolset=="target" and target_arch=="arm64") and (OS in "linux mac openharmony")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac openharmony"))) or (_toolset=="host" and host_arch=="x64" and OS=="haiku")', {
+                     'sources': [
+                       '<(V8_ROOT)/src/trap-handler/handler-inside-posix.h',
+                     ],
+                   }],
+-                  ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac win openharmony")', {
++                  ['((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac win openharmony")) or (_toolset=="host" and host_arch=="x64" and OS=="haiku")', {
+                     'sources': [
+                       '<(V8_ROOT)/src/trap-handler/trap-handler-simulator.h',
+                     ],
+@@ -1198,7 +1198,7 @@
+           'conditions': [
+             ['v8_enable_webassembly==1', {
+               'conditions': [
+-                ['((_toolset=="host" and host_arch=="arm64" or _toolset=="target" and target_arch=="arm64") and (OS in "linux mac ios openharmony")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac openharmony"))', {
++                ['(((_toolset=="host" and host_arch=="arm64" or _toolset=="target" and target_arch=="arm64") and (OS in "linux mac ios openharmony")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac openharmony"))) or (_toolset=="host" and host_arch=="x64" and OS=="haiku")', {
+                   'sources': [
+                     '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
+                     '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
+@@ -1210,7 +1210,7 @@
+                     '<(V8_ROOT)/src/trap-handler/handler-outside-win.cc',
+                   ],
+                 }],
+-                ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac win openharmony")', {
++                ['((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac win openharmony")) or (_toolset=="host" and host_arch=="x64" and OS=="haiku")', {
+                   'sources': [
+                     '<(V8_ROOT)/src/trap-handler/handler-outside-simulator.cc',
+                   ],
+@@ -1522,15 +1522,33 @@
+           ]
+         }],
+         ['is_haiku', {
+-          'link_settings': {
+-            'libraries': [
+-              '-lexecinfo',
+-            ]
+-          },
+-          'sources': [
+-            '<(V8_ROOT)/src/base/debug/stack_trace_posix.cc',
+-            '<(V8_ROOT)/src/base/platform/platform-haiku.cc',
+-          ]
++          # Cross builds: the host tools (torque, mksnapshot) run on Linux.
++          'conditions': [
++            ['target_arch!="arm64"', {
++              'link_settings': {
++                'target_conditions': [
++                  ['_toolset=="target"', {
++                    'libraries': [
++                      '-lexecinfo',
++                    ],
++                  }],
++                ],
++              },
++            }],
++          ],
++          'target_conditions': [
++            ['_toolset=="host"', {
++              'sources': [
++                '<(V8_ROOT)/src/base/debug/stack_trace_posix.cc',
++                '<(V8_ROOT)/src/base/platform/platform-linux.cc',
++              ],
++            }, {
++              'sources': [
++                '<(V8_ROOT)/src/base/debug/stack_trace_posix.cc',
++                '<(V8_ROOT)/src/base/platform/platform-haiku.cc',
++              ],
++            }],
++          ],
+         }],
+         ['OS == "mac" or (_toolset=="host" and host_os=="mac")', {
+           'sources': [
