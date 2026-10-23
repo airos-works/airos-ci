@@ -23,10 +23,12 @@
 # scratch index, and checking it out rewrites only the files that differ from
 # the last build's, so ninja rebuilds only what the change reaches.
 #
-# ENGINE_JOBS: compile jobs (default: one per 3.5 GB of memory, at most nproc;
-# WebCore's unified sources take about 2 GB each, and the build server runs
-# other builds and test sessions beside it: at one per 2.5 GB the kernel
-# killed the runner service, on 19 and 20 October).
+# ENGINE_JOBS: compile jobs (default: one per 3.5 GB of the memory available
+# when the build starts, at least 4, at most nproc; WebCore's unified sources
+# take about 2 GB each, and the build server runs other builds, VMs and test
+# sessions beside it: at one per 2.5 GB of all memory the kernel killed the
+# runner service on 19 and 20 October, and at one per 3.5 GB of all memory
+# three times on 23 October, beside a Node.js build and two VMs).
 set -euo pipefail
 umask 002
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
@@ -49,8 +51,9 @@ B=$AIROS_BUILD/webkit-$SDK_NAME
 # The trees are shared by the build server's users (group airos, setgid
 # directories): git works in the source tree whoever made it.
 export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=$SRC
-mem_gb=$(awk '/MemTotal/ {print int($2 / 1048576)}' /proc/meminfo)
+mem_gb=$(awk '/MemAvailable/ {print int($2 / 1048576)}' /proc/meminfo)
 jobs=$(( mem_gb * 2 / 7 ))
+(( jobs >= 4 )) || jobs=4
 (( jobs <= $(nproc) )) || jobs=$(nproc)
 JOBS=${ENGINE_JOBS:-$jobs}
 summit_commit=$(git -C "$SUMMIT_DIR" rev-parse HEAD)
