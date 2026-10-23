@@ -2,7 +2,7 @@
   "proton_bridge": {
     "repository": "https://github.com/jmgasper/proton-bridge.git",
     "branch": "master",
-    "commit": "32c34ae6b18999b958705843aedd042f2ec08e74",
+    "commit": "794b91905ba10a069782e1ef2ae32b9b602ed9d3",
     "source_directory": "proton-bridge",
     "binary": "ProtonMailBridge/launcher",
     "menu_folder": "Applications",

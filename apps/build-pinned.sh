@@ -50,6 +50,7 @@ if [[ $(cat "$W/key" 2>/dev/null) != "$key" ]]; then
 		git -C "$source" checkout -q --detach --force "$commit"
 		git -C "$source" clean -qfdx
 	done <<< "$pins"
+	rm -f "$W/packages"/*.hpkg
 	AIROS_ARCH=$ARCH APPS=$W/sources APPBUILD=$W/build \
 		"$AIROS_CI/apps/build-app-packages.sh" "$W/packages" "${apps[@]}"
 	"$AIROS_CI/images/verify-pinned.sh" "$TOOLS/package/package" "$ARCH" "$W/packages" "$SET"
@@ -65,5 +66,11 @@ fi
 for app in "${apps[@]}"; do
 	rm -f "$OUT/$app"-[0-9]*-"$ARCH".hpkg
 	cp "$W/packages/$app"-[0-9]*-"$ARCH".hpkg "$OUT/"
+done
+# and the packages built with them (arm64 Bridge's qsystray)
+for package in "$W/packages"/*-"$ARCH".hpkg; do
+	name=$(basename "$package")
+	rm -f "$OUT/${name%%-[0-9]*}"-[0-9]*-"$ARCH".hpkg
+	cp "$package" "$OUT/"
 done
 cp "$W/sources.json" "$OUT/$SET-sources.json"

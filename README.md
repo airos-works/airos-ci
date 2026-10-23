@@ -9,7 +9,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 |---|---|---|---|
 | Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN and Proton Mail Bridge, and x86_64 packages of Aurora; every app builds from its `main` branch; a rolling `latest` release and the "Latest builds" section of each README |
-| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) and Mail for x86_64 and ARM64; Proton Mail Bridge for x86_64; with verified Deskbar menu links |
+| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
 | Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
@@ -56,11 +56,13 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
 - Amp, airTime, Kiri, airShot and Burrow.
-- x86_64: **Proton Mail Bridge**, built from the reviewed `master` commit in
+- **Proton Mail Bridge**, built from the reviewed `master` commit in
   `apps/bridge.lock.json`, with the native system key store and Qt Quick desktop.
   `build-pinned.sh bridge` builds it during image assembly and verifies its
-  Applications menu entry. Qt, gRPC and protobuf runtime dependencies are
-  resolved with the image's other packages. ARM64 is not supported yet.
+  Applications menu entry. On x86_64 its Qt, gRPC and protobuf runtime
+  dependencies are resolved with the image's other packages; on ARM64 the
+  package carries its own Qt and comes with the `qsystray` package built
+  beside it.
   Each push to the fork's `master` also builds the package in its own
   workflow and publishes it as the rolling `latest` release; images keep
   using the reviewed pin.

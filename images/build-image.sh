@@ -69,13 +69,14 @@ fi
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
 PINNED_SETS=(office media)
 [[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
-# Aurora needs Node.js; Proton Mail Bridge needs Qt Quick/gRPC. Their current
-# packaged dependency sets are available on x86_64 only. Mail replaces Haiku's
+# Aurora needs Node.js, packaged for x86_64 only. Proton Mail Bridge links
+# HaikuPorts' Qt on x86_64 and carries its own on arm64. Mail replaces Haiku's
 # (the tree leaves Haiku's Mail out of x86_64 and arm64 images); arm64 images
 # get it below, once the tree is known.
+PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	IMAGE_APPS+=(aurora)
-	PINNED_SETS+=(bridge mail)
+	PINNED_SETS+=(mail)
 fi
 # Every one of them is required: stop now, before the long builds, rather than
 # publish an image without an application.
