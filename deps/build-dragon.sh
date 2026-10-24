@@ -8,8 +8,10 @@
 #                                    zink's EGL vendor library (the Cubie's
 #                                    OpenGL patch) and the libvulkan.so.1 shim
 #   tools/dragon-q8b/fetch-gpu-firmware.sh
-#                                    linux-firmware's a660 SQE/GMU microcode
-#                                    and SC8280XP zap shader (pinned commit)
+#                                    linux-firmware's a660 SQE/GMU microcode,
+#                                    SC8280XP zap shader and, where the tree
+#                                    has the qcom_iris driver, the video
+#                                    codec's vpu20_p4.mbn (pinned commit)
 #
 # Results:
 #   $AIROS_ROOT/image-inputs/arm64/adreno   the tree the image carries as
@@ -17,7 +19,8 @@
 #                       script links it into system/non-packaged only where
 #                       the adreno driver publishes the GPU, every other
 #                       machine keeps the ROCK 5's Panfrost stack
-#   $AIROS_ROOT/image-inputs/arm64/firmware/qcom   the GPU firmware, for the
+#   $AIROS_ROOT/image-inputs/arm64/firmware/qcom   the GPU and video codec
+#                       firmware, for the
 #                       image's firmware tree (AIROS_CI_FIRMWARE): the driver
 #                       needs it before the boot script runs
 set -euo pipefail
@@ -89,6 +92,10 @@ mkdir -p "$INPUTS/firmware/qcom/sc8280xp"
 cp "$W/firmware/qcom/a660_sqe.fw" "$W/firmware/qcom/a660_gmu.bin" \
 	"$W/firmware/LICENSE.qcom" "$W/firmware/NOTICE.qcom" "$INPUTS/firmware/qcom/"
 cp "$W/firmware/qcom/sc8280xp/qcdxkmsuc8280.mbn" "$INPUTS/firmware/qcom/sc8280xp/"
+if [[ -f $W/firmware/qcom/vpu/vpu20_p4.mbn ]]; then
+	mkdir -p "$INPUTS/firmware/qcom/vpu"
+	cp "$W/firmware/qcom/vpu/vpu20_p4.mbn" "$INPUTS/firmware/qcom/vpu/"
+fi
 {
 	echo "haiku $HAIKU_SHA"
 	echo "cross_compiler $("${CROSS}gcc" --version | head -n 1)"
