@@ -278,6 +278,14 @@ if [[ $TARGET == cubie ]]; then
 	build_stage "Cubie inputs" "PowerVR graphics, firmware and U-Boot"
 	"$AIROS_CI/deps/build-cubie.sh"
 fi
+# arm64 EFI: the Dragon Q8B's GPU user land (deps/build-dragon.sh), once the
+# tree has its build
+dragon=
+if [[ $TARGET == arm64 && -x $HAIKU_SOURCE/tools/dragon-q8b/mesa/build.sh ]]; then
+	build_stage "Dragon inputs" "Turnip, zink and the Adreno firmware"
+	"$AIROS_CI/deps/build-dragon.sh"
+	dragon=1
+fi
 # GL stack, EGL vendor files, demos, firmware and add-ons staged by the deps
 # builds.
 gl=$AIROS_ROOT/image-inputs/$TARGET
@@ -294,6 +302,9 @@ for part in "$gl"/nvidia "$gl"/nvk "$gl"/zink "$gl"/libvpx; do
 	[[ -d $part/lib ]] && cp -a "$part/lib/." "$WORK/libs/"
 	[[ -d $part/add-ons ]] && cp -a "$part/add-ons/." "$WORK/add-ons/"
 done
+# arm64: the Dragon's user land for system/non-packaged/adreno, which the boot
+# script links into place only where the adreno driver publishes the GPU
+[[ -z $dragon ]] || cp -a "$gl/adreno" "$WORK/adreno"
 # x86_64: amdgpu_drm and amdgpu_firmwares, and the AMD GPU user land for
 # system/non-packaged/amdgpu (deps/build-amdgpu.sh), which every x86_64 image
 # carries
@@ -395,6 +406,7 @@ fi
 	[[ -z $(ls "$WORK/firmware") ]] || echo "AIROS_CI_FIRMWARE = $WORK/firmware ;"
 	[[ -z $(ls "$WORK/add-ons") ]] || echo "AIROS_CI_ADDONS = $WORK/add-ons ;"
 	[[ ! -d $WORK/amdgpu ]] || echo "AIROS_CI_AMDGPU = $WORK/amdgpu ;"
+	[[ ! -d $WORK/adreno ]] || echo "AIROS_CI_ADRENO = $WORK/adreno ;"
 	# one per line: jam refuses long lines
 	if [[ ${#system_packages[@]} -gt 0 ]]; then
 		echo "AIROS_CI_SYSTEM_PACKAGES ="
