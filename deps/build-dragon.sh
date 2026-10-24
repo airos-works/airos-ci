@@ -11,10 +11,15 @@
 #                                    linux-firmware's a660 SQE/GMU microcode
 #                                    and SC8280XP zap shader (pinned commit)
 #
-# Result: $AIROS_ROOT/image-inputs/arm64/adreno, the tree the image carries as
-# system/non-packaged/adreno (AIROS_CI_ADRENO). Its boot script links it into
-# system/non-packaged only where the adreno driver publishes the GPU; every
-# other machine keeps the ROCK 5's Panfrost stack.
+# Results:
+#   $AIROS_ROOT/image-inputs/arm64/adreno   the tree the image carries as
+#                       system/non-packaged/adreno (AIROS_CI_ADRENO); its boot
+#                       script links it into system/non-packaged only where
+#                       the adreno driver publishes the GPU, every other
+#                       machine keeps the ROCK 5's Panfrost stack
+#   $AIROS_ROOT/image-inputs/arm64/firmware/qcom   the GPU firmware, for the
+#                       image's firmware tree (AIROS_CI_FIRMWARE): the driver
+#                       needs it before the boot script runs
 set -euo pipefail
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
 if [[ ${AIROS_LOCKED:-} != haiku-arm64 ]]; then
@@ -69,15 +74,21 @@ note "Dragon GPU firmware"
 
 note "Turnip Vulkan and zink OpenGL"
 DRAGON_MESA_ROOT=$W/mesa CUBIE_MESA_BASE=$W/base CUBIE_CROSS_PREFIX=${CROSS%-} \
-	FIRMWARE=$W/firmware HAIKU_WORK_ROOT=$AIROS_ROOT HAIKU_JOBS=$JOBS \
+	HAIKU_WORK_ROOT=$AIROS_ROOT HAIKU_JOBS=$JOBS \
 	"$BOARD/mesa/build.sh" all
 for file in lib/libEGL_mesa.so.0 lib/libvulkan_freedreno.so lib/libvulkan.so.1 \
-		add-ons/opengl/egl_vendor.d/05_mesa_adreno.json \
-		data/firmware/qcom/a660_sqe.fw data/firmware/qcom/sc8280xp/qcdxkmsuc8280.mbn; do
+		add-ons/opengl/egl_vendor.d/05_mesa_adreno.json; do
 	[[ -e $W/mesa/out/adreno/$file ]] || die "no $file in the Dragon user land"
 done
 rm -rf "$INPUTS/adreno"
 cp -a "$W/mesa/out/adreno" "$INPUTS/adreno"
+# the firmware as files of the image (the driver loads it when the GPU is
+# first used, which can be before the boot script)
+rm -rf "$INPUTS/firmware/qcom"
+mkdir -p "$INPUTS/firmware/qcom/sc8280xp"
+cp "$W/firmware/qcom/a660_sqe.fw" "$W/firmware/qcom/a660_gmu.bin" \
+	"$W/firmware/LICENSE.qcom" "$W/firmware/NOTICE.qcom" "$INPUTS/firmware/qcom/"
+cp "$W/firmware/qcom/sc8280xp/qcdxkmsuc8280.mbn" "$INPUTS/firmware/qcom/sc8280xp/"
 {
 	echo "haiku $HAIKU_SHA"
 	echo "cross_compiler $("${CROSS}gcc" --version | head -n 1)"
