@@ -10,8 +10,10 @@
 #   tools/dragon-q8b/fetch-gpu-firmware.sh
 #                                    linux-firmware's a660 SQE/GMU microcode,
 #                                    SC8280XP zap shader and, where the tree
-#                                    has the qcom_iris driver, the video
-#                                    codec's vpu20_p4.mbn (pinned commit)
+#                                    has the qcom_iris and qcom_adsp drivers,
+#                                    the video codec's vpu20_p4.mbn and the
+#                                    audio DSP's qcadsp8280.mbn (pinned
+#                                    commit)
 #
 # Results:
 #   $AIROS_ROOT/image-inputs/arm64/adreno   the tree the image carries as
@@ -19,8 +21,8 @@
 #                       script links it into system/non-packaged only where
 #                       the adreno driver publishes the GPU, every other
 #                       machine keeps the ROCK 5's Panfrost stack
-#   $AIROS_ROOT/image-inputs/arm64/firmware/qcom   the GPU and video codec
-#                       firmware, for the
+#   $AIROS_ROOT/image-inputs/arm64/firmware/qcom   the GPU, video codec and
+#                       audio DSP firmware, for the
 #                       image's firmware tree (AIROS_CI_FIRMWARE): the driver
 #                       needs it before the boot script runs
 set -euo pipefail
@@ -95,6 +97,11 @@ cp "$W/firmware/qcom/sc8280xp/qcdxkmsuc8280.mbn" "$INPUTS/firmware/qcom/sc8280xp
 if [[ -f $W/firmware/qcom/vpu/vpu20_p4.mbn ]]; then
 	mkdir -p "$INPUTS/firmware/qcom/vpu"
 	cp "$W/firmware/qcom/vpu/vpu20_p4.mbn" "$INPUTS/firmware/qcom/vpu/"
+fi
+ADSP=qcom/sc8280xp/radxa/dragon-q8b/qcadsp8280.mbn
+if [[ -f $W/firmware/$ADSP ]]; then
+	mkdir -p "$INPUTS/firmware/$(dirname "$ADSP")"
+	cp "$W/firmware/$ADSP" "$INPUTS/firmware/$ADSP"
 fi
 {
 	echo "haiku $HAIKU_SHA"
