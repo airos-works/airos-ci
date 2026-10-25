@@ -7,6 +7,9 @@
 # built as on Linux; configure's libraries are the target's, and node_js2c
 # links a host build of libuv; arm64 Haiku has no libexecinfo, so V8 prints
 # no native stack trace.
+# The cross patch also gives V8's CPU sampler the registers of an arm64
+# Haiku signal context (sampler.cc has them for x86 only, and the profiler
+# crashed reading garbage: VS Code's extension host, which profiles itself).
 #
 # Bundled: full ICU 78.3 (the version Node 22 is tested with; the release
 # tarball named by tools/icu/current_ver.dep), and libuv and c-ares from
@@ -19,7 +22,7 @@
 # Packaged as nodejs22 (cmd:node), like HaikuPorts', into the pool only: the
 # images that carry Aurora install it (images/build-image.sh).
 VERSION=22.23.3
-PKG_REVISION=1
+PKG_REVISION=2
 NO_PACKAGE=1
 SOURCE_URL=https://nodejs.org/dist/v22.23.3/node-v22.23.3.tar.gz
 SOURCE_SHA256=9436c81b284889303d39f5b8bd629bf19e790c665ccb94b4994aa87220d9799a
