@@ -537,7 +537,7 @@ if [[ -n $release ]]; then
 			-path '*/release/*' | head -n 1)=airos-loader.img")
 	fi
 	python3 "$AIROS_CI/images/release-feed.py" extract "$BUILD/$IMAGE" "$dest/release" \
-		--tools "$HAIKU_BUILD/objects/linux/x86_64/release/tools" \
+		--tools "$BUILD/objects/linux/x86_64/release/tools" \
 		--haiku-source "$HAIKU_SOURCE" "${boot_files[@]}"
 fi
 ln -sfn "$stamp" "$AIROS_ARTIFACTS/images/$TARGET/latest"

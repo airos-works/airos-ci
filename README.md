@@ -184,6 +184,19 @@ an immutable prerelease in `jmgasper/haiku`. Tags start with
 verifies an existing published release without replacing its assets.
 The public website discovers the newest published release for each target.
 
+Each image is also a **release for System Updater** (jmgasper/haiku
+`docs/airos/SYSTEM-UPDATER.md`) when its tree supports it:
+`images/release-inputs.py` names the release (its id is the image
+directory's name) and lists CI's files for jam, which puts them into the
+`airos_payload` package and the release's identity into `airos_release`;
+`images/release-feed.py extract` copies the image's packages out after the
+build, and after the smoke test the images workflow runs `release-feed.py
+publish TARGET IMAGE_DIR`, which adds the release to
+`/data2/airos/artifacts/updates/TARGET/` (packages by SHA-256,
+`builds/<id>/update.json` with what changed since the release before it,
+`index.json`), served at `http://192.168.1.200/updates/TARGET/`. The newest
+twelve releases are kept.
+
 First-boot setup can grow the Pi's system volume to fill the SD card:
 [docs/rpi4-sd-auto-resize.md](docs/rpi4-sd-auto-resize.md).
 
