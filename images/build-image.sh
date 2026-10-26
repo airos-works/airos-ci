@@ -414,6 +414,20 @@ if [[ $TARGET == rpi4 || $TARGET == cubie ]] && { [[ ! -f build/BuildConfig ]] \
 	"$HAIKU_SOURCE/configure" --distro-compatibility compatible --no-full-xattr \
 		--cross-tools-prefix "$CROSS"
 fi
+# The Pi's code is tuned for its Cortex-A72 (SetCPUProfile in
+# tools/airos/ci/UserBuildConfig, build/jam/ArchitectureRules). Objects keep
+# the flags they were compiled with, and jam does not build them again when
+# the flags change: a changed profile or OPTIM builds the Pi's objects anew.
+if [[ $TARGET == rpi4 ]]; then
+	flags=$( { sed -n '/^rule SetCPUProfile/,/^}/p' "$HAIKU_SOURCE/build/jam/ArchitectureRules"
+		grep -E 'SetCPUProfile|OPTIM' "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig" || true
+	} | sha256sum | cut -c1-16)
+	if [[ -d objects && $(cat cpu-profile.key 2>/dev/null) != "$flags" ]]; then
+		note "code generation flags changed: the $TARGET objects are built again"
+		rm -rf objects
+	fi
+	echo "$flags" > cpu-profile.key
+fi
 [[ -f $HAIKU_SOURCE/tools/airos/ci/UserBuildConfig ]] \
 	|| die "$REF has no tools/airos/ci/UserBuildConfig"
 {

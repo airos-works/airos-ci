@@ -143,10 +143,11 @@ done
 mesa_build() { # mesa_build DIR OPTIONS...
 	local dir=$1
 	shift
-	# Configured afresh only when Mesa, the cross file or the options changed;
+	# Configured afresh only when Mesa, the cross files or the options changed;
 	# otherwise ninja brings the build up to date.
-	local key
-	key=$(printf '%s\n' "$MESA_COMMIT" "$@" | cat - "$W/cross.ini" | sha256sum | cut -c1-16)
+	local key arg files=("$W/cross.ini")
+	for arg; do [[ $arg != --cross-file=* ]] || files+=("${arg#--cross-file=}"); done
+	key=$(printf '%s\n' "$MESA_COMMIT" "$@" | cat - "${files[@]}" | sha256sum | cut -c1-16)
 	if [[ ! -f $dir/build.ninja || $(cat "$dir.key" 2>/dev/null) != "$key" ]]; then
 		rm -rf "$dir"
 		cross meson setup "$dir" "$MESA" --cross-file="$W/cross.ini" --prefix=/boot/system \
@@ -176,6 +177,18 @@ common_v3d=(-Dplatforms=haiku -Dexpat=disabled -Dgallium-va=disabled -Dshader-ca
 	-Dgles1=disabled -Dgbm=disabled -Dglx=disabled -Dllvm=disabled -Dvalgrind=disabled
 	-Dbuild-tests=false '-Dtools=[]' -Dzstd=disabled -Dzlib=disabled -Dxmlconfig=disabled
 	-Dmesa-clc=system -Dprecomp-compiler=system -Dspirv-tools=disabled)
+# V3D and V3DV run only on the Pi 4: tuned for its Cortex-A72 with inline
+# atomics, like the rest of the Pi image (haiku: SetCPUProfile arm64 : rpi4,
+# docs/rpi4/CPU-TUNING.md). libgcc's outlined atomic helpers never take their
+# LSE path on Haiku, and the A72 has no LSE. A later cross file's options
+# replace the base file's, so this one repeats the sysroot.
+rpi4_cpu=$(printf "'%s', " "--sysroot=$GLROOT" -mtune=cortex-a72 -mno-outline-atomics)
+cat > "$W/rpi4-cpu.ini" <<EOF
+[built-in options]
+c_args = [${rpi4_cpu%, }]
+cpp_args = [${rpi4_cpu%, }]
+EOF
+common_v3d+=(--cross-file="$W/rpi4-cpu.ini")
 note "Mesa: V3D (Raspberry Pi 4)"
 mesa_build "$W/mesa-v3d" "${common_v3d[@]}" -Dgallium-drivers=v3d,softpipe '-Dvulkan-drivers=[]' \
 	-Dgles2=enabled -Dopengl=true -Degl=enabled -Dglvnd=enabled
