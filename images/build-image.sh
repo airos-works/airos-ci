@@ -382,6 +382,30 @@ fi
 rpi_firmware=$gl/rpi-firmware
 ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupdf"
 
+# The release: its id is the image directory's name, and a tree that knows
+# System Updater (docs/airos/SYSTEM-UPDATER.md) makes the image a release it
+# can update: the airos_release package names it, and the files CI puts
+# outside packages go into the airos_payload package, linked from
+# system/non-packaged (images/release-inputs.py). Each file of CI's trees is
+# then named to jam, as AIROS_CI_FILES.
+stamp=$(date -u +%Y%m%d-%H%M)-$HAIKU_REVISION
+release=
+if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig"; then
+	release=$WORK/release-inputs
+	python3 "$AIROS_CI/images/release-inputs.py" "$release" --id "$stamp" \
+		--target "$TARGET" --arch "$ARCH" \
+		--feed "${AIROS_UPDATE_FEED_BASE:-http://192.168.1.200/updates}/$TARGET/" \
+		--haiku-revision "$HAIKU_REVISION" --haiku-commit "$HAIKU_SHA" \
+		--recipe-commit "$(git -C "$AIROS_CI" rev-parse HEAD 2>/dev/null || echo unknown)" \
+		--tree "system non-packaged lib=$WORK/libs" \
+		--tree "system non-packaged add-ons opengl egl_vendor.d=$WORK/egl" \
+		--tree "system non-packaged demos=$WORK/demos" \
+		--tree "system non-packaged add-ons=$WORK/add-ons" \
+		--tree "system non-packaged data firmware=$WORK/firmware" \
+		--tree "system non-packaged amdgpu=$WORK/amdgpu" \
+		--tree "system non-packaged adreno=$WORK/adreno"
+fi
+
 # 3. + 4. The image.
 mkdir -p "$BUILD"
 cd "$BUILD"
@@ -407,6 +431,11 @@ fi
 	[[ -z $(ls "$WORK/add-ons") ]] || echo "AIROS_CI_ADDONS = $WORK/add-ons ;"
 	[[ ! -d $WORK/amdgpu ]] || echo "AIROS_CI_AMDGPU = $WORK/amdgpu ;"
 	[[ ! -d $WORK/adreno ]] || echo "AIROS_CI_ADRENO = $WORK/adreno ;"
+	if [[ -n $release ]]; then
+		echo "AIROS_CI_FILES = $release/files.jam ;"
+		echo "AIROS_CI_RELEASE_VERSION = $(json "$release/release" 'd["version"]') ;"
+		echo "AIROS_CI_RELEASE_DIR = $release ;"
+	fi
 	# one per line: jam refuses long lines
 	if [[ ${#system_packages[@]} -gt 0 ]]; then
 		echo "AIROS_CI_SYSTEM_PACKAGES ="
@@ -447,7 +476,6 @@ fi
 # 5. Publish.
 note "publish"
 build_stage "publish" "xz, checksums, manifest"
-stamp=$(date -u +%Y%m%d-%H%M)-$HAIKU_REVISION
 dest=$AIROS_ARTIFACTS/images/$TARGET/$stamp
 mkdir -p "$dest"
 size=$(stat -c %s "$BUILD/$IMAGE")
@@ -497,6 +525,20 @@ json.dump({
                  for p in pkgs],
 }, open(out, "w"), indent=1)
 EOF
+# The release's packages for System Updater's feed, from the image itself
+# (images/release-feed.py; published once the smoke test passed). bfs_shell
+# mounts the image to read it, so only after its checksum above.
+if [[ -n $release ]]; then
+	build_stage "publish" "the release's packages for System Updater"
+	boot_files=()
+	if [[ $TARGET == rpi4 ]]; then
+		boot_files+=(--boot-file "$BUILD/airos-boot.tgz")
+		boot_files+=(--boot-file "$(find "$BUILD/objects/haiku/arm64" -name haiku_loader.rpi \
+			-path '*/release/*' | head -n 1)")
+	fi
+	python3 "$AIROS_CI/images/release-feed.py" extract "$BUILD/$IMAGE" "$dest/release" \
+		--tools "$HAIKU_BUILD/objects/linux/x86_64/release/tools" "${boot_files[@]}"
+fi
 ln -sfn "$stamp" "$AIROS_ARTIFACTS/images/$TARGET/latest"
 # Keep the last five images of each target.
 ls -1dt "$AIROS_ARTIFACTS/images/$TARGET"/2* | tail -n +6 | xargs -r rm -rf
