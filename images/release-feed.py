@@ -121,24 +121,36 @@ def command_extract(args):
     shutil.rmtree(out, ignore_errors=True)
     os.makedirs(packages)
 
-    listing = bfs_shell(args.tools, args.image, ["ls myfs/system/packages"])
-    names = sorted(set(re.findall(r"\s(\S+\.hpkg)\s*$", listing, re.M)))
+    # system/packages, and the optional packages the Installer offers
+    # (_packages_: the development tools), which an update brings up to date
+    # where they are installed
+    def list_packages(directory):
+        listing = bfs_shell(args.tools, args.image, [f"ls myfs/{directory}"])
+        return sorted(set(re.findall(r"\s(\S+\.hpkg)\s*$", listing, re.M)))
+
+    names = list_packages("system/packages")
     if not names:
-        sys.exit(f"no packages in {args.image}:\n{listing[-2000:]}")
+        sys.exit(f"no packages in {args.image}'s system/packages")
+    optional = [name for name in list_packages("_packages_") if name not in names]
     bfs_shell(args.tools, args.image,
         [f"cp myfs/system/packages/{name} :{os.path.join(packages, name)}"
-            for name in names])
+            for name in names]
+        + [f"cp myfs/_packages_/{name} :{os.path.join(packages, name)}"
+            for name in optional])
 
     release = None
     entries = []
     links = []
-    for name in names:
+    for name in names + optional:
         path = os.path.join(packages, name)
         if not os.path.isfile(path):
             sys.exit(f"could not copy {name} out of {args.image}")
         info = package_info(args.tools, path)
-        entries.append({"name": info["name"], "version": info["version"],
-            "file": name, "size": os.path.getsize(path), "sha256": sha256(path)})
+        entry = {"name": info["name"], "version": info["version"],
+            "file": name, "size": os.path.getsize(path), "sha256": sha256(path)}
+        if name in optional:
+            entry["optional"] = True
+        entries.append(entry)
         if info["name"] == "airos_release":
             with tempfile.TemporaryDirectory(prefix="airos-release-") as d:
                 subprocess.run([os.path.join(args.tools, "package", "package"),
@@ -161,12 +173,16 @@ def command_extract(args):
 
     release["packages"] = entries
     release["payload"] = {"links": links}
+    if args.haiku_source:
+        # for "publish": where the Haiku commits are (not published)
+        with open(os.path.join(out, "haiku-source"), "w") as f:
+            f.write(os.path.abspath(args.haiku_source) + "\n")
     if boot:
         release["boot_files"] = boot
     write_json(os.path.join(out, "release.json"), release)
     total = sum(entry["size"] for entry in entries)
-    print(f"release {release['id']}: {len(entries)} packages "
-        f"({total / 1048576:.0f} MiB), {len(links)} payload links")
+    print(f"release {release['id']}: {len(names)} packages and {len(optional)} "
+        f"optional ones ({total / 1048576:.0f} MiB), {len(links)} payload links")
 
 
 # --- publish ---------------------------------------------------------------
@@ -289,8 +305,11 @@ def command_publish(args):
     if os.path.exists(manifest_path):
         manifest = json.load(open(manifest_path))
     changes = {"previous": previous["id"] if previous else ""}
+    source = args.haiku_source
+    if not source and os.path.exists(os.path.join(staged, "haiku-source")):
+        source = open(os.path.join(staged, "haiku-source")).read().strip()
     if previous:
-        commits, more = git_log(args.haiku_source,
+        commits, more = git_log(source,
             previous.get("haiku", {}).get("commit"),
             release.get("haiku", {}).get("commit"))
         changes["haiku"] = commits
@@ -312,7 +331,8 @@ def command_publish(args):
         "built": release.get("built", ""), "haiku": release.get("haiku", {}),
         "manifest": relative,
         "manifest_sha256": sha256(os.path.join(feed, relative)),
-        "size": sum(p["size"] for p in release["packages"]),
+        "size": sum(p["size"] for p in release["packages"]
+            if not p.get("optional")),
         "changes": {k: v for k, v in changes.items() if k != "apps"},
     }
     builds.append(entry)
@@ -356,6 +376,7 @@ def main():
     extract.add_argument("--tools", required=True,
         help="the Haiku build's host tools (objects/linux/<arch>/release/tools)")
     extract.add_argument("--boot-file", action="append", default=[])
+    extract.add_argument("--haiku-source")
     publish = commands.add_parser("publish")
     publish.add_argument("target")
     publish.add_argument("image_dir")
