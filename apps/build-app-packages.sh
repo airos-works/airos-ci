@@ -7,15 +7,15 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airpins snap wordcraft gridcraft deckcraft
+#               natter airtime airtop airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
-#               airos_mail proton_vpn
-#               (default: all but airpins, airos_mail and Summit's two)
+#               airos_mail proton_vpn code_oss
+#               (default: all but airpins, airos_mail, code_oss and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime airpins snap wordcraft gridcraft deckcraft pdfcraft
+#               airTime AirTop airpins snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
-#               (CI jobs link their checkout there),
+#               vscode (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
@@ -477,6 +477,24 @@ build_clipper() {
 	add_attributes "$BUILDDIR/Clipper.rsrc" apps/Clipper
 	finish_package clipper apps/Clipper add-ons/input_server/filters/Clipper_shortcuts \
 		add-ons/input_server/devices/Clipper_paste
+}
+
+# --- AirTop -----------------------------------------------------------------
+# The system monitor (jmgasper/airtop). It shows its graphs on an auxiliary
+# display too (BAuxDisplay, libdevice), which the SDK's sysroot carries.
+build_airtop() {
+	note AirTop
+	snapshot AirTop airtop
+	make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
+		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true all
+	stage_begin
+	install_binary "$BUILDDIR/AirTop" "$BUILDDIR/AirTop.rsrc" apps/AirTop/AirTop
+	docs airtop README.md LICENSE docs
+	install_file 644 "$SRC/LICENSE" data/licenses/MIT
+	deskbar_link apps/AirTop/AirTop AirTop
+	retarget_package_info "$SRC/resources/AirTop.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/AirTop.rsrc" apps/AirTop/AirTop
+	finish_package airtop apps/AirTop/AirTop
 }
 
 # --- AirPins ----------------------------------------------------------------
@@ -1181,6 +1199,131 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 	finish_package aurora "$data/aurora-host" "$data/aurora-tray"
 }
 
+# --- Code - OSS ---------------------------------------------------------------
+# Visual Studio Code's open source build on Aurora (jmgasper/vscode, branch
+# haiku; build/haiku/README.md). The workbench is the same JavaScript on every
+# architecture: gulp builds it once per commit of the repository, with the
+# Node.js of its .nvmrc, into a stage kept in $CODE_OSS_WORK (npm ci only when
+# a package-lock.json changes). build/haiku/cross.sh then cross-builds the
+# native modules against Node.js 22's headers and makes the package, whose
+# launcher is the pool's aurora-host for ARCH with Code - OSS's resources: so
+# build Aurora first, and Code - OSS again after an Aurora host change.
+CODE_OSS_WORK=${CODE_OSS_WORK:-$AIROS_WORK/code_oss}
+CODE_OSS_BUILD_NODE=24.18.0
+CODE_OSS_BUILD_NODE_SHA256=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
+CODE_OSS_HEADERS=22.23.3
+CODE_OSS_HEADERS_SHA256=eff1a7e67736bdf25db421ddaa613ed605f751a7b9fe07fb473ea880d1348987
+
+# fetch_node <file under nodejs.org/dist/vVERSION> <version> <sha256>: into the cache
+fetch_node() {
+	local tarball=$AIROS_CACHE/$1
+	if [[ ! -f $tarball ]]; then
+		curl -fsSL --retry 3 -o "$tarball.part" "https://nodejs.org/dist/v$2/$1"
+		mv "$tarball.part" "$tarball"
+	fi
+	echo "$3  $tarball" | sha256sum -c --quiet - || die "$tarball: wrong SHA-256"
+	echo "$tarball"
+}
+
+# The stage for the repository's commit: build/haiku/build.sh, once.
+code_oss_stage() {
+	local repo=$1 src=$CODE_OSS_WORK/vscode stage=$CODE_OSS_WORK/stage
+	local nvmrc commit locks tarball
+	nvmrc=$(cat "$repo/.nvmrc")
+	[[ $nvmrc == "$CODE_OSS_BUILD_NODE" ]] \
+		|| die "Code - OSS builds with Node.js $nvmrc: pin it in CODE_OSS_BUILD_NODE"
+	local node=$AIROS_CACHE/node-v$nvmrc-linux-x64
+	if [[ ! -x $node/bin/node ]]; then
+		tarball=$(fetch_node "node-v$nvmrc-linux-x64.tar.xz" "$nvmrc" "$CODE_OSS_BUILD_NODE_SHA256")
+		rm -rf "$node.part"
+		mkdir -p "$node.part"
+		tar xJf "$tarball" -C "$node.part" --strip-components=1
+		mv "$node.part" "$node"
+	fi
+	commit=$(git -C "$repo" rev-parse HEAD)
+	[[ -z $(git --no-optional-locks -C "$repo" status --porcelain) ]] || commit+=-dirty
+	if [[ $commit != *-dirty && -f $stage/VERSION && $(cat "$CODE_OSS_WORK/stage.commit" 2>/dev/null) == "$commit" ]]; then
+		echo "stage of $commit is current"
+		return
+	fi
+	# The working tree without what git ignores; ignored files already here
+	# (node_modules, gulp's out-* trees) stay for the next build.
+	mkdir -p "$src"
+	rsync -a --delete --exclude=/.git --filter=':- .gitignore' "$repo/" "$src/"
+	locks=$(cd "$src" && find . -name node_modules -prune -o -name package-lock.json -print \
+		| sort | xargs sha256sum | sha256sum | cut -c1-64)
+	(
+		export PATH=$node/bin:$PATH
+		cd "$src"
+		if [[ ! -d node_modules || $(cat "$CODE_OSS_WORK/npm.locks" 2>/dev/null) != "$locks" ]]; then
+			note "Code - OSS: npm ci (Node.js $(node --version))"
+			# Without install scripts: they build the modules' Linux binaries
+			# (native-keymap wants X11's headers), and the package's are
+			# cross-built by build/haiku/cross.sh. The repository's postinstall
+			# then installs its sub-projects (build, extensions, remote) the
+			# same way; it sets git options, so the copy gets an empty repository.
+			export ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+			npm ci --no-audit --no-fund --ignore-scripts
+			[[ -d .git ]] || git init -q
+			npm_config_ignore_scripts=true npm_command=ci node build/npm/postinstall.ts
+			echo "$locks" > "$CODE_OSS_WORK/npm.locks"
+		fi
+		note "Code - OSS: workbench (gulp vscode-haiku-x64-min)"
+		build/haiku/build.sh "$stage"
+	)
+	echo "$commit" > "$CODE_OSS_WORK/stage.commit"
+}
+
+build_code_oss() {
+	note "Code - OSS"
+	local repo=$APPS/vscode
+	[[ -d $repo ]] || die "no repository $repo"
+	mkdir -p "$CODE_OSS_WORK"
+	exec {code_oss_lock}>"$AIROS_LOCKS/code_oss.lock"
+	flock "$code_oss_lock"
+	code_oss_stage "$repo"
+	# node-gyp's include/node and common.gypi (the ABI is the same in every 22.x)
+	local headers=$CODE_OSS_WORK/node-v$CODE_OSS_HEADERS
+	if [[ ! -f $headers/include/node/node.h ]]; then
+		local tarball
+		tarball=$(fetch_node "node-v$CODE_OSS_HEADERS-headers.tar.gz" "$CODE_OSS_HEADERS" "$CODE_OSS_HEADERS_SHA256")
+		rm -rf "$headers"
+		mkdir -p "$headers"
+		tar xzf "$tarball" -C "$headers" --strip-components=1
+	fi
+	# The launcher: the pool's aurora-host, which needs Aurora 0.3 or later.
+	local aurora version host=$CODE_OSS_WORK/aurora-$ARCH
+	aurora=$(compgen -G "$AIROS_PACKAGES/$ARCH/aurora-[0-9]*-$ARCH.hpkg" | head -1) \
+		|| die "no aurora package for $ARCH in the pool: build Aurora first"
+	version=$(basename "$aurora" | sed 's/^aurora-\([0-9.]*\).*/\1/')
+	[[ $(printf '0.3\n%s\n' "$version" | sort -V | head -1) == 0.3 ]] \
+		|| die "$aurora is older than Aurora 0.3"
+	[[ -e $host ]] && "$TOOLS/rm_attrs" -rf "$host"
+	mkdir -p "$host"
+	"$TOOLS/package/package" extract -C "$host" "$aurora" data/aurora/aurora-host
+	echo "launcher: aurora-host of $(basename "$aurora")"
+	local log=$CODE_OSS_WORK/cross-$ARCH.log
+	# node-gyp: the build Node.js's npm
+	PATH=$AIROS_CACHE/node-v$CODE_OSS_BUILD_NODE-linux-x64/bin:$PATH \
+		AIROS_SDK=$AIROS_SDK/$SDK_NAME/env.sh NODE_SOURCE=$headers HAIKU_HOST_TOOLS=$TOOLS \
+		HAIKU_MIME_DB=$MIMEDB AURORA_HOST_BINARY=$host/data/aurora/aurora-host \
+		TMPDIR=$CODE_OSS_WORK \
+		"$CODE_OSS_WORK/vscode/build/haiku/cross.sh" "$ARCH" "$CODE_OSS_WORK/stage" "$CODE_OSS_WORK/out-$ARCH" \
+		> "$log" 2>&1 || { tail -40 "$log"; die "Code - OSS for $ARCH failed"; }
+	"$TOOLS/rm_attrs" -rf "$host"
+	local file
+	file=$(tail -1 "$log")
+	[[ -f $file ]] || die "cross.sh made no package"
+	verify_package "$file"
+	rm -f "$OUT"/code_oss-[0-9]*-"$ARCH".hpkg
+	mv "$file" "$OUT/"
+	file=$OUT/$(basename "$file")
+	version=$(basename "$file" | sed "s/^code_oss-\(.*\)-$ARCH.hpkg\$/\1/")
+	echo "package:  $file"
+	printf '%s\t%s\t%s\t%s\n' code_oss "$file" "$version" "(none)" >> "$APPBUILD/.summary"
+	flock -u "$code_oss_lock"
+}
+
 # --- Proton Mail Bridge ------------------------------------------------------
 # Qt desktop + Go engine. All source changes and toolchain pins live in the app
 # fork. x86_64 links HaikuPorts' Qt, gRPC and protobuf packages. arm64, which
@@ -1729,13 +1872,13 @@ main() {
 	setup_host_tools
 	setup_dependency_farm
 	local app
-	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airpins \
+	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit proton_bridge airos_mail proton_vpn; do
-		# Only when asked for: Air Pins, Summit (its engine is a pipeline of its
-		# own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
+			summit proton_bridge airos_mail proton_vpn code_oss; do
+		# Only when asked for: Air Pins, Code - OSS (its own CI job, after
+		# Aurora), Summit (its engine is a pipeline of its own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library)
-		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail)$ && ${#SELECTED[@]} -eq 0 ]] && continue
+		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"
 	done
 	note summary
