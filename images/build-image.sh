@@ -85,6 +85,9 @@ for app in "${IMAGE_APPS[@]}"; do
 	compgen -G "$AIROS_PACKAGES/$ARCH/$app-[0-9]*-$ARCH.hpkg" > /dev/null || missing+=("$app")
 done
 [[ ${#missing[@]} -eq 0 ]] || die "not in the package pool $AIROS_PACKAGES/$ARCH: ${missing[*]}"
+# Proton VPN, in every image (x86_64 and arm64 builds are in the pool); the
+# copy below stops the image if it is missing.
+IMAGE_APPS+=(proton_vpn)
 
 # 1. Haiku at REF: the SDK build updates the worktree and the build directory
 #    of the architecture and builds haiku.hpkg and the host tools.
