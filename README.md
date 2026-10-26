@@ -195,7 +195,9 @@ publish TARGET IMAGE_DIR`, which adds the release to
 `/data2/airos/artifacts/updates/TARGET/` (packages by SHA-256,
 `builds/<id>/update.json` with what changed since the release before it,
 `index.json`), served at `http://192.168.1.200/updates/TARGET/`. The newest
-twelve releases are kept.
+twelve releases are kept. A package built again with nothing but new file
+times (the pinned apps after each Haiku commit) lists the release before's
+SHA-256 as `equivalent`, so that installed systems keep their copy.
 
 First-boot setup can grow the Pi's system volume to fill the SD card:
 [docs/rpi4-sd-auto-resize.md](docs/rpi4-sd-auto-resize.md).

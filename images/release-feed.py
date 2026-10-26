@@ -16,6 +16,12 @@
         the release before it, and index.json, newest first. Keeps the newest
         KEEP releases (default 12) and the packages they use.
 
+        A package CI built again from the same sources (the Office apps after
+        each Haiku change) has the same file name and contents as in the
+        release before, but other file times and so another SHA-256: its entry
+        lists the earlier SHA-256s as "equivalent", and System Updater keeps
+        an installed copy instead of downloading it again.
+
 The feed is served at http://<build server>/updates/TARGET/.
 """
 import argparse
@@ -25,6 +31,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -181,6 +188,10 @@ def command_extract(args):
         # for "publish": where the Haiku commits are (not published)
         with open(os.path.join(out, "haiku-source"), "w") as f:
             f.write(os.path.abspath(args.haiku_source) + "\n")
+    # for "publish": the package tool, to compare packages with the release
+    # before (not published)
+    with open(os.path.join(out, "tools"), "w") as f:
+        f.write(os.path.abspath(args.tools) + "\n")
     if boot:
         release["boot_files"] = boot
     write_json(os.path.join(out, "release.json"), release)
@@ -190,6 +201,104 @@ def command_extract(args):
 
 
 # --- publish ---------------------------------------------------------------
+
+# file:atime, file:mtime, file:crtime and their nanoseconds
+# (headers/os/package/hpkg/PackageAttributes.h)
+TIME_ATTRIBUTES = {5, 6, 7, 8, 9, 10}
+MAX_EQUIVALENT = 16
+
+
+def uleb128(data, position):
+    value = shift = 0
+    while True:
+        byte = data[position]
+        position += 1
+        value |= (byte & 0x7f) << shift
+        if not byte & 0x80:
+            return value, position
+        shift += 7
+
+
+def hpkg_contents(tools, path, work):
+    """What a package holds, without file times: its TOC and package
+    attributes as trees of (attribute id, value, children), heap data as
+    SHA-256 digests (headers/private/package/hpkg/HPKGDefsPrivate.h)."""
+    plain = os.path.join(work, "plain.hpkg")
+    subprocess.run([os.path.join(tools, "package", "package"), "recompress",
+        "-q", "-0", path, plain], check=True)
+    with open(plain, "rb") as f:
+        data = f.read()
+    os.unlink(plain)
+    (magic, header_size, version, _total, _minor, compression, _chunk,
+        _compressed, heap_size, attributes_length, attributes_strings_length,
+        attributes_strings_count, _reserved, toc_length, toc_strings_length,
+        toc_strings_count) = struct.unpack_from(">4sHHQHHIQQIIIIQQQ", data)
+    if magic != b"hpkg" or version != 2 or compression != 0:
+        raise ValueError(f"{path}: not an uncompressed version 2 package")
+    heap = memoryview(data)[header_size:header_size + heap_size]
+    if len(heap) != heap_size:
+        raise ValueError(f"{path}: truncated")
+
+    def section(start, length, strings_length, strings_count):
+        raw = bytes(heap[start:start + length])
+        strings = raw[:strings_length].split(b"\0")[:strings_count]
+        position = strings_length
+
+        def attributes():
+            nonlocal position
+            nodes = []
+            while True:
+                tag, position = uleb128(raw, position)
+                if tag == 0:
+                    return tuple(sorted(nodes, key=repr))
+                tag -= 1
+                ident, kind = tag & 0x7f, (tag >> 7) & 0x7
+                has_children, encoding = (tag >> 10) & 1, (tag >> 11) & 3
+                if kind in (1, 2):  # int, uint
+                    size = 1 << encoding
+                    value = int.from_bytes(raw[position:position + size], "big")
+                    position += size
+                elif kind == 3:  # string
+                    if encoding == 1:
+                        index, position = uleb128(raw, position)
+                        value = strings[index]
+                    else:
+                        end = raw.index(b"\0", position)
+                        value = raw[position:end]
+                        position = end + 1
+                elif kind == 4:  # raw data
+                    size, position = uleb128(raw, position)
+                    if encoding == 1:
+                        offset, position = uleb128(raw, position)
+                        value = hashlib.sha256(heap[offset:offset + size]).hexdigest()
+                    else:
+                        value = raw[position:position + size]
+                        position += size
+                else:
+                    raise ValueError(f"{path}: attribute type {kind}")
+                children = attributes() if has_children else ()
+                if ident not in TIME_ATTRIBUTES:
+                    nodes.append((ident, value, children))
+
+        return attributes()
+
+    attributes_start = heap_size - attributes_length
+    return (section(attributes_start - toc_length, toc_length,
+            toc_strings_length, toc_strings_count),
+        section(attributes_start, attributes_length, attributes_strings_length,
+            attributes_strings_count))
+
+
+def same_contents(tools, old, new):
+    """Whether two packages differ in nothing but file times."""
+    with tempfile.TemporaryDirectory(prefix="release-feed-") as work:
+        try:
+            return hpkg_contents(tools, old, work) == hpkg_contents(tools, new, work)
+        except (ValueError, IndexError, OSError, struct.error,
+                subprocess.CalledProcessError) as error:
+            print(f"cannot compare {os.path.basename(new)}: {error}")
+            return False
+
 
 def git_log(source, old, new):
     if not source or not old or not new or old == new:
@@ -275,6 +384,32 @@ def command_publish(args):
             if os.path.exists(path):
                 previous = json.load(open(path))
             break
+
+    # earlier builds of the same files that only their file times tell apart
+    tools = args.tools
+    if not tools and os.path.exists(os.path.join(staged, "tools")):
+        tools = open(os.path.join(staged, "tools")).read().strip()
+    if previous and tools:
+        older = {p["file"]: p for p in previous.get("packages", [])}
+        same = 0
+        for package in release["packages"]:
+            old = older.get(package["file"])
+            if old is None:
+                continue
+            equivalent = list(old.get("equivalent", []))
+            if old["sha256"] != package["sha256"]:
+                old_path = os.path.join(feed, "packages", old["sha256"],
+                    old["file"])
+                if not os.path.exists(old_path) or not same_contents(tools,
+                        old_path, os.path.join(staged, "packages",
+                            package["file"])):
+                    continue
+                equivalent.append(old["sha256"])
+                same += 1
+            equivalent = [d for d in equivalent if d != package["sha256"]]
+            if equivalent:
+                package["equivalent"] = equivalent[-MAX_EQUIVALENT:]
+        print(f"{same} packages built again with only other file times")
 
     # the packages, once each
     for package in release["packages"]:
@@ -386,6 +521,8 @@ def main():
     publish.add_argument("image_dir")
     publish.add_argument("--feed")
     publish.add_argument("--haiku-source")
+    publish.add_argument("--tools",
+        help="host tools with the package tool (default: those of extract)")
     args = parser.parse_args()
     {"extract": command_extract, "publish": command_publish}[args.command](args)
 
