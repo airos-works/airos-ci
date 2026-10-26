@@ -163,13 +163,17 @@ def command_extract(args):
     if release is None:
         sys.exit(f"{args.image} has no airos_release package")
 
+    # FILE or FILE=NAME: NAME is what the file is called on the boot
+    # partition (the Pi's loader is haiku_loader.rpi, airos-loader.img there)
     boot = []
-    for file in args.boot_file:
-        target = os.path.join(out, "boot", os.path.basename(file))
+    for spec in args.boot_file:
+        file, _, name = spec.partition("=")
+        name = name or os.path.basename(file)
+        target = os.path.join(out, "boot", name)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy2(file, target)
-        boot.append({"name": os.path.basename(file),
-            "size": os.path.getsize(target), "sha256": sha256(target)})
+        boot.append({"name": name, "size": os.path.getsize(target),
+            "sha256": sha256(target)})
 
     release["packages"] = entries
     release["payload"] = {"links": links}

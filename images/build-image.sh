@@ -534,7 +534,7 @@ if [[ -n $release ]]; then
 	if [[ $TARGET == rpi4 ]]; then
 		boot_files+=(--boot-file "$BUILD/airos-boot.tgz")
 		boot_files+=(--boot-file "$(find "$BUILD/objects/haiku/arm64" -name haiku_loader.rpi \
-			-path '*/release/*' | head -n 1)")
+			-path '*/release/*' | head -n 1)=airos-loader.img")
 	fi
 	python3 "$AIROS_CI/images/release-feed.py" extract "$BUILD/$IMAGE" "$dest/release" \
 		--tools "$HAIKU_BUILD/objects/linux/x86_64/release/tools" \
