@@ -2,7 +2,7 @@
   "airos_mail": {
     "repository": "https://github.com/jmgasper/mail.git",
     "branch": "main",
-    "commit": "bbdbb23c5088dd781334be492845bb83959f290d",
+    "commit": "8051c470235c6d183085cf8a74fd5fdfece68434",
     "source_directory": "mail",
     "binary": "Mail",
     "menu_folder": "Applications",
