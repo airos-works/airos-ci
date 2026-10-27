@@ -40,6 +40,7 @@ cd "$W"
 
 note "sources"
 fork_checkout mesa "$W/mesa";         MESA_COMMIT=$FORK_COMMIT
+fork_checkout mesa-rpi4 "$W/mesa-rpi4"; RPI4_MESA_COMMIT=$FORK_COMMIT
 fork_checkout libglvnd "$W/libglvnd"; GLVND_COMMIT=$FORK_COMMIT
 fork_checkout glu "$W/glu";           GLU_COMMIT=$FORK_COMMIT
 MESA=$W/mesa
@@ -202,6 +203,12 @@ Version: 1.2.13
 Libs: -L${libdir} -lz
 Cflags: -I${includedir}
 EOF
+# The Pi's drivers come from mesa-rpi4: airos-25.3.6 plus haiku's
+# tools/rpi4/mesa series (cached textures, GPU readback, window presentation,
+# buffer cache bounds), which also changes the Haiku EGL present path that
+# Panfrost shares, so the ROCK 5 keeps airos-25.3.6.
+PANFROST_MESA=$MESA PANFROST_MESA_COMMIT=$MESA_COMMIT
+MESA=$W/mesa-rpi4 MESA_COMMIT=$RPI4_MESA_COMMIT
 note "Mesa: V3D (Raspberry Pi 4)"
 mesa_build "$W/mesa-v3d" "${common_v3d[@]}" -Dgallium-drivers=v3d,softpipe '-Dvulkan-drivers=[]' \
 	-Dgles2=enabled -Dopengl=true -Degl=enabled -Dglvnd=enabled \
@@ -209,6 +216,7 @@ mesa_build "$W/mesa-v3d" "${common_v3d[@]}" -Dgallium-drivers=v3d,softpipe '-Dvu
 note "Mesa: V3D Vulkan (Raspberry Pi 4)"
 mesa_build "$W/mesa-v3dv" "${common_v3d[@]}" '-Dgallium-drivers=[]' -Dvulkan-drivers=broadcom \
 	-Dgles2=disabled -Dopengl=false -Degl=disabled -Dglvnd=disabled
+MESA=$PANFROST_MESA MESA_COMMIT=$PANFROST_MESA_COMMIT
 
 note "GLU and GLTeapot"
 rm -rf "$W/glu-build" "$W/glu-install"
@@ -275,7 +283,7 @@ stage_target() { # stage_target TARGET EGL_LIBRARY VENDOR_FILE [extra libs...]
 	echo "$target: $(ls "$out/lib" | tr '\n' ' ')"
 }
 stage_target arm64 "$W/mesa-panfrost/src/egl/libEGL_mesa.so.0.0.0" 10_mesa_panfrost.json
-stage_target rpi4 "$W/mesa-v3d/src/egl/libEGL_mesa.so.0.0.0" 10_mesa.json \
+MESA_COMMIT=$RPI4_MESA_COMMIT stage_target rpi4 "$W/mesa-v3d/src/egl/libEGL_mesa.so.0.0.0" 10_mesa.json \
 	"$W/mesa-v3dv/src/broadcom/vulkan/libvulkan_broadcom.so"
 
 note "GL development files for app builds"

@@ -287,6 +287,15 @@
     "upstream": "https://github.com/X547/mesa.git",
     "url": "https://github.com/jmgasper/mesa-nvk.git"
   },
+  "mesa-rpi4": {
+    "base": "92ffa0e23e63804e41c15a7bea318d5be67b0e9b",
+    "base_commit": null,
+    "branch": "airos-25.3.6-rpi4",
+    "commit": "93bd58e114cd8439b7f7f6d57d1997c1a0fc15f1",
+    "repo": "mesa",
+    "upstream": null,
+    "url": "https://github.com/jmgasper/mesa.git"
+  },
   "mesa-x86_64": {
     "base": null,
     "base_commit": null,
