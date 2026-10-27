@@ -77,9 +77,9 @@ PINNED_SETS=(office media)
 # (the tree leaves Haiku's Mail out of x86_64 and arm64 images); arm64 images
 # get it below, once the tree is known.
 IMAGE_APPS+=(aurora)
-# AirTop (system monitor), Proton VPN, and Code - OSS on Aurora (on x86_64 it
-# requires HaikuPorts' ripgrep and git, which come in with the requires below).
-IMAGE_APPS+=(airtop proton_vpn code_oss)
+# AirTop (system monitor) and Code - OSS on Aurora (on x86_64 it requires
+# HaikuPorts' ripgrep and git, which come in with the requires below).
+IMAGE_APPS+=(airtop code_oss)
 PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	PINNED_SETS+=(mail)
