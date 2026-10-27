@@ -77,9 +77,10 @@ PINNED_SETS=(office media)
 # (the tree leaves Haiku's Mail out of x86_64 and arm64 images); arm64 images
 # get it below, once the tree is known.
 IMAGE_APPS+=(aurora)
-# AirTop (system monitor) and Code - OSS on Aurora (on x86_64 it requires
-# HaikuPorts' ripgrep and git, which come in with the requires below).
-IMAGE_APPS+=(airtop code_oss)
+# AirTop (system monitor), and Code - OSS and GitHub Desktop on Aurora (on
+# x86_64 they require HaikuPorts' ripgrep and git, which come in with the
+# requires below; arm64 images get git from deps/recipes/git.sh, below).
+IMAGE_APPS+=(airtop code_oss github_desktop)
 PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	PINNED_SETS+=(mail)
@@ -143,10 +144,12 @@ fi
 if [[ $ARCH == arm64 ]]; then
 	build_stage "libpng and FreeType" "deps/recipes/libpng.sh, freetype.sh"
 	"$AIROS_CI/deps/build-deps.sh" arm64 libpng freetype
-	# and OpenSSH (ssh, sshd) with its libedit, which x86_64 has from
-	# HaikuPorts; under HaikuPorts' names (deps/recipes/libedit.sh, openssh.sh)
-	build_stage "OpenSSH" "deps/recipes/libedit.sh, openssh.sh"
-	"$AIROS_CI/deps/build-deps.sh" arm64 libedit openssh
+	# and OpenSSH (ssh, sshd) with its libedit, and git with nano (its
+	# editor; GitHub Desktop and Code - OSS need git), which x86_64 has from
+	# HaikuPorts; under HaikuPorts' names (deps/recipes/libedit.sh,
+	# openssh.sh, nano.sh, git.sh)
+	build_stage "OpenSSH and git" "deps/recipes/libedit.sh, openssh.sh, nano.sh, git.sh"
+	"$AIROS_CI/deps/build-deps.sh" arm64 libedit openssh nano git
 fi
 # ROCK 5 and Pi: the GL stack (Panfrost; V3D and V3DV) against this Haiku
 # revision, which also refuses a Mali CSF ABI that differs from the tree's
@@ -270,9 +273,9 @@ else
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/freetype.sh)"
 		cp "$file" "$WORK/freetype/"
 	done
-	# OpenSSH and libedit (above): x86_64 images have them from HaikuPorts,
-	# and every arm64 image must have ssh too.
-	for name in libedit openssh; do
+	# OpenSSH, libedit, nano and git (above): x86_64 images have them from
+	# HaikuPorts, and every arm64 image must have ssh and git too.
+	for name in libedit openssh nano git; do
 		file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/$name.sh)"
 		cp "$file" "$WORK/packages/"

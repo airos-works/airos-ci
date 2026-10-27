@@ -98,7 +98,10 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   gulp on Linux, once per commit, and cross-builds its native modules for
   each architecture with the pool's `aurora-host` as its launcher. On x86_64
   it requires HaikuPorts' `ripgrep` and `git`, which the image takes in;
-  arm64 has no packages of them.
+  arm64 images carry `git` (with `nano`, its editor) from
+  `deps/recipes/git.sh` and `nano.sh`, and have no ripgrep.
+- **GitHub Desktop** (jmgasper/desktop, branch `haiku`), on Aurora the same
+  way (`build_github_desktop`), with the system's git.
 - **AirTop** (jmgasper/airtop), a system monitor, and **Proton VPN**
   (jmgasper/proton-vpn-airos-app), in Applications.
 - Raspberry Pi 4 and Cubie A7S: **AirPins** (jmgasper/AirPins), the GPIO
