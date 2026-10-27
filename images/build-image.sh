@@ -214,12 +214,14 @@ if [[ $ARCH == x86_64 ]]; then
 	# X399's AX210, Ralink, Realtek); and the CPU video encoders
 	# MediaConverter opens for H.264, H.265 and AV1 when no GPU can make them
 	# (x264, x265, SVT-AV1); and the color emoji font Terminal draws emoji
-	# with (noto_emoji_color).
+	# with (noto_emoji_color); and Noto for the scripts noto leaves out
+	# (noto_regional: Arabic, Hebrew, the Indic scripts, Thai, Armenian,
+	# Georgian, Ethiopic, ...), which web pages fall back to.
 	AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" fetch --no-deps \
 		x86_64 taglib2 scintilla lexilla lzo lz4 llvm21_libs vulkan \
 		libelf wayland wayland_server libffi \
 		intel_wifi_firmwares ralink_wifi_firmwares realtek_wifi_firmwares \
-		x264 x265 svt_av13 noto_emoji_color | xargs -r cp -t "$WORK/packages/"
+		x264 x265 svt_av13 noto_emoji_color noto_regional | xargs -r cp -t "$WORK/packages/"
 	# MuPDF for Quick Look's document preview (HAIKU_MUPDF_PACKAGES_DIR: the
 	# tree's BuildFeatures compiles the add-on against mupdf_devel), and mupdf
 	# with its jbig2dec in the image; the build system's HaikuPorts list lacks
@@ -262,14 +264,18 @@ else
 		"$package_tool" recompress -q -z zlib "$source" "$WORK/fonts/$(basename "$source")"
 	done
 	[[ $(ls "$WORK/fonts" | wc -l) == 2 ]] || die "expected the noto and noto_sans_cjk_jp packages"
-	# The color emoji font Terminal draws emoji with, recompressed the same
-	# way; nothing requires it, so it goes in with the other packages.
-	emoji_source=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
-		"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 noto_emoji_color)
-	[[ -f $emoji_source && $emoji_source == *-any.hpkg ]] \
-		|| die "expected one architecture-neutral noto_emoji_color package"
-	"$package_tool" recompress -q -z zlib "$emoji_source" \
-		"$WORK/packages/$(basename "$emoji_source")"
+	# The color emoji font Terminal draws emoji with and Noto for the scripts
+	# noto leaves out (noto_regional: Arabic, Hebrew, the Indic scripts, Thai,
+	# ...), recompressed the same way; nothing requires them, so they go in
+	# with the other packages.
+	for name in noto_emoji_color noto_regional; do
+		source=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+			"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 $name)
+		[[ -f $source && $source == *-any.hpkg ]] \
+			|| die "expected one architecture-neutral $name package"
+		"$package_tool" recompress -q -z zlib "$source" \
+			"$WORK/packages/$(basename "$source")"
+	done
 	# FreeType (above) as HAIKU_ARM64_FREETYPE_PACKAGES_DIR: the tree's
 	# BuildFeatures compiles Haiku against freetype_devel and its Jamfile puts
 	# the freetype package in the image instead of the bootstrap one.
