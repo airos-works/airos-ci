@@ -1,7 +1,7 @@
 {
-  "clipper": {"repository": "https://github.com/jmgasper/clipper.git", "commit": "66bdd163eddc980f53ac49ed0a014d504ecdf12b", "binary": "Clipper"},
-  "wordcraft": {"repository": "https://github.com/jmgasper/wordcraft.git", "commit": "653e5966f9313fa3766664c8cb9042755753ecd3", "binary": "WordCraft"},
-  "gridcraft": {"repository": "https://github.com/jmgasper/gridcraft.git", "commit": "86f9b2112e612b768c67a92cec422b4a52c1947d", "binary": "GridCraft"},
-  "deckcraft": {"repository": "https://github.com/jmgasper/deckcraft.git", "commit": "d517c2437bd938ff4833e29f67c9895e39249500", "binary": "DeckCraft"},
-  "pdfcraft": {"repository": "https://github.com/jmgasper/pdfcraft.git", "commit": "4aedbb568b5b5807ecf0ca864b376e0205e52cba", "binary": "PdfCraft"}
+  "clipper": {"repository": "https://github.com/jmgasper/clipper.git", "commit": "56f3b9d57f0ce9c3f64bb70c1e55a259af0a392e", "binary": "Clipper"},
+  "wordcraft": {"repository": "https://github.com/jmgasper/wordcraft.git", "commit": "4cbcc7fea619e454921a9715cbbfdc7921250fbc", "binary": "WordCraft"},
+  "gridcraft": {"repository": "https://github.com/jmgasper/gridcraft.git", "commit": "45e5d79a26179250a185f96c23644bb0ad43ee3d", "binary": "GridCraft"},
+  "deckcraft": {"repository": "https://github.com/jmgasper/deckcraft.git", "commit": "e70b460d58efa04dcc692a3eb94f7caa65d24d7a", "binary": "DeckCraft"},
+  "pdfcraft": {"repository": "https://github.com/jmgasper/pdfcraft.git", "commit": "2553db3cfc6d3879897b9cb1c45d616bd8d0cf6f", "binary": "PdfCraft"}
 }
