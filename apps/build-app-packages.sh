@@ -9,13 +9,14 @@
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
 #               natter airtime airtop airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
-#               airos_mail proton_vpn code_oss
-#               (default: all but airpins, airos_mail, code_oss and Summit's two)
+#               airos_mail proton_vpn code_oss github_desktop
+#               (default: all but airpins, airos_mail, code_oss, github_desktop
+#               and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
-#               vscode (CI jobs link their checkout there),
+#               vscode desktop (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
@@ -1225,21 +1226,45 @@ fetch_node() {
 	echo "$tarball"
 }
 
-# The stage for the repository's commit: build/haiku/build.sh, once.
-code_oss_stage() {
-	local repo=$1 src=$CODE_OSS_WORK/vscode stage=$CODE_OSS_WORK/stage
-	local nvmrc commit locks tarball
-	nvmrc=$(cat "$repo/.nvmrc")
-	[[ $nvmrc == "$CODE_OSS_BUILD_NODE" ]] \
-		|| die "Code - OSS builds with Node.js $nvmrc: pin it in CODE_OSS_BUILD_NODE"
-	local node=$AIROS_CACHE/node-v$nvmrc-linux-x64
+# linux_node <version> <sha256>: a Node.js for this machine, unpacked in the
+# cache once; prints its directory
+linux_node() {
+	local node=$AIROS_CACHE/node-v$1-linux-x64 tarball
 	if [[ ! -x $node/bin/node ]]; then
-		tarball=$(fetch_node "node-v$nvmrc-linux-x64.tar.xz" "$nvmrc" "$CODE_OSS_BUILD_NODE_SHA256")
+		tarball=$(fetch_node "node-v$1-linux-x64.tar.xz" "$1" "$2")
 		rm -rf "$node.part"
 		mkdir -p "$node.part"
 		tar xJf "$tarball" -C "$node.part" --strip-components=1
 		mv "$node.part" "$node"
 	fi
+	echo "$node"
+}
+
+# aurora_launcher <directory>: the pool's aurora-host for ARCH, which Aurora
+# apps copy as their launcher, extracted into <directory>/data/aurora; needs
+# Aurora 0.3 or later. Remove <directory> with rm_attrs.
+aurora_launcher() {
+	local aurora version
+	aurora=$(compgen -G "$AIROS_PACKAGES/$ARCH/aurora-[0-9]*-$ARCH.hpkg" | head -1) \
+		|| die "no aurora package for $ARCH in the pool: build Aurora first"
+	version=$(basename "$aurora" | sed 's/^aurora-\([0-9.]*\).*/\1/')
+	[[ $(printf '0.3\n%s\n' "$version" | sort -V | head -1) == 0.3 ]] \
+		|| die "$aurora is older than Aurora 0.3"
+	[[ -e $1 ]] && "$TOOLS/rm_attrs" -rf "$1"
+	mkdir -p "$1"
+	"$TOOLS/package/package" extract -C "$1" "$aurora" data/aurora/aurora-host
+	echo "launcher: aurora-host of $(basename "$aurora")"
+}
+
+# The stage for the repository's commit: build/haiku/build.sh, once.
+code_oss_stage() {
+	local repo=$1 src=$CODE_OSS_WORK/vscode stage=$CODE_OSS_WORK/stage
+	local nvmrc commit locks
+	nvmrc=$(cat "$repo/.nvmrc")
+	[[ $nvmrc == "$CODE_OSS_BUILD_NODE" ]] \
+		|| die "Code - OSS builds with Node.js $nvmrc: pin it in CODE_OSS_BUILD_NODE"
+	local node
+	node=$(linux_node "$nvmrc" "$CODE_OSS_BUILD_NODE_SHA256")
 	commit=$(git -C "$repo" rev-parse HEAD)
 	[[ -z $(git --no-optional-locks -C "$repo" status --porcelain) ]] || commit+=-dirty
 	if [[ $commit != *-dirty && -f $stage/VERSION && $(cat "$CODE_OSS_WORK/stage.commit" 2>/dev/null) == "$commit" ]]; then
@@ -1291,17 +1316,9 @@ build_code_oss() {
 		mkdir -p "$headers"
 		tar xzf "$tarball" -C "$headers" --strip-components=1
 	fi
-	# The launcher: the pool's aurora-host, which needs Aurora 0.3 or later.
-	local aurora version host=$CODE_OSS_WORK/aurora-$ARCH
-	aurora=$(compgen -G "$AIROS_PACKAGES/$ARCH/aurora-[0-9]*-$ARCH.hpkg" | head -1) \
-		|| die "no aurora package for $ARCH in the pool: build Aurora first"
-	version=$(basename "$aurora" | sed 's/^aurora-\([0-9.]*\).*/\1/')
-	[[ $(printf '0.3\n%s\n' "$version" | sort -V | head -1) == 0.3 ]] \
-		|| die "$aurora is older than Aurora 0.3"
-	[[ -e $host ]] && "$TOOLS/rm_attrs" -rf "$host"
-	mkdir -p "$host"
-	"$TOOLS/package/package" extract -C "$host" "$aurora" data/aurora/aurora-host
-	echo "launcher: aurora-host of $(basename "$aurora")"
+	# The launcher: the pool's aurora-host.
+	local version host=$CODE_OSS_WORK/aurora-$ARCH
+	aurora_launcher "$host"
 	local log=$CODE_OSS_WORK/cross-$ARCH.log
 	# node-gyp: the build Node.js's npm
 	PATH=$AIROS_CACHE/node-v$CODE_OSS_BUILD_NODE-linux-x64/bin:$PATH \
@@ -1322,6 +1339,105 @@ build_code_oss() {
 	echo "package:  $file"
 	printf '%s\t%s\t%s\t%s\n' code_oss "$file" "$version" "(none)" >> "$APPBUILD/.summary"
 	flock -u "$code_oss_lock"
+}
+
+# --- GitHub Desktop ----------------------------------------------------------
+# GitHub Desktop on Aurora (jmgasper/desktop, branch haiku, on upstream's
+# release tags; docs/technical/haiku.md). Its webpack build bundles every
+# module, so the app is the same JavaScript on every architecture: it is
+# built once per commit of the repository, with the Node.js of its .nvmrc and
+# the yarn the repository vendors, into a stage kept in $GITHUB_DESKTOP_WORK
+# (yarn install only when a yarn.lock changes). script/haiku/cross.sh then
+# cross-builds the native helpers (Git's credential and askpass trampolines,
+# the hooks proxy, printenvz) and makes the package around the pool's
+# aurora-host for ARCH: build Aurora first. Git is the system's (cmd:git:
+# HaikuPorts' on x86_64, deps/recipes/git.sh on arm64).
+GITHUB_DESKTOP_WORK=${GITHUB_DESKTOP_WORK:-$AIROS_WORK/github_desktop}
+GITHUB_DESKTOP_BUILD_NODE=24.15.0
+GITHUB_DESKTOP_BUILD_NODE_SHA256=472655581fb851559730c48763e0c9d3bc25975c59d518003fc0849d3e4ba0f6
+
+# The stage for the repository's commit: script/haiku/build.sh, once.
+github_desktop_stage() {
+	local repo=$1 src=$GITHUB_DESKTOP_WORK/desktop stage=$GITHUB_DESKTOP_WORK/stage
+	local nvmrc node commit locks yarn
+	nvmrc=$(cat "$repo/.nvmrc")
+	nvmrc=${nvmrc#v}
+	[[ $nvmrc == "$GITHUB_DESKTOP_BUILD_NODE" ]] \
+		|| die "GitHub Desktop builds with Node.js $nvmrc: pin it in GITHUB_DESKTOP_BUILD_NODE"
+	node=$(linux_node "$nvmrc" "$GITHUB_DESKTOP_BUILD_NODE_SHA256")
+	commit=$(git -C "$repo" rev-parse HEAD)
+	[[ -z $(git --no-optional-locks -C "$repo" status --porcelain) ]] || commit+=-dirty
+	if [[ $commit != *-dirty && -f $stage/VERSION && $(cat "$GITHUB_DESKTOP_WORK/stage.commit" 2>/dev/null) == "$commit" ]]; then
+		echo "stage of $commit is current"
+		return
+	fi
+	# The working tree, submodules (gemoji, gitignore and the licences)
+	# included, without what git ignores; ignored files already here
+	# (node_modules) stay for the next build.
+	[[ -f $repo/gemoji/db/emoji.json ]] || die "$repo has no submodules: git submodule update --init"
+	mkdir -p "$src"
+	rsync -a --delete --exclude=/.git --filter=':- .gitignore' "$repo/" "$src/"
+	locks=$(cat "$src/yarn.lock" "$src/app/yarn.lock" | sha256sum | cut -c1-64)
+	yarn=$(compgen -G "$src/vendor/yarn-*.js" | sort -V | tail -1) || die "no vendored yarn in $repo"
+	# yarn by name, for the build scripts: the vendored one
+	mkdir -p "$GITHUB_DESKTOP_WORK/bin"
+	printf '#!/bin/sh\nexec node "%s" "$@"\n' "$yarn" > "$GITHUB_DESKTOP_WORK/bin/yarn"
+	chmod 755 "$GITHUB_DESKTOP_WORK/bin/yarn"
+	(
+		export PATH=$GITHUB_DESKTOP_WORK/bin:$node/bin:$PATH
+		export YARN_CACHE_FOLDER=$GITHUB_DESKTOP_WORK/yarn-cache
+		cd "$src"
+		if [[ ! -d app/node_modules || $(cat "$GITHUB_DESKTOP_WORK/yarn.locks" 2>/dev/null) != "$locks" ]]; then
+			note "GitHub Desktop: yarn install (Node.js $(node --version))"
+			# Without install scripts: they build the Linux binaries of the
+			# native modules (keytar, fs-admin, ...), which a Haiku build
+			# replaces (app/webpack.common.ts), and download Electron, Git and
+			# Playwright. The post-install's other steps need none here. Of
+			# the vendored modules' scripts, only the TypeScript is wanted.
+			yarn install --frozen-lockfile --ignore-scripts --network-timeout 600000
+			yarn --cwd app install --frozen-lockfile --ignore-scripts --network-timeout 600000
+			local module
+			for module in "$src"/vendor/*/tsconfig.json; do
+				module=$(basename "$(dirname "$module")")
+				[[ -d app/node_modules/$module ]] || continue
+				(cd "app/node_modules/$module" && "$src/node_modules/.bin/tsc")
+			done
+			echo "$locks" > "$GITHUB_DESKTOP_WORK/yarn.locks"
+		fi
+		note "GitHub Desktop: webpack (DESKTOP_TARGET_PLATFORM=haiku)"
+		# The commit the app names (About) comes from .git, which the copy
+		# has not; app/git-info.ts takes it from CircleCI's variable first.
+		CIRCLE_SHA1=${commit%-dirty} script/haiku/build.sh "$stage"
+	)
+	echo "$commit" > "$GITHUB_DESKTOP_WORK/stage.commit"
+}
+
+build_github_desktop() {
+	note "GitHub Desktop"
+	local repo=$APPS/desktop
+	[[ -d $repo ]] || die "no repository $repo"
+	mkdir -p "$GITHUB_DESKTOP_WORK"
+	exec {github_desktop_lock}>"$AIROS_LOCKS/github_desktop.lock"
+	flock "$github_desktop_lock"
+	github_desktop_stage "$repo"
+	local host=$GITHUB_DESKTOP_WORK/aurora-$ARCH log=$GITHUB_DESKTOP_WORK/cross-$ARCH.log
+	aurora_launcher "$host"
+	AIROS_SDK=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_HOST_TOOLS=$TOOLS HAIKU_MIME_DB=$MIMEDB \
+		AURORA_HOST_BINARY=$host/data/aurora/aurora-host TMPDIR=$GITHUB_DESKTOP_WORK \
+		"$GITHUB_DESKTOP_WORK/desktop/script/haiku/cross.sh" "$ARCH" "$GITHUB_DESKTOP_WORK/stage" \
+		"$GITHUB_DESKTOP_WORK/out-$ARCH" > "$log" 2>&1 || { tail -40 "$log"; die "GitHub Desktop for $ARCH failed"; }
+	"$TOOLS/rm_attrs" -rf "$host"
+	local file version
+	file=$(tail -1 "$log")
+	[[ -f $file ]] || die "cross.sh made no package"
+	verify_package "$file"
+	rm -f "$OUT"/github_desktop-[0-9]*-"$ARCH".hpkg
+	mv "$file" "$OUT/"
+	file=$OUT/$(basename "$file")
+	version=$(basename "$file" | sed "s/^github_desktop-\(.*\)-$ARCH.hpkg\$/\1/")
+	echo "package:  $file"
+	printf '%s\t%s\t%s\t%s\n' github_desktop "$file" "$version" "(none)" >> "$APPBUILD/.summary"
+	flock -u "$github_desktop_lock"
 }
 
 # --- Proton Mail Bridge ------------------------------------------------------
@@ -1874,11 +1990,11 @@ main() {
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit proton_bridge airos_mail proton_vpn code_oss; do
-		# Only when asked for: Air Pins, Code - OSS (its own CI job, after
-		# Aurora), Summit (its engine is a pipeline of its own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
+			summit proton_bridge airos_mail proton_vpn code_oss github_desktop; do
+		# Only when asked for: Air Pins, Code - OSS and GitHub Desktop (their
+		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library)
-		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss)$ && ${#SELECTED[@]} -eq 0 ]] && continue
+		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss|github_desktop)$ && ${#SELECTED[@]} -eq 0 ]] && continue
 		wanted "$app" && "build_$app"
 	done
 	note summary
