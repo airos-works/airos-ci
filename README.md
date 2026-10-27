@@ -102,6 +102,12 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   `deps/recipes/git.sh` and `nano.sh`, and have no ripgrep.
 - **GitHub Desktop** (airos-works/desktop, branch `haiku`), on Aurora the same
   way (`build_github_desktop`), with the system's git.
+- **pgAdmin 4** (airos-works/aurora `ports/pgadmin4`, built with Aurora in
+  its CI job), on Aurora with a Python 3.12 environment of its own whose
+  native modules are cross-built on Linux (`build_pgadmin4`). x86_64 images
+  take HaikuPorts' python3.12 and PostgreSQL client through its requires;
+  arm64 images carry `libffi`, `python3.12` and `postgresql18` (the client)
+  from `deps/recipes/`.
 - **AirTop** (airos-works/airtop), a system monitor, and **Proton VPN**
   (airos-works/proton-vpn-airos-app), in Applications.
 - Raspberry Pi 4 and Cubie A7S: **AirPins** (airos-works/AirPins), the GPIO

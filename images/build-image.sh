@@ -81,6 +81,10 @@ IMAGE_APPS+=(aurora)
 # x86_64 they require HaikuPorts' ripgrep and git, which come in with the
 # requires below; arm64 images get git from deps/recipes/git.sh, below).
 IMAGE_APPS+=(airtop code_oss github_desktop)
+# pgAdmin 4 on Aurora, with its own Python environment: on x86_64 it requires
+# HaikuPorts' python3.12 and PostgreSQL client (the requires below), arm64
+# images get them from deps/recipes (below).
+IMAGE_APPS+=(pgadmin4)
 PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	PINNED_SETS+=(mail)
@@ -150,6 +154,10 @@ if [[ $ARCH == arm64 ]]; then
 	# openssh.sh, nano.sh, git.sh)
 	build_stage "OpenSSH and git" "deps/recipes/libedit.sh, openssh.sh, nano.sh, git.sh"
 	"$AIROS_CI/deps/build-deps.sh" arm64 libedit openssh nano git
+	# and what pgAdmin 4 runs on: libffi, Python 3.12 and PostgreSQL's
+	# client (deps/recipes/libffi.sh, python312.sh, postgresql18.sh)
+	build_stage "Python and PostgreSQL" "deps/recipes/libffi.sh, python312.sh, postgresql18.sh"
+	"$AIROS_CI/deps/build-deps.sh" arm64 libffi python312 postgresql18
 	# and ICU 74 and ncurses in place of the repository's bootstrap builds,
 	# whose libicuuc, libicui18n, libicuio and libncurses++w carry private
 	# copies of the unwinder (a C++ exception through them ended the program)
@@ -289,6 +297,12 @@ else
 	for name in libedit openssh nano git; do
 		file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/$name.sh)"
+		cp "$file" "$WORK/packages/"
+	done
+	# libffi, Python 3.12 and PostgreSQL's client (above), for pgAdmin 4
+	for name in libffi python3.12 postgresql18; do
+		file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+		[[ -n $file ]] || die "no $name package in $pool (deps/recipes: libffi.sh, python312.sh, postgresql18.sh)"
 		cp "$file" "$WORK/packages/"
 	done
 	# ICU 74 and ncurses (above), which the tree's UserBuildConfig puts in
