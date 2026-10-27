@@ -123,6 +123,17 @@ build_haiku() {
 		FORCE=$force "$AIROS_CI/deps/build-deps.sh" arm64 zstd
 	fi
 	zstd_build_feature "$ARCH" "$BUILD" "$WT"
+	# arm64: libbnetapi's HTTPS (and Terminal's TermCrypto) from CI's OpenSSL,
+	# as images/build-image.sh has it. The image builds share this build
+	# directory and jam does not notice changed compiler flags: an SDK build
+	# without it linked Terminal from an object an image build had compiled
+	# with OpenSSL, and failed.
+	unset HAIKU_ARM64_OPENSSL_PACKAGE
+	if [[ $ARCH == arm64 ]] && grep -qF HAIKU_ARM64_OPENSSL_PACKAGE "$WT/build/jam/BuildFeatures"; then
+		HAIKU_ARM64_OPENSSL_PACKAGE=$(ls "$AIROS_PACKAGES"/arm64/airos_openssl-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+		[[ -n $HAIKU_ARM64_OPENSSL_PACKAGE ]] || die "no airos_openssl package for arm64 (deps/recipes/openssl.sh)"
+		export HAIKU_ARM64_OPENSSL_PACKAGE
+	fi
 	note "jam: haiku packages and host tools ($ARCH)"
 	build_stage "Haiku packages" "jam haiku.hpkg haiku_devel.hpkg"
 	cd "$BUILD"
