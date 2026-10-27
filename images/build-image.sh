@@ -431,10 +431,36 @@ PY
 	files=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
 		"$AIROS_CI/deps/haikuports.py" fetch x86_64 nodejs22 $requires) \
 		|| die "HaikuPorts cannot provide what the image's packages require"
+	# Architecture-neutral packages that the build system's list names under
+	# the architecture (file_data, which file and with it python3.12 need: jam
+	# would download a file name the repository does not have), and every
+	# package that needs one, go in as files.
+	as_files=$(python3 - "$TOOLS/package/package" "$jamlist" $files <<'PY'
+import os, re, subprocess, sys
+tool, jamlist, files = sys.argv[1], sys.argv[2], sys.argv[3:]
+# the list: repository : architecture : URL : "any" packages : architecture packages : debug info
+listed = (open(jamlist).read().split("\n\t:\n") + ["", "", ""])[2]
+misfiled = set(re.findall(r"(?m)^\s*([a-z0-9_]+)-[0-9]", listed))
+info = {}
+for f in files:
+    out = subprocess.run([tool, "list", "-i", f], check=True, stdout=subprocess.PIPE, text=True).stdout
+    word = lambda kind: {re.split(r"[\s<>=!]", v.strip())[0] for v in re.findall(rf"(?m)^\s*{kind}:\s*(.*)$", out)}
+    info[f] = (word("provides"), word("requires"))
+chosen = {f for f in files if f.endswith("-any.hpkg")
+          and re.sub(r"-[0-9].*", "", os.path.basename(f)) in misfiled}
+while True:
+    provided = set().union(*(info[f][0] for f in chosen)) if chosen else set()
+    more = {f for f in files if f not in chosen and info[f][1] & provided}
+    if not more:
+        break
+    chosen |= more
+print("\n".join(sorted(chosen)))
+PY
+)
 	for file in $files; do
 		name=$(basename "$file")
 		name=${name%%-[0-9]*}
-		if grep -qE "^[[:space:]]*$name-[0-9]" "$jamlist"; then
+		if ! grep -qxF "$file" <<< "$as_files" && grep -qE "^[[:space:]]*$name-[0-9]" "$jamlist"; then
 			system_packages+=("$name")
 		elif [[ ! -e $WORK/packages/$(basename "$file") ]]; then
 			cp "$file" "$WORK/packages/"
