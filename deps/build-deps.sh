@@ -14,8 +14,9 @@
 #   4. package it as airos_<name>-<version>-ARCH.hpkg into the package pool
 #      ($AIROS_PACKAGES/ARCH), from which the images install it. Recipes that
 #      make a system package (wpa_supplicant, libpng, freetype, and OpenSSH
-#      and its libedit, which x86_64 gets from HaikuPorts) set NO_PACKAGE and
-#      package it under its own name themselves (system_package below).
+#      and its libedit, git and nano, which x86_64 gets from HaikuPorts) set
+#      NO_PACKAGE and package it under its own name themselves
+#      (system_package below).
 #
 # A recipe is skipped when its fork commit and recipe are unchanged since the
 # last build (stamp in the work tree), unless FORCE=1.
@@ -34,10 +35,10 @@ export AIROS_ARCH=$ARCH
 . "$AIROS_CI/lib/fork.sh"
 
 if [[ $ARCH == arm64 ]]; then
-	# libedit and openssh: ssh and sshd, which x86_64 has from HaikuPorts and
-	# the arm64 repository does not have, under HaikuPorts' names.
+	# libedit and openssh (ssh and sshd), nano and git: what x86_64 has from
+	# HaikuPorts and the arm64 repository does not have, under HaikuPorts' names.
 	ORDER=(openssl nghttp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
-		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh)
+		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh nano git)
 else
 	ORDER=(haikuports)
 fi

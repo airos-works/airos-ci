@@ -172,6 +172,14 @@ def unpack_into(repo, tarball, into, strip=0, pick=None):
             src = matches[0]
         dest = os.path.normpath(os.path.join(repo, into))
         os.makedirs(dest, exist_ok=True)
+        # copytree cannot replace a symbolic link the tree already has (git's
+        # subprojects/gitk): remove each one the tarball brings again.
+        for dp, dns, fns in os.walk(src):
+            for entry in dns + fns:
+                path = os.path.join(dp, entry)
+                target = os.path.join(dest, os.path.relpath(path, src))
+                if os.path.islink(path) and (os.path.islink(target) or os.path.isfile(target)):
+                    os.remove(target)
         shutil.copytree(src, dest, dirs_exist_ok=True, symlinks=True)
 
 

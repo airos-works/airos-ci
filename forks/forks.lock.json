@@ -80,6 +80,15 @@
     "upstream": "https://github.com/freetype/freetype.git",
     "url": "https://github.com/jmgasper/freetype.git"
   },
+  "git": {
+    "base": "v2.56.0",
+    "base_commit": "a018953688f1b10bddf91bff8747068f5f4746a4",
+    "branch": "airos-2.56.0",
+    "commit": "57ca458e5c5fa7d52009ab333a198843a4a6c4ae",
+    "repo": "git",
+    "upstream": "https://github.com/git/git.git",
+    "url": "https://github.com/jmgasper/git.git"
+  },
   "glu": {
     "base": null,
     "base_commit": null,
@@ -295,6 +304,15 @@
     "repo": "mpp",
     "upstream": "https://github.com/rockchip-linux/mpp.git",
     "url": "https://github.com/jmgasper/mpp.git"
+  },
+  "nano": {
+    "base": null,
+    "base_commit": null,
+    "branch": "airos-9.1",
+    "commit": "9ac1b876d6d4900857f90dd77ad6aabf99b43454",
+    "repo": "nano",
+    "upstream": null,
+    "url": "https://github.com/jmgasper/nano.git"
   },
   "nghttp2": {
     "base": "v1.64.0",

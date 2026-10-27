@@ -950,6 +950,58 @@
         }
       ],
       "used_by": "arm64 images: ssh, sshd and the other OpenSSH tools, as HaikuPorts' openssh (deps/recipes/openssh.sh)"
+    },
+    {
+      "name": "nano",
+      "wave": 6,
+      "create": "import",
+      "description": "GNU nano 9.1 (from the release tarball; upstream is git.savannah.gnu.org)",
+      "branch": "airos-9.1",
+      "patches": [
+        {
+          "tarball": "https://www.nano-editor.org/dist/v9/nano-9.1.tar.xz",
+          "sha256": "5f47764274cb7532349ce0aa20ec10f1e8e851a6e9fa3eb66812c43d196db042",
+          "strip": 1,
+          "into": ".",
+          "message": "Import GNU nano 9.1 (nano-9.1.tar.xz)"
+        }
+      ],
+      "used_by": "arm64 images: nano, as HaikuPorts' nano (deps/recipes/nano.sh)"
+    },
+    {
+      "name": "git",
+      "wave": 6,
+      "create": "fork",
+      "github": "git/git",
+      "base": "v2.56.0",
+      "branch": "airos-2.56.0",
+      "patches": [
+        {
+          "tarball": "https://www.kernel.org/pub/software/scm/git/git-2.56.0.tar.xz",
+          "sha256": "26c56c296b38c0695b26fa95f475f1d01704d2d38e73465ca30b0b2f5dc789d3",
+          "strip": 1,
+          "into": ".",
+          "message": "Release tarball contents (with the version file and generated build files the release ships)"
+        },
+        {
+          "tarball": "https://www.kernel.org/pub/software/scm/git/git-manpages-2.56.0.tar.xz",
+          "sha256": "1f62a7fabaa36a0469c4d51fe247d12e7e246b890d2b8b49aec91df610f417c7",
+          "strip": 0,
+          "into": "manpages",
+          "message": "Add the 2.56.0 manual pages (git-manpages-2.56.0.tar.xz), which the HaikuPorts recipe installs"
+        },
+        {
+          "tarball": "https://www.kernel.org/pub/software/scm/git/git-htmldocs-2.56.0.tar.xz",
+          "sha256": "c20a04cffce877e29ec532c5453f3fd2ce1f3daaf7f3b65d1f2fa73e95986d11",
+          "strip": 0,
+          "into": "htmldocs",
+          "message": "Add the 2.56.0 HTML documentation (git-htmldocs-2.56.0.tar.xz) for git help, which the HaikuPorts recipe installs"
+        },
+        {
+          "from": "haikuports-2026:dev-vcs/git/patches/git-2.56.0.patchset"
+        }
+      ],
+      "used_by": "arm64 images: git, as HaikuPorts' git (deps/recipes/git.sh), for the command line and GitHub Desktop"
     }
   ]
 }
