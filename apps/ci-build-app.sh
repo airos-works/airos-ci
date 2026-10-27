@@ -11,7 +11,8 @@
 #   APP       build-app-packages.sh name: amp airtime airshot burrow clipper
 #             kiri natter turbochook lcdmonitor airpins snap wordcraft
 #             gridcraft deckcraft pdfcraft aurora proton_bridge proton_vpn airtop
-#             code_oss github_desktop, or several
+#             code_oss github_desktop pgadmin4 (from the aurora repository),
+#             or several
 #             with commas (summit_webkit,summit)
 #   REPO_DIR  the directory name build-app-packages.sh knows the repository by
 #             (tasamp for Amp, airTime, airShot, turbochook, ...)

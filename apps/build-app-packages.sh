@@ -9,9 +9,9 @@
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
 #               natter airtime airtop airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
-#               airos_mail proton_vpn code_oss github_desktop
-#               (default: all but airpins, airos_mail, code_oss, github_desktop
-#               and Summit's two)
+#               airos_mail proton_vpn code_oss github_desktop pgadmin4
+#               (default: all but airpins, airos_mail, code_oss, github_desktop,
+#               pgadmin4 and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins snap wordcraft gridcraft deckcraft pdfcraft
@@ -1440,6 +1440,95 @@ build_github_desktop() {
 	flock -u "$github_desktop_lock"
 }
 
+# --- pgAdmin 4 ----------------------------------------------------------------
+# pgAdmin 4's desktop app on Aurora (aurora's ports/pgadmin4): its server in a
+# Python 3.12 environment of its own, and the release's Electron main process,
+# with the pool's aurora-host as the launcher. The port's cross.sh does the
+# work on Linux: crossenv builds the native modules (cryptography and bcrypt
+# in Rust with sdk/build-rust.sh's nightly, cffi, psycopg-c against libpq, ...)
+# against the target's Python, which is HaikuPorts' python3.12 on x86_64
+# (staged here with libffi, libpq and OpenSSL 3, all of which the package
+# requires) and DEPS on arm64 (deps/recipes/python312.sh, libffi.sh and
+# postgresql18.sh: packages of those names in the pool, which the arm64
+# images install). The downloads, Node.js modules and native wheels are kept
+# in $PGADMIN_WORK; the wheels are made again when the port or the target's
+# Python changes. Build Aurora first.
+PGADMIN_WORK=${PGADMIN_WORK:-$AIROS_WORK/pgadmin4}
+# The Linux CPython that runs the cross build: the target's version, as
+# deps/recipes/python312.sh builds with.
+PGADMIN_BUILD_PYTHON_URL=https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.12.15+20261021-x86_64-unknown-linux-gnu-install_only.tar.gz
+PGADMIN_BUILD_PYTHON_SHA256=5ff9f0602ce964a529ed1e8555d3abab6341926d724402ba9a15e9e877191124
+# stage.sh installs the runtime's JavaScript modules with npm.
+PGADMIN_NODE=24.18.0
+PGADMIN_NODE_SHA256=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
+
+build_pgadmin4() {
+	note "pgAdmin 4"
+	snapshot aurora pgadmin4
+	local port=$SRC/ports/pgadmin4
+	[[ -x $port/cross.sh ]] || die "no ports/pgadmin4/cross.sh in aurora"
+	mkdir -p "$PGADMIN_WORK"
+	exec {pgadmin_lock}>"$AIROS_LOCKS/pgadmin4.lock"
+	flock "$pgadmin_lock"
+	local python=$PGADMIN_WORK/build-python tarball
+	if [[ ! -x $python/bin/python3.12 ]]; then
+		tarball=$AIROS_CACHE/tarballs/${PGADMIN_BUILD_PYTHON_SHA256:0:16}-$(basename "$PGADMIN_BUILD_PYTHON_URL")
+		mkdir -p "$AIROS_CACHE/tarballs"
+		if [[ ! -f $tarball ]] || ! echo "$PGADMIN_BUILD_PYTHON_SHA256  $tarball" | sha256sum -c --quiet; then
+			curl -fsSL --retry 3 -o "$tarball.part" "$PGADMIN_BUILD_PYTHON_URL"
+			echo "$PGADMIN_BUILD_PYTHON_SHA256  $tarball.part" | sha256sum -c --quiet \
+				|| die "$PGADMIN_BUILD_PYTHON_URL: wrong SHA-256"
+			mv "$tarball.part" "$tarball"
+		fi
+		rm -rf "$python"
+		mkdir -p "$python"
+		tar xzf "$tarball" -C "$python" --strip-components=1
+	fi
+	local node
+	node=$(linux_node "$PGADMIN_NODE" "$PGADMIN_NODE_SHA256")
+	"$AIROS_CI/sdk/build-rust.sh" "$ARCH"
+	local target
+	if [[ $ARCH == arm64 ]]; then
+		target=$DEPS
+		[[ -f $target/develop/headers/python3.12/Python.h && -e $target/develop/lib/libpq.so ]] \
+			|| die "no Python 3.12 or libpq in $DEPS: deps/build-deps.sh arm64 libffi python312 postgresql18"
+	else
+		target=$PGADMIN_WORK/target-$ARCH/boot/system
+		[[ -e $PGADMIN_WORK/target-$ARCH ]] && "$TOOLS/rm_attrs" -rf "$PGADMIN_WORK/target-$ARCH"
+		"$AIROS_CI/deps/haikuports.py" stage "$ARCH" "$target" \
+			python3.12 libffi_devel postgresql18_devel openssl3_devel > /dev/null
+	fi
+	local host=$PGADMIN_WORK/aurora-$ARCH
+	aurora_launcher "$host"
+	# The native wheels of this port for this target Python.
+	local key
+	key=$({
+		cat "$port"/cross.sh "$port"/requirements-haiku.lock "$port"/python-patches/*
+		cat "$target"/develop/headers/python3.12/patchlevel.h
+	} | sha256sum | cut -c1-12)
+	local stage=$PGADMIN_WORK/stage log=$PGADMIN_WORK/cross-$ARCH.log out=$PGADMIN_WORK/out-$ARCH
+	rm -rf "$stage" "$out"
+	PATH=$node/bin:$PATH PGADMIN_DOWNLOADS=$PGADMIN_WORK/downloads \
+		AIROS_SDK=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_HOST_TOOLS=$TOOLS HAIKU_MIME_DB=$MIMEDB \
+		AURORA_HOST_BINARY=$host/data/aurora/aurora-host TARGET_ROOT=$target \
+		BUILD_PYTHON=$python/bin/python3.12 RUST_ENV=$AIROS_TOOLCHAIN/rust/env-$ARCH.sh \
+		PGADMIN_WHEELHOUSE=$PGADMIN_WORK/wheels-$ARCH-$key PGADMIN_CARGO_HOME=$PGADMIN_WORK/cargo \
+		TMPDIR=$PGADMIN_WORK \
+		"$port/cross.sh" "$ARCH" "$stage" "$out" > "$log" 2>&1 || { tail -40 "$log"; die "pgAdmin 4 for $ARCH failed"; }
+	"$TOOLS/rm_attrs" -rf "$host"
+	local file version
+	file=$(tail -1 "$log")
+	[[ -f $file ]] || die "cross.sh made no package"
+	verify_package "$file"
+	rm -f "$OUT"/pgadmin4-[0-9]*-"$ARCH".hpkg
+	mv "$file" "$OUT/"
+	file=$OUT/$(basename "$file")
+	version=$(basename "$file" | sed "s/^pgadmin4-\(.*\)-$ARCH.hpkg\$/\1/")
+	echo "package:  $file"
+	printf '%s\t%s\t%s\t%s\n' pgadmin4 "$file" "$version" "(none)" >> "$APPBUILD/.summary"
+	flock -u "$pgadmin_lock"
+}
+
 # --- Proton Mail Bridge ------------------------------------------------------
 # Qt desktop + Go engine. All source changes and toolchain pins live in the app
 # fork. x86_64 links HaikuPorts' Qt, gRPC and protobuf packages. arm64, which
@@ -1990,11 +2079,13 @@ main() {
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit proton_bridge airos_mail proton_vpn code_oss github_desktop; do
-		# Only when asked for: Air Pins, Code - OSS and GitHub Desktop (their
+			summit proton_bridge airos_mail proton_vpn code_oss github_desktop \
+			pgadmin4; do
+		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library)
-		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss|github_desktop)$ && ${#SELECTED[@]} -eq 0 ]] && continue
+		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss|github_desktop|pgadmin4)$ && ${#SELECTED[@]} -eq 0 ]] \
+			&& continue
 		wanted "$app" && "build_$app"
 	done
 	note summary

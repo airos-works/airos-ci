@@ -1,0 +1,15 @@
+air/OS cross build: a Haiku host is a cross build target (HaikuPorts builds
+Python on Haiku itself, where configure never takes this path).
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -620,6 +620,9 @@
+ 	*-*-vxworks*)
+ 		_host_cpu=$host_cpu
+ 		;;
++	*-*-haiku*)
++		_host_cpu=$host_cpu
++		;;
+ 	wasm32-*-* | wasm64-*-*)
+ 		_host_cpu=$host_cpu
+ 		;;
