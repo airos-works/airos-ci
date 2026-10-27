@@ -137,7 +137,11 @@ r_openssl() {
 r_nghttp2() { cm -DENABLE_LIB_ONLY=ON -DBUILD_STATIC_LIBS=OFF -DENABLE_DOC=OFF; }
 r_libpsl() {
 	[[ -x configure ]] || autoreconf -fi
-	ac --disable-runtime --disable-builtin --disable-man --disable-gtk-doc LIBS=-lnetwork
+	# The Public Suffix List built in (list/, a submodule of the fork): the
+	# engine's PublicSuffixStoreCurl asks psl_builtin(), and without it every
+	# domain is a public suffix, so no cookie was ever stored. No IDN library
+	# at run time, as before.
+	ac --disable-runtime --enable-builtin --disable-man --disable-gtk-doc LIBS=-lnetwork
 }
 r_curl() {
 	autoreconf -fi
