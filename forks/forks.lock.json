@@ -134,6 +134,15 @@
     "upstream": "https://gitlab.freedesktop.org/mesa/drm.git",
     "url": "https://github.com/jmgasper/libdrm.git"
   },
+  "libedit": {
+    "base": null,
+    "base_commit": null,
+    "branch": "airos-20260512-3.1",
+    "commit": "55520055c3b64084c3ebfc9dd93413ab88a39d99",
+    "repo": "libedit",
+    "upstream": null,
+    "url": "https://github.com/jmgasper/libedit.git"
+  },
   "libepoxy": {
     "base": "1.5.10",
     "base_commit": "c84bc9459357a40e46e2fec0408d04fbdde2c973",
@@ -313,6 +322,15 @@
     "repo": "open-gpu-kernel-modules",
     "upstream": "https://github.com/X547/open-gpu-kernel-modules.git",
     "url": "https://github.com/jmgasper/open-gpu-kernel-modules.git"
+  },
+  "openssh": {
+    "base": "V_10_6_P1",
+    "base_commit": "a8c72b842423f0774f542d3c2197247c3dd28d74",
+    "branch": "airos-10.6p1",
+    "commit": "1a1dc652cdb9356c99c91192fb7addf82847f4b8",
+    "repo": "openssh-portable",
+    "upstream": "https://github.com/openssh/openssh-portable.git",
+    "url": "https://github.com/jmgasper/openssh-portable.git"
   },
   "openssl": {
     "base": "openssl-3.3.2",

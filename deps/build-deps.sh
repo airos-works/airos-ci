@@ -13,8 +13,9 @@
 #      builds and later recipes compile against;
 #   4. package it as airos_<name>-<version>-ARCH.hpkg into the package pool
 #      ($AIROS_PACKAGES/ARCH), from which the images install it. Recipes that
-#      make a system package (wpa_supplicant, libpng, freetype) set NO_PACKAGE
-#      and package it under its own name themselves.
+#      make a system package (wpa_supplicant, libpng, freetype, and OpenSSH
+#      and its libedit, which x86_64 gets from HaikuPorts) set NO_PACKAGE and
+#      package it under its own name themselves (system_package below).
 #
 # A recipe is skipped when its fork commit and recipe are unchanged since the
 # last build (stamp in the work tree), unless FORCE=1.
@@ -33,8 +34,10 @@ export AIROS_ARCH=$ARCH
 . "$AIROS_CI/lib/fork.sh"
 
 if [[ $ARCH == arm64 ]]; then
+	# libedit and openssh: ssh and sshd, which x86_64 has from HaikuPorts and
+	# the arm64 repository does not have, under HaikuPorts' names.
 	ORDER=(openssl nghttp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
-		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22)
+		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh)
 else
 	ORDER=(haikuports)
 fi
@@ -187,6 +190,51 @@ EOF
 	with_lock packages-$ARCH bash -c 'rm -f "$1"/"$2"-[0-9]*-"$3".hpkg' _ "$AIROS_PACKAGES/$ARCH" "$pkg" "$ARCH"
 	"$TOOLS/package/package" create -q -C "$root" "$file"
 	rm -f "$root/.PackageInfo"
+	echo "package: $file"
+}
+
+# --- system packages under HaikuPorts' names ----------------------------------
+
+# release_times: one time for every file of the source tree. A checkout leaves
+# a release's generated files (configure, Makefile.in, aclocal.m4) in no
+# particular order against their sources, and make would then regenerate them
+# with autotools the release was not made with. Run on a clean tree.
+release_times() {
+	find . -path ./.git -prune -o -exec touch -h -d @1 {} +
+}
+
+# system_package DIR: package the tree DIR, which has its .PackageInfo, into
+# the pool, as HaikuPorts' haikuporter packages it: mimeset --all gives every
+# file its type and enters applications into the package's data/mime_db
+# (against the Haiku build's MIME DB). zlib compression: the arm64 package
+# readers have no zstd. Older versions of the package leave the pool.
+system_package() {
+	local dir=$1 name version file link
+	name=$(sed -n 's/^name[[:space:]]*//p' "$dir/.PackageInfo")
+	version=$(sed -n 's/^version[[:space:]]*//p' "$dir/.PackageInfo")
+	[[ -n $name && -n $version ]] || die "$dir/.PackageInfo has no name or version"
+	# The host tools keep a symbolic link's attributes under its inode number
+	# (Linux has no user attributes on links), so a link removed earlier
+	# leaves its attributes to the next link with that inode.
+	while IFS= read -r -d '' link; do
+		rm -rf "$ATTRS/symlink-$(stat -c %i "$link")"
+	done < <(find "$dir" -type l -print0)
+	mkdir -p "$dir/data/mime_db"
+	(cd "$dir" && "$TOOLS/mimeset" --all --mimedb data/mime_db --mimedb "$MIMEDB" .)
+	if [[ -z $(ls -A "$dir/data/mime_db") ]]; then
+		rmdir "$dir/data/mime_db"
+		rmdir "$dir/data" 2>/dev/null || true
+	else
+		find "$dir/data/mime_db" -mindepth 1 -maxdepth 1 -exec touch -h -d 2001-08-18 {} +
+	fi
+	file=$AIROS_PACKAGES/$ARCH/$name-$version-$ARCH.hpkg
+	with_lock packages-$ARCH bash -c 'rm -f "$1"/"$2"-[0-9]*-"$3".hpkg' _ \
+		"$AIROS_PACKAGES/$ARCH" "$name" "$ARCH"
+	# The package's modes as HaikuPorts' (sshd refuses a group-writable
+	# privilege separation directory); the work tree stays group-writable.
+	chmod -R go-w "$dir"
+	"$TOOLS/package/package" create -q -z zlib -C "$dir" "$file"
+	chmod -R g+w "$dir"
 	echo "package: $file"
 }
 

@@ -135,6 +135,10 @@ fi
 if [[ $ARCH == arm64 ]]; then
 	build_stage "libpng and FreeType" "deps/recipes/libpng.sh, freetype.sh"
 	"$AIROS_CI/deps/build-deps.sh" arm64 libpng freetype
+	# and OpenSSH (ssh, sshd) with its libedit, which x86_64 has from
+	# HaikuPorts; under HaikuPorts' names (deps/recipes/libedit.sh, openssh.sh)
+	build_stage "OpenSSH" "deps/recipes/libedit.sh, openssh.sh"
+	"$AIROS_CI/deps/build-deps.sh" arm64 libedit openssh
 fi
 # ROCK 5 and Pi: the GL stack (Panfrost; V3D and V3DV) against this Haiku
 # revision, which also refuses a Mali CSF ABI that differs from the tree's
@@ -257,6 +261,13 @@ else
 		file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/freetype.sh)"
 		cp "$file" "$WORK/freetype/"
+	done
+	# OpenSSH and libedit (above): x86_64 images have them from HaikuPorts,
+	# and every arm64 image must have ssh too.
+	for name in libedit openssh; do
+		file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/$name.sh)"
+		cp "$file" "$WORK/packages/"
 	done
 	# libpng (above) as HAIKU_ARM64_LIBPNG_PACKAGES_DIR: Haiku's libpng build
 	# feature (the PNG translator) and the libpng16 package in the image.

@@ -16,6 +16,10 @@
     "haikuports": {
       "repo": "haikuports/haikuports",
       "ref": "83497049f196ec0c1b4c17a92f83dac839bc2295"
+    },
+    "haikuports-2026": {
+      "repo": "haikuports/haikuports",
+      "ref": "cf125b5fd31c10bfa34497f9dc8e05b4be216388"
     }
   },
   "components": [
@@ -898,6 +902,50 @@
       "branch": "airos-e64b4b3",
       "patches": [],
       "used_by": "arm64 images: the General MIDI synthesizer of Haiku's MIDI kit (deps/recipes/fluidlite.sh, the fluidlite build feature), as tools/rock5-itx/build-fluidlite-arm64.sh builds it"
+    },
+    {
+      "name": "libedit",
+      "wave": 6,
+      "create": "import",
+      "description": "libedit 20260512-3.1 (from the release tarball; upstream is NetBSD's editline, packaged at thrysoee.dk) with the HaikuPorts patches",
+      "branch": "airos-20260512-3.1",
+      "patches": [
+        {
+          "tarball": "https://thrysoee.dk/editline/libedit-20260512-3.1.tar.gz",
+          "sha256": "432d5e7ea8b0116dd39f2eca7bc11d0eed77faa6b77ea526ace89907c23ea4a0",
+          "strip": 1,
+          "into": ".",
+          "message": "Import libedit 20260512-3.1 (libedit-20260512-3.1.tar.gz)"
+        },
+        {
+          "from": "haikuports-2026:sys-libs/libedit/patches/libedit-20260512_3.1.patchset"
+        }
+      ],
+      "used_by": "arm64 images: libedit for OpenSSH's sftp, as HaikuPorts' libedit (deps/recipes/libedit.sh)"
+    },
+    {
+      "name": "openssh",
+      "repo": "openssh-portable",
+      "wave": 6,
+      "create": "fork",
+      "github": "openssh/openssh-portable",
+      "base": "V_10_6_P1",
+      "branch": "airos-10.6p1",
+      "patches": [
+        {
+          "from": "haikuports-2026:net-misc/openssh/patches/openssh-10.6p1.patchset"
+        },
+        {
+          "git": "https://github.com/haikuports/haikuports.git",
+          "commit": "cf125b5fd31c10bfa34497f9dc8e05b4be216388",
+          "paths": [
+            "net-misc/openssh/additional-files/*"
+          ],
+          "into": "haiku",
+          "message": "Add HaikuPorts' post-install scripts (host keys at first boot, settings paths) under haiku/"
+        }
+      ],
+      "used_by": "arm64 images: ssh, sshd and the other OpenSSH tools, as HaikuPorts' openssh (deps/recipes/openssh.sh)"
     }
   ]
 }
