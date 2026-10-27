@@ -1,5 +1,5 @@
-# libpng 1.6.44 (jmgasper/libpng airos-v1.6.44, the release tarball's
-# contents) for the arm64 system, built and packaged as jmgasper/haiku's
+# libpng 1.6.44 (airos-works/libpng airos-v1.6.44, the release tarball's
+# contents) for the arm64 system, built and packaged as airos-works/haiku's
 # tools/rpi4/build-image-libs.sh does for the lab images: libpng16 and
 # libpng16_devel with HaikuPorts' names and provides. The arm64 image builds
 # hand both to Haiku's build (HAIKU_ARM64_LIBPNG_PACKAGES_DIR), whose libpng

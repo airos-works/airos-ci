@@ -1,9 +1,9 @@
-# Cross SDKs (Haiku built from jmgasper/haiku master; and stock Haiku
+# Cross SDKs (Haiku built from airos-works/haiku master; and stock Haiku
 # R1/beta6, assembled from the release, for Summit's Haiku build), third-party
-# dependencies (arm64: built from the jmgasper forks; x86_64: HaikuPorts),
+# dependencies (arm64: built from the airos-works forks; x86_64: HaikuPorts),
 # image firmware and the GL stacks (Mesa and libglvnd from the forks) on the
 # air/OS build server. Runs when the build scripts, recipes or fork pins
-# change, and on demand. The image pipeline in jmgasper/haiku rebuilds the
+# change, and on demand. The image pipeline in airos-works/haiku rebuilds the
 # SDKs itself whenever master moves.
 name: SDK and dependencies
 

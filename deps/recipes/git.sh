@@ -1,5 +1,5 @@
 # git 2.56.0 for the arm64 system, as HaikuPorts builds it for x86_64
-# (dev-vcs/git/git-2.56.0.recipe, its make variables): jmgasper/git
+# (dev-vcs/git/git-2.56.0.recipe, its make variables): airos-works/git
 # airos-2.56.0, the release (tarball contents, manual pages, HTML
 # documentation) with HaikuPorts' patches; HTTPS through air/OS's curl and
 # OpenSSL, PCRE2 and libiconv (airos_curl, airos_openssl, airos_pcre2,

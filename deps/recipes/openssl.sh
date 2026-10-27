@@ -1,4 +1,4 @@
-# OpenSSL 3.3.2 with the Haiku arm64 fixes (jmgasper/openssl airos-3.3.2).
+# OpenSSL 3.3.2 with the Haiku arm64 fixes (airos-works/openssl airos-3.3.2).
 # Shared and static: Burrow links libssl.a/libcrypto.a statically on arm64.
 VERSION=3.3.2
 SUMMARY="OpenSSL TLS and cryptography libraries"

@@ -1,5 +1,5 @@
 # Zstandard 1.5.7 for the arm64 Haiku build, which the arm64 bootstrap
-# repository does not supply, as jmgasper/haiku's tools/rpi4/build-zstd.sh
+# repository does not supply, as airos-works/haiku's tools/rpi4/build-zstd.sh
 # builds it for the lab images: zstd, zstd_devel and zstd_source from the
 # release tarball, under the names build/jam/BuildFeatures expects in
 # HAIKU_ARM64_ZSTD_PACKAGES_DIR. With them, every arm64 Haiku build (the SDK's

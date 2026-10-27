@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """release-inputs.py: what jam needs to make a release image System Updater
-can update (jmgasper/haiku tools/airos/ci/UserBuildConfig,
+can update (airos-works/haiku tools/airos/ci/UserBuildConfig,
 docs/airos/SYSTEM-UPDATER.md).
 
     release-inputs.py OUT --id ID --target TARGET --arch ARCH --feed URL
@@ -39,7 +39,7 @@ version			{version}-1
 architecture	{arch}
 summary			"{summary}"
 description		"{description}"
-packager		"air/OS CI <https://github.com/jmgasper/airos-ci>"
+packager		"air/OS CI <https://github.com/airos-works/airos-ci>"
 vendor			"air/OS"
 copyrights {{
 	"2026 air/OS contributors"

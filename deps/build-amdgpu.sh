@@ -6,13 +6,13 @@
 # on Haiku through a Linux compatibility layer, and the firmware it loads.
 # Two packages, made by linux-drm's haiku/tools/package.sh:
 #
-#   amdgpu_drm-<linux>~git<date>-1-x86_64.hpkg   the driver (jmgasper/linux-drm,
+#   amdgpu_drm-<linux>~git<date>-1-x86_64.hpkg   the driver (airos-works/linux-drm,
 #                                 a release build), linked against the kernel
 #                                 of the x86_64 SDK's Haiku build; it requires
 #                                 that build's haiku package and the firmware
 #   amdgpu_firmwares-<date>-<rev>-any.hpkg
 #                                 every amdgpu file of linux-firmware
-#                                 (jmgasper/airos-firmware), Southern Islands
+#                                 (airos-works/airos-firmware), Southern Islands
 #                                 to RDNA 4 and the APUs
 #
 # into $AIROS_ROOT/image-inputs/x86_64/amdgpu/packages, which the x86_64 image
@@ -42,7 +42,7 @@ export AIROS_ARCH=x86_64
 . "$AIROS_CI/lib/sdk.sh"
 . "$AIROS_CI/lib/fork.sh"
 
-# The linux-firmware release jmgasper/airos-firmware took the amdgpu
+# The linux-firmware release airos-works/airos-firmware took the amdgpu
 # directory from (forks/forks.json), and the firmware package's revision.
 FIRMWARE_VERSION=20260916
 FIRMWARE_REVISION=1

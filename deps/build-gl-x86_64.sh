@@ -3,7 +3,7 @@
 # for Summit's Haiku build; results then in gl/x86_64-r1beta6{,-mesa})
 #
 # The x86_64 GL stack of Summit's engine, as Summit's tools/mesa-vm builds it,
-# from the forks: jmgasper/libglvnd (airos-1.7.0) and jmgasper/mesa
+# from the forks: airos-works/libglvnd (airos-1.7.0) and airos-works/mesa
 # (airos-25.3.6-x86_64: Mesa 25.3.6 with Summit's Haiku x86_64 changes), with
 # EGL and OpenGL ES, and the Gallium drivers llvmpipe (HaikuPorts' LLVM 21),
 # softpipe and zink (HaikuPorts' Vulkan loader; a GPU with a Vulkan driver).

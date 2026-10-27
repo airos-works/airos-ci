@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-image.sh TARGET [REF]
 #
-# Build an air/OS release image from jmgasper/haiku at REF (default
+# Build an air/OS release image from airos-works/haiku at REF (default
 # origin/master) with the tree's CI image definitions
 # (tools/airos/ci/UserBuildConfig) and the packages in the air/OS package pool:
 #
@@ -445,7 +445,7 @@ if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildCon
 	release=$WORK/release-inputs
 	python3 "$AIROS_CI/images/release-inputs.py" "$release" --id "$stamp" \
 		--target "$TARGET" --arch "$ARCH" \
-		--feed "${AIROS_UPDATE_FEED:-https://github.com/jmgasper/haiku/releases/download/updates-$TARGET/}" \
+		--feed "${AIROS_UPDATE_FEED:-https://github.com/airos-works/haiku/releases/download/updates-$TARGET/}" \
 		--haiku-revision "$HAIKU_REVISION" --haiku-commit "$HAIKU_SHA" \
 		--recipe-commit "$(git -C "$AIROS_CI" rev-parse HEAD 2>/dev/null || echo unknown)" \
 		--tree "system non-packaged lib=$WORK/libs" \
@@ -582,7 +582,7 @@ json.dump({
     "media": json.load(open(os.path.join(pkgdir, "media-sources.json"))),
     "bridge": json.load(open(os.path.join(pkgdir, "bridge-sources.json"))) if os.path.exists(os.path.join(pkgdir, "bridge-sources.json")) else None,
     "mail": json.load(open(os.path.join(pkgdir, "mail-sources.json"))) if os.path.exists(os.path.join(pkgdir, "mail-sources.json")) else None,
-    "recipe": {"repository": "https://github.com/jmgasper/airos-ci",
+    "recipe": {"repository": "https://github.com/airos-works/airos-ci",
                "commit": os.environ["AIROS_CI_COMMIT"],
                "modified": bool(os.environ["AIROS_CI_MODIFIED"]),
                "forks_lock_sha256": os.environ["AIROS_FORKS_LOCK_SHA"]},
@@ -591,7 +591,7 @@ json.dump({
                   "image_recipe_sha256": os.environ["AIROS_IMAGE_RECIPE_SHA"]},
     "target": target, "image": image, "image_bytes": int(size), "image_sha256": sha,
     "built": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-    "haiku": {"repository": "https://github.com/jmgasper/haiku", "revision": rev, "commit": haiku_sha},
+    "haiku": {"repository": "https://github.com/airos-works/haiku", "revision": rev, "commit": haiku_sha},
     "packages": [{"file": os.path.basename(p), "sha256": hashlib.sha256(open(p, "rb").read()).hexdigest()}
                  for p in pkgs],
 }, open(out, "w"), indent=1)

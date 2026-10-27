@@ -1,4 +1,4 @@
-# Lexilla 5.4.6 (jmgasper/lexilla airos-5.4.6), built against the Scintilla
+# Lexilla 5.4.6 (airos-works/lexilla airos-5.4.6), built against the Scintilla
 # headers as the HaikuPorts recipe does: Kiri's syntax highlighting.
 VERSION=5.4.6
 SUMMARY="Lexilla lexers for Scintilla"

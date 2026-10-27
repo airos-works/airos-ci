@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import lzma
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -57,7 +58,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('target', choices=['x86_64', 'arm64', 'rpi4', 'cubie'])
     parser.add_argument('directory', type=Path)
-    parser.add_argument('--repo', default='jmgasper/haiku')
+    parser.add_argument('--repo', default=os.environ.get('GITHUB_REPOSITORY', 'airos-works/haiku'))
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     manifest, files, digest = validate(args.directory, args.target)
@@ -70,15 +71,15 @@ def main():
     test = ('Booted to the desktop in QEMU. This is not a test on every physical device.'
             if args.target != 'rpi4' else 'SD card boot files and partition layout checked. This CI check does not boot a physical Pi.')
     recipe = manifest.get('recipe', {}).get('commit', '')
-    recipe_line = (f'Build recipe: [airos-ci {recipe[:10]}](https://github.com/jmgasper/airos-ci/commit/{recipe})'
+    recipe_line = (f'Build recipe: [airos-ci {recipe[:10]}](https://github.com/airos-works/airos-ci/commit/{recipe})'
                    f'{" with local changes" if manifest["recipe"].get("modified") else ""}.\n\n'
                    if re.fullmatch(r'[0-9a-f]{40}', recipe) else '')
     notes = (f'airOS development image for **{args.target}**, built {manifest["built"]}.\n\n'
-             f'Haiku source: [{commit[:10]}](https://github.com/jmgasper/haiku/commit/{commit}).\n\n'
+             f'Haiku source: [{commit[:10]}](https://github.com/airos-works/haiku/commit/{commit}).\n\n'
              f'{recipe_line}'
              f'Validation: {test}\n\n'
              'Download the compressed image, checksum and package manifest below. '
-             'Check hardware notes at https://jmgasper.github.io/airos-website/hardware/ before installing. '
+             'Check hardware notes at https://airos.works/hardware/ before installing. '
              'These are experimental builds; back up your data first.\n\n'
              f'`{files[0].name}` SHA-256: `{digest}`\n')
     existing = subprocess.run(['gh', 'release', 'view', tag, '--repo', args.repo, '--json', 'isDraft'], capture_output=True, text=True)

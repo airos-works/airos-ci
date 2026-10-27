@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-sdk.sh ARCH [REF]
 #
-# Build jmgasper/haiku at REF (default: origin/master) for ARCH (x86_64 or
+# Build airos-works/haiku at REF (default: origin/master) for ARCH (x86_64 or
 # arm64) and assemble the air/OS cross SDK that app and dependency builds use:
 #
 #   $AIROS_SDK/ARCH/env.sh     CROSS, SYSROOT, TOOLS, MIMEDB, ... (source it)
@@ -12,7 +12,7 @@
 #
 # The Haiku build directory is $AIROS_BUILD/haiku-ARCH, using the source
 # worktree $AIROS_SRC/wt/haiku-ARCH; the cross compiler is built on first use
-# from jmgasper/buildtools at the revision pinned in tools/rock5-itx/sources.json.
+# from airos-works/buildtools at the revision pinned in tools/rock5-itx/sources.json.
 # arm64 builds have the zstd build feature (lib/env.sh zstd_build_feature).
 # Host tools use --no-full-xattr: attribute data stays in the emulation store
 # but each file is tied to it by an xattr hash (not its inode number)
@@ -160,7 +160,7 @@ assemble_sdk() {
 	printf '*libgcc:\n-lgcc_s -lgcc\n\n' > "$new/shared-unwinder.specs"
 	local tools=$BUILD/objects/linux/$(uname -m)/release/tools
 	cat > "$new/env.sh" <<EOF
-# air/OS $ARCH cross SDK, from jmgasper/haiku $REVISION ($SHA)
+# air/OS $ARCH cross SDK, from airos-works/haiku $REVISION ($SHA)
 AIROS_ARCH=$ARCH
 HAIKU_REVISION=$REVISION
 HAIKU_SHA=$SHA

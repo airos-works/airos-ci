@@ -21,7 +21,7 @@
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
 # compiler, sysroot, host rc/xres/resattr/mimeset/package, MIME DB) and the
-# third-party prefix DEPS (deps/: arm64 libraries built from the jmgasper
+# third-party prefix DEPS (deps/: arm64 libraries built from the airos-works
 # forks, x86_64 HaikuPorts packages). Optional environment:
 #   JOBS                  parallel compile jobs
 #   APPBUILD              work tree: snapshots, objects, staging
@@ -70,7 +70,7 @@ APPBUILD=${APPBUILD:-$AIROS_WORK/appbuild-$SDK_NAME}
 # Third-party libraries (curl, OpenSSL, TagLib, SQLite, PCRE2, Scintilla,
 # Lexilla, FFmpeg, the Summit engine): one prefix per architecture, made by
 # deps/stage-deps.sh from the air/OS package pool (arm64: built from the
-# jmgasper forks; x86_64: HaikuPorts packages plus the forks HaikuPorts lacks).
+# airos-works forks; x86_64: HaikuPorts packages plus the forks HaikuPorts lacks).
 EXTRA_DEPS=${EXTRA_DEPS:-$DEPS}
 TLS_DEPS=${TLS_DEPS:-$DEPS}
 SUMMIT_ENGINE=${SUMMIT_ENGINE:-$DEPS/lib/summit-webkit}
@@ -426,7 +426,7 @@ build_airshot() {
 }
 
 # --- Snap -------------------------------------------------------------------
-# The photo booth demo (jmgasper/snap): one application, in demos/ with a link
+# The photo booth demo (airos-works/snap): one application, in demos/ with a link
 # in Deskbar's Demos menu like GLTeapot; its GLSL shaders are resources of the
 # application. It links libGL: the x86_64 SDK has it (Mesa's BGLView), arm64
 # takes libglvnd's (BGLView over EGL) from the GL stack deps/build-gl.sh builds.
@@ -481,7 +481,7 @@ build_clipper() {
 }
 
 # --- AirTop -----------------------------------------------------------------
-# The system monitor (jmgasper/airtop). It shows its graphs on an auxiliary
+# The system monitor (airos-works/airtop). It shows its graphs on an auxiliary
 # display too (BAuxDisplay, libdevice), which the SDK's sysroot carries.
 build_airtop() {
 	note AirTop
@@ -522,7 +522,7 @@ build_airpins() {
 
 # --- Burrow -----------------------------------------------------------------
 # burrow-openvpn is OpenVPN 2.6.13 with Burrow's patches, from the
-# jmgasper/openvpn fork (branch burrow-2.6.13). arm64: OpenSSL linked
+# airos-works/openvpn fork (branch burrow-2.6.13). arm64: OpenSSL linked
 # statically, LZO/LZ4 left out (AWS Client VPN uses neither), so only Haiku is
 # required. x86_64: linked against the HaikuPorts OpenSSL 3, LZO and LZ4 that
 # Burrow's package requires, as the native build is.
@@ -578,7 +578,7 @@ build_burrow() {
 
 # --- airTime -------------------------------------------------------------------
 # The movie player, linked against FFmpeg 6: on arm64 the rock5_ffmpeg build
-# (jmgasper/ffmpeg + MPP), which provides no lib: entries, so the package
+# (airos-works/ffmpeg + MPP), which provides no lib: entries, so the package
 # requires rock5_ffmpeg; on x86_64 HaikuPorts' ffmpeg6.
 build_airtime() {
 	note airTime
@@ -988,7 +988,7 @@ name			summit_webkit
 version			$SUMMIT_WEBKIT_VERSION
 architecture	$ARCH
 summary			"The WebKit engine of the Summit browser"
-description		"The Summit browser's WebKit (libWebKit with its web and network processes, JavaScriptCore, ICU 78 and the libraries they need), installed in /boot/system/lib/summit-webkit, with GL compositing, WebGL and WebRTC. Programs link lib/libWebKit.so.1 from there and include develop/headers/summit-webkit. The $SUMMIT_FOR build, made by air/OS CI from WebKit $base (jmgasper/WebKit) with the Haiku port of Summit $(git -C "$APPS/summit" rev-parse --short HEAD)."
+description		"The Summit browser's WebKit (libWebKit with its web and network processes, JavaScriptCore, ICU 78 and the libraries they need), installed in /boot/system/lib/summit-webkit, with GL compositing, WebGL and WebRTC. Programs link lib/libWebKit.so.1 from there and include develop/headers/summit-webkit. The $SUMMIT_FOR build, made by air/OS CI from WebKit $base (airos-works/WebKit) with the Haiku port of Summit $(git -C "$APPS/summit" rev-parse --short HEAD)."
 packager		"air/OS CI"
 vendor			"Summit project"
 copyrights {
@@ -1201,7 +1201,7 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 }
 
 # --- Code - OSS ---------------------------------------------------------------
-# Visual Studio Code's open source build on Aurora (jmgasper/vscode, branch
+# Visual Studio Code's open source build on Aurora (airos-works/vscode, branch
 # haiku; build/haiku/README.md). The workbench is the same JavaScript on every
 # architecture: gulp builds it once per commit of the repository, with the
 # Node.js of its .nvmrc, into a stage kept in $CODE_OSS_WORK (npm ci only when
@@ -1342,7 +1342,7 @@ build_code_oss() {
 }
 
 # --- GitHub Desktop ----------------------------------------------------------
-# GitHub Desktop on Aurora (jmgasper/desktop, branch haiku, on upstream's
+# GitHub Desktop on Aurora (airos-works/desktop, branch haiku, on upstream's
 # release tags; docs/technical/haiku.md). Its webpack build bundles every
 # module, so the app is the same JavaScript on every architecture: it is
 # built once per commit of the repository, with the Node.js of its .nvmrc and
@@ -1796,7 +1796,7 @@ PY
 }
 
 # --- Mail -------------------------------------------------------------------
-# air/OS's Mail (jmgasper/mail) replaces Haiku's: the image leaves Haiku's Mail
+# air/OS's Mail (airos-works/mail) replaces Haiku's: the image leaves Haiku's Mail
 # out, this package installs apps/Mail with Haiku's Mail icon, its Deskbar
 # entry and a post-install script that opens email messages and mailto links
 # in it. It reads messages with the Summit engine (summit_webkit).
@@ -1901,7 +1901,7 @@ build_airos_mail() {
 }
 
 # --- Proton VPN -------------------------------------------------------------
-# jmgasper/proton-vpn-airos-app: the native app, its userspace WireGuard helper,
+# airos-works/proton-vpn-airos-app: the native app, its userspace WireGuard helper,
 # the command-line client and proton-openvpn, staged as its
 # tools/package-haiku.sh does. proton-openvpn is OpenVPN 2.6.13 from the
 # upstream tarball with the patches in the repository's openvpn/ (as its

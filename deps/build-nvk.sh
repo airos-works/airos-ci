@@ -2,13 +2,13 @@
 # build-nvk.sh
 #
 # NVK, Mesa's Vulkan driver for NVIDIA, on nvidia_rm (X547's nvrm back end and
-# the X399's patches: jmgasper/mesa-nvk airos-nvk-r2), cross-built for x86_64
+# the X399's patches: airos-works/mesa-nvk airos-nvk-r2), cross-built for x86_64
 # as docs/x399-workstation/tools/haiku-build-nvk.sh builds it natively:
 #
 #   1. Mesa's host compilers (mesa_clc, vtn_bindgen2) from the same tree, with
 #      Ubuntu's LLVM 18, libclc and SPIRV-LLVM-Translator;
 #   2. Rust for Haiku (sdk/build-rust.sh), for NAK, NVK's shader compiler;
-#   3. the driver, against the x86_64 SDK and jmgasper/open-gpu-kernel-modules
+#   3. the driver, against the x86_64 SDK and airos-works/open-gpu-kernel-modules
 #      (nvrm's RM headers).
 #
 # Results in $AIROS_ROOT/image-inputs/x86_64/nvk: lib/libvulkan_nouveau.so for

@@ -2,7 +2,7 @@
 # build-firmware.sh
 #
 # Firmware for the air/OS images, all from repositories pinned in
-# forks/forks.lock.json (jmgasper/airos-firmware for the linux-firmware files,
+# forks/forks.lock.json (airos-works/airos-firmware for the linux-firmware files,
 # the Raspberry Pi firmware, firmware-nonfree and bluez-firmware forks) and
 # HaikuPorts:
 #
@@ -64,7 +64,7 @@ name			$name
 version			$VERSION-$REVISION
 architecture		any
 summary			"$summary"
-description		"$description (linux-firmware $VERSION, from jmgasper/airos-firmware ${FW_COMMIT:0:12})"
+description		"$description (linux-firmware $VERSION, from airos-works/airos-firmware ${FW_COMMIT:0:12})"
 packager		"air/OS CI"
 vendor			"Haiku Project"
 licenses {

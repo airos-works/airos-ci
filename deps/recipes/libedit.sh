@@ -1,5 +1,5 @@
 # libedit 20260512-3.1 (NetBSD's editline) for the arm64 system, as HaikuPorts
-# builds it (sys-libs/libedit/libedit-20260512_3.1.recipe): jmgasper/libedit
+# builds it (sys-libs/libedit/libedit-20260512_3.1.recipe): airos-works/libedit
 # airos-20260512-3.1, the release tarball with HaikuPorts' patches (which
 # change configure.ac, hence autoreconf), wide characters, against the
 # arm64 base's ncurses6. Packaged as HaikuPorts' libedit; OpenSSH's sftp

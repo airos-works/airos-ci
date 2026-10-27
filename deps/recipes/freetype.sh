@@ -1,12 +1,12 @@
 # FreeType 2.14.3 for the arm64 system: app_server's font engine, in place of
 # the bootstrap FreeType 2.6.3 of Haiku's arm64 repository, built as HaikuPorts
 # builds it for x86_64 (media-libs/freetype/freetype-2.14.3.recipe): the
-# freetype-system fork (jmgasper/freetype airos-VER-2-14-3, the release
+# freetype-system fork (airos-works/freetype airos-VER-2-14-3, the release
 # tarball with HaikuPorts' patches, which enable the validation modules), meson
 # with error strings, HarfBuzz loaded at run time, PNG (libpng.sh) and zlib.
 # Only bzip2 is left out: the arm64 images have no libbz2. Packaged as
 # HaikuPorts packages it, as freetype and freetype_devel: the image builds hand
-# both to Haiku's build (HAIKU_ARM64_FREETYPE_PACKAGES_DIR, jmgasper/haiku
+# both to Haiku's build (HAIKU_ARM64_FREETYPE_PACKAGES_DIR, airos-works/haiku
 # build/jam/BuildFeatures), which compiles against freetype_devel and puts the
 # freetype package in the image instead of the bootstrap one.
 VERSION=2.14.3

@@ -5,7 +5,7 @@ and the progress of the builds running (whoever started them).
 Serves on 127.0.0.1:8090 behind the build server's nginx
 (images/nginx-artifacts.conf), which serves the image files themselves under
 /images/. Builds started here run images/build-image.sh and
-images/smoke-test.sh from a clone of jmgasper/airos-ci updated to main first;
+images/smoke-test.sh from a clone of airos-works/airos-ci updated to main first;
 every image build records itself in $AIROS_DATA/builds (lib/status.py).
 
   GET  /                 the page (dashboard/index.html)

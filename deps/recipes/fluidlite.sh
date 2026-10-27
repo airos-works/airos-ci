@@ -1,4 +1,4 @@
-# FluidLite at e64b4b31 (jmgasper/FluidLite airos-e64b4b3), static, with SF3
+# FluidLite at e64b4b31 (airos-works/FluidLite airos-e64b4b3), static, with SF3
 # sound fonts through its bundled stb Vorbis decoder, as
 # tools/rock5-itx/build-fluidlite-arm64.sh builds it: the arm64 Haiku build's
 # fluidlite feature (the MIDI kit's synthesizer), which HaikuPorts has no arm64

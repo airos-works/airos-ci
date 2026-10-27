@@ -31,7 +31,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CI_ROOT = os.path.dirname(HERE)
-OWNER = os.environ.get("GITHUB_OWNER", "jmgasper")
+OWNER = os.environ.get("GITHUB_OWNER", "airos-works")
 TRAILER = "\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 
@@ -87,7 +87,7 @@ class Sources:
 
     def describe(self, ref):
         name, path = ref.split(":", 1)
-        repo = "jmgasper/airos-ci" if name == "ci" else self.spec[name]["repo"]
+        repo = "airos-works/airos-ci" if name == "ci" else self.spec[name]["repo"]
         return f"{repo}@{self.ref(name)[:10]}:{path}"
 
 

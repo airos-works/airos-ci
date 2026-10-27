@@ -18,7 +18,7 @@ AIROS_CACHE=${AIROS_CACHE:-$AIROS_DATA/cache}              # downloads, ccache
 AIROS_LOCKS=${AIROS_LOCKS:-$AIROS_DATA/locks}
 AIROS_WORK=${AIROS_WORK:-$AIROS_DATA/work}                 # per-job scratch space
 
-GITHUB_OWNER=${GITHUB_OWNER:-jmgasper}
+GITHUB_OWNER=${GITHUB_OWNER:-airos-works}
 HAIKU_REPO=${HAIKU_REPO:-https://github.com/$GITHUB_OWNER/haiku.git}
 BUILDTOOLS_REPO=${BUILDTOOLS_REPO:-https://github.com/$GITHUB_OWNER/buildtools.git}
 

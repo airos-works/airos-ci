@@ -1,4 +1,4 @@
-# SQLite 3.46.1, the autoconf amalgamation committed to jmgasper/sqlite
+# SQLite 3.46.1, the autoconf amalgamation committed to airos-works/sqlite
 # (airos-3.46.1, autoconf/sqlite-autoconf-3460100), with the options Summit's
 # arm64 build used.
 VERSION=3.46.1

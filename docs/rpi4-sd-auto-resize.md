@@ -29,4 +29,4 @@ and SD flush barriers. The reported physical 128 GB card was checked on 2026-10-
 and BFS sizes agree, and an offline allocation check is clean. It booted when
 the NanoKVM's empty USB LUN was replaced with valid idle media.
 
-See [the implementation and validation notes](https://github.com/jmgasper/haiku/blob/master/docs/rpi4/INSTALLER.md).
+See [the implementation and validation notes](https://github.com/airos-works/haiku/blob/master/docs/rpi4/INSTALLER.md).

@@ -10,7 +10,7 @@
 #     workflow_dispatch:
 #   jobs:
 #     airos:
-#       uses: jmgasper/airos-ci/.github/workflows/app.yml@main
+#       uses: airos-works/airos-ci/.github/workflows/app.yml@main
 #       with:
 #         app: amp
 #         repo-dir: tasamp
@@ -75,7 +75,7 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/airos-ci"
           git clone -q --depth 1 --branch "${{ inputs.airos-ci-ref }}" \
-            https://github.com/jmgasper/airos-ci.git "$RUNNER_TEMP/airos-ci"
+            https://github.com/airos-works/airos-ci.git "$RUNNER_TEMP/airos-ci"
           git -C "$RUNNER_TEMP/airos-ci" log --oneline -1
 
       - name: Build packages

@@ -1,4 +1,4 @@
-# PCRE2 10.45 with its JIT (jmgasper/pcre2 airos-10.45, sljit from jmgasper/sljit):
+# PCRE2 10.45 with its JIT (airos-works/pcre2 airos-10.45, sljit from airos-works/sljit):
 # Kiri's search.
 VERSION=10.45
 SUMMARY="PCRE2 Perl-compatible regular expression library"

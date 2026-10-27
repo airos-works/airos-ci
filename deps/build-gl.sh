@@ -3,8 +3,8 @@
 #
 # The arm64 GL stack of the air/OS images, as tools/rock5-itx/mesa/build.py,
 # build-application.py and tools/rpi4/mesa/build.sh make it, from the forks:
-#   jmgasper/mesa (airos-25.3.6: Mesa 25.3.6 + the Haiku Panfrost/Mali CSF,
-#   quad-fill and V3D patches), jmgasper/libglvnd (airos-1.7.0), jmgasper/glu.
+#   airos-works/mesa (airos-25.3.6: Mesa 25.3.6 + the Haiku Panfrost/Mali CSF,
+#   quad-fill and V3D patches), airos-works/libglvnd (airos-1.7.0), airos-works/glu.
 #
 #   1. Mesa's host compilers (mesa_clc, vtn_bindgen2, panfrost_compile), built
 #      natively with Ubuntu's LLVM 18, libclc and SPIRV-LLVM-Translator;
@@ -50,7 +50,7 @@ abi=$MESA/src/panfrost/lib/kmod/haiku-abi
 driver=$HAIKU_SOURCE/src/add-ons/kernel/drivers/graphics/mali_csf
 for header in "$abi"/*.h; do
 	cmp -s "$header" "$driver/$(basename "$header")" \
-		|| die "Mesa's $(basename "$header") differs from the mali_csf driver's in $HAIKU_REVISION; update jmgasper/mesa"
+		|| die "Mesa's $(basename "$header") differs from the mali_csf driver's in $HAIKU_REVISION; update airos-works/mesa"
 done
 echo "Mesa and the mali_csf driver agree ($(ls "$abi"/*.h | wc -l) headers)"
 

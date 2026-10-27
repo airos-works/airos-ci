@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>air/OS CI status</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --text: #1d2330; --muted: #677085; --line: #e1e4ea;
+  --accent: #2f6fdb; --ok: #1f8a4c; --bad: #c93a3a; --warn: #b7791f; --bar: #e8ecf3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c; --card: #1a202a; --text: #e6e9ef; --muted: #9aa3b5; --line: #2a3240;
+    --accent: #5b8ff0; --ok: #43c47a; --bad: #f06b6b; --warn: #e0a64a; --bar: #273041;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; justify-content: space-between;
+  padding: 18px 24px 8px; max-width: 1280px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0; }
+h1 small { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+header nav a { color: var(--accent); font-size: 14px; text-decoration: none; }
+header nav a + a { margin-left: 14px; }
+main { padding: 0 24px 32px; max-width: 1280px; margin: 0 auto; }
+a { color: var(--accent); }
+.summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 16px; align-items: center; }
+.summary button { font: inherit; display: flex; gap: 8px; align-items: baseline; background: var(--card);
+  color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; }
+.summary button b { font-size: 20px; }
+.summary button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.summary .meta { margin-left: auto; }
+.meta { color: var(--muted); font-size: 13px; }
+.warning { background: var(--card); border: 1px solid var(--warn); color: var(--warn); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 14px; display: none; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+  white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.repo a { font-weight: 600; text-decoration: none; color: var(--text); }
+td.repo .private { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 99px;
+  border: 1px solid currentColor; white-space: nowrap; }
+.badge.passed { color: var(--ok); }
+.badge.failed { color: var(--bad); }
+.badge.building { color: var(--accent); }
+.badge.unknown { color: var(--muted); }
+.badge.building::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; margin-right: 6px; vertical-align: 1px; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .badge.building::before { animation: none; } }
+.flow + .flow { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.flow .name { font-weight: 600; }
+.flow .detail { color: var(--muted); font-size: 13px; }
+.flow .jobs { font-size: 13px; }
+.bar { height: 6px; background: var(--bar); border-radius: 99px; overflow: hidden; margin: 4px 0; max-width: 220px; }
+.bar > div { height: 100%; background: var(--accent); }
+code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.others { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.others .badge { font-size: 11px; padding: 0 6px; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+@media (max-width: 600px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  .summary .meta { margin-left: 0; width: 100%; }
+  th:nth-child(3), td:nth-child(3) { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>air/OS CI <small id="org">airos-works</small></h1>
+  <nav><a href="/">Image builds</a><a id="org-link" href="https://github.com/airos-works">GitHub</a></nav>
+</header>
+<main>
+  <div class="warning" id="warning"></div>
+  <div class="summary" id="summary"></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Repository</th><th>Status</th><th>Workflow</th><th>Latest run</th></tr></thead>
+    <tbody id="repos"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+  </table></div>
+  <p class="meta">A repository is <b>Building</b> while one of its air/OS workflows runs or waits for a runner,
+    <b>Failed</b> when the newest finished run of one failed, <b>Passed</b> otherwise. Cancelled runs are not
+    results. Other workflows (upstream CI in the forks) are listed under the repository and do not change its
+    status. Updated every minute from GitHub by <code>dashboard/repo-status.py</code>.</p>
+</main>
+<script>
+const LABELS = {building: "Building", failed: "Failed", passed: "Passed", unknown: "No result"};
+let filter = null;
+let data = null;
+
+function esc(text) {
+  return String(text ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+  if (s < 90) return Math.round(s) + " s ago";
+  if (s < 5400) return Math.round(s / 60) + " min ago";
+  if (s < 129600) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " d ago";
+}
+function took(run) {
+  const s = (new Date(run.updated) - new Date(run.started)) / 1000;
+  if (!(s > 0)) return "";
+  return s < 5400 ? Math.round(s / 60) + " min" : (s / 3600).toFixed(1) + " h";
+}
+function badge(status) {
+  return `<span class="badge ${esc(status)}">${esc(LABELS[status] || status)}</span>`;
+}
+function runLink(run) {
+  return `<a href="${esc(run.url)}">#${esc(run.number)}</a> <code>${esc(run.sha.slice(0, 10))}</code>`;
+}
+function flowCell(flow) {
+  let text = `<div class="name"><a href="${esc(flow.url)}">${esc(flow.name)}</a></div>`;
+  text += `<div class="detail">${esc(flow.branch || "")}</div>`;
+  return text;
+}
+function runCell(flow) {
+  let text = "";
+  if (flow.error) return `<div class="detail">${esc(flow.error)}</div>`;
+  const a = flow.active, l = flow.last;
+  if (a) {
+    const pct = a.jobs_total ? Math.round(100 * a.jobs_done / a.jobs_total) : 0;
+    const queued = a.status === "queued" || a.status === "pending" || a.status === "waiting";
+    text += `<div>${runLink(a)} ${esc(a.title)}</div>`;
+    text += `<div class="detail">${queued ? "waiting since" : "started"} ${ago(a.started)} · ${esc(a.event)}</div>`;
+    if (a.jobs_total) {
+      text += `<div class="bar"><div style="width:${pct}%"></div></div>`;
+      text += `<div class="jobs">${a.jobs_done} of ${a.jobs_total} jobs done${a.jobs.length ? " · now: " + a.jobs.map(esc).join(", ") : ""}</div>`;
+    }
+    if (l) text += `<div class="detail">previous: ${badge(l.conclusion === "success" ? "passed" : "failed")} ${runLink(l)} ${ago(l.updated)}</div>`;
+  } else if (l) {
+    text += `<div>${runLink(l)} ${esc(l.title)}</div>`;
+    text += `<div class="detail">finished ${ago(l.updated)} · took ${took(l)} · ${esc(l.event)}</div>`;
+    if (l.jobs && l.jobs.length) text += `<div class="jobs">failed: ${l.jobs.map(esc).join(", ")}</div>`;
+  } else {
+    text += `<div class="detail">no finished run (only cancelled ones: is there a runner?)</div>`;
+  }
+  return text;
+}
+function render() {
+  if (!data) return;
+  const counts = data.counts;
+  document.getElementById("summary").innerHTML =
+    ["building", "failed", "passed", "unknown"].filter(k => k !== "unknown" || counts[k])
+      .map(k => `<button data-filter="${k}" class="${filter === k ? "on" : ""}"><b>${counts[k] || 0}</b> ${LABELS[k]}</button>`).join("") +
+    `<span class="meta">${data.repos.length} repositories · updated ${ago(data.generated)}` +
+    (data.rate_limit ? ` · API ${data.rate_limit.remaining}/${data.rate_limit.limit}` : "") + `</span>`;
+  const rows = data.repos.filter(r => !filter || r.status === filter).map(r => {
+    const flows = r.workflows;
+    const others = r.other_workflows.length
+      ? `<div class="others">Other workflows: ${r.other_workflows.map(o =>
+          `<a href="${esc(o.url)}">${esc(o.name)}</a> ${badge(o.result === "none" ? "unknown" : o.result)}`).join(" · ")}</div>` : "";
+    return `<tr><td class="repo"><a href="${esc(r.url)}">${esc(r.name)}</a>${r.private ? '<span class="private">private</span>' : ""}</td>` +
+      `<td>${badge(r.status)}</td>` +
+      `<td>${flows.map(f => `<div class="flow">${flowCell(f)}</div>`).join("")}</td>` +
+      `<td>${flows.map(f => `<div class="flow">${runCell(f)}</div>`).join("")}${others}</td></tr>`;
+  });
+  document.getElementById("repos").innerHTML = rows.join("") ||
+    `<tr><td colspan="4" class="empty">No repositories ${filter ? "are " + LABELS[filter].toLowerCase() : "with CI"}.</td></tr>`;
+  const age = (Date.now() - new Date(data.generated)) / 1000;
+  const warning = document.getElementById("warning");
+  warning.style.display = age > 300 ? "block" : "none";
+  warning.textContent = `This status is ${ago(data.generated).replace(" ago", "")} old: the poller (cron, dashboard/repo-status.py) has not run since. See /ci/error.txt.`;
+}
+async function load() {
+  try {
+    const response = await fetch("status.json", {cache: "no-store"});
+    if (!response.ok) throw new Error(response.status);
+    data = await response.json();
+    document.getElementById("org").textContent = data.org;
+    document.getElementById("org-link").href = "https://github.com/" + encodeURIComponent(data.org);
+    render();
+  } catch (error) {
+    const warning = document.getElementById("warning");
+    warning.style.display = "block";
+    warning.textContent = "Could not load status.json (" + error.message + ").";
+  }
+}
+document.getElementById("summary").addEventListener("click", event => {
+  const button = event.target.closest("button[data-filter]");
+  if (!button) return;
+  filter = filter === button.dataset.filter ? null : button.dataset.filter;
+  render();
+});
+load();
+setInterval(load, 20000);
+setInterval(render, 10000);
+</script>
+</body>
+</html>

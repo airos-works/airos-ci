@@ -1,4 +1,4 @@
-# wpa_supplicant 2.11 (Haiku's port, jmgasper/wpa_supplicant airos-2.11.haiku.1)
+# wpa_supplicant 2.11 (Haiku's port, airos-works/wpa_supplicant airos-2.11.haiku.1)
 # for arm64 images, built as tools/rock5-itx/build-wpa-supplicant-arm64.sh does:
 # internal TLS and libtommath (no OpenSSL dependency), the Haiku resources and
 # attributes. x86_64 images get HaikuPorts' wpa_supplicant.
@@ -26,7 +26,7 @@ name wpa_supplicant
 version $VERSION-$PKG_REVISION
 architecture arm64
 summary "WPA/WPA2 wireless supplicant for Haiku"
-description "Wireless authentication and association for the network server. Built by air/OS CI from jmgasper/wpa_supplicant ${FORK_COMMIT:0:12}."
+description "Wireless authentication and association for the network server. Built by air/OS CI from airos-works/wpa_supplicant ${FORK_COMMIT:0:12}."
 packager "air/OS CI"
 vendor "air/OS"
 urls { "https://github.com/haiku/wpa_supplicant" }

@@ -3,7 +3,7 @@
 #
 # The Zink renderer add-on of Haiku's OpenGL kit for x86_64: BGLView programs
 # drawing on the GPU through Vulkan (NVK on nvidia_rm), cross-built from
-# jmgasper/mesa airos-22.0.5-hgl as docs/x399-workstation/tools/
+# airos-works/mesa airos-22.0.5-hgl as docs/x399-workstation/tools/
 # build-mesa-hgl.sh builds it natively. It is Mesa 22.0.5, the release of the
 # image's mesa package, so the glapi dispatch between libGL and the add-on is
 # identical.

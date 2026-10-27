@@ -1,6 +1,6 @@
 {
   "proton_bridge": {
-    "repository": "https://github.com/jmgasper/proton-bridge.git",
+    "repository": "https://github.com/airos-works/proton-bridge.git",
     "branch": "master",
     "commit": "794b91905ba10a069782e1ef2ae32b9b602ed9d3",
     "source_directory": "proton-bridge",

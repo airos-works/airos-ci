@@ -1,4 +1,4 @@
-# Source after lib/env.sh: check out third-party code from the jmgasper forks
+# Source after lib/env.sh: check out third-party code from the airos-works forks
 # at the commits pinned in forks/forks.lock.json.
 
 FORKS_LOCK=${FORKS_LOCK:-$AIROS_CI/forks/forks.lock.json}
@@ -10,7 +10,7 @@ fork_info() {
 }
 
 # fork_checkout NAME DEST: DEST becomes a clean tree of the pinned commit
-# (with submodules, which point at jmgasper forks too). The clone is cached in
+# (with submodules, which point at airos-works forks too). The clone is cached in
 # $AIROS_CACHE/forks and shared by all jobs; the checkout is a worktree, kept
 # as it is when it already has that commit and no changes.
 fork_checkout() {

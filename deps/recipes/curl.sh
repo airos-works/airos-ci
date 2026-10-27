@@ -1,4 +1,4 @@
-# curl 8.10.1 with the Haiku SOCK_NONBLOCK fix (jmgasper/curl airos-8.10.1),
+# curl 8.10.1 with the Haiku SOCK_NONBLOCK fix (airos-works/curl airos-8.10.1),
 # with OpenSSL, nghttp2 and zlib, and the CA bundle of HaikuPorts'
 # ca_root_certificates package.
 VERSION=8.10.1

@@ -1,5 +1,5 @@
 # GNU nano 9.1 for the arm64 system, as HaikuPorts builds it
-# (app-editors/nano/nano-9.1.recipe): jmgasper/nano airos-9.1, the release
+# (app-editors/nano/nano-9.1.recipe): airos-works/nano airos-9.1, the release
 # tarball, with its syntax files, against the arm64 base's ncurses6; no
 # translations (arm64 has no libintl). Packaged as HaikuPorts' nano; git's
 # default editor (deps/recipes/git.sh).

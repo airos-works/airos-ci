@@ -5,7 +5,7 @@
 # Summit's WebKit engine for ARCH, from the Summit checkout SUMMIT_DIR:
 #
 #   source  upstream WebKit at the commit Summit pins (engine/sources.lock.json),
-#           fetched from jmgasper/WebKit, with Summit's Haiku port
+#           fetched from airos-works/WebKit, with Summit's Haiku port
 #           (engine/patches/0001-haiku-port.patch) and its arm64 changes
 #           (engine/arm64/patches/webkit-arm64-haiku.patch: arm64 code, and a
 #           path without Skia; neither changes an x86_64 build)
@@ -128,16 +128,16 @@ git -C "$SRC" checkout -q -f --detach "$patched"
 # keep the last three patched trees
 git -C "$SRC" for-each-ref --sort=-committerdate --format='%(refname)' refs/airos/ | tail -n +4 \
 	| xargs -r -n1 git -C "$SRC" update-ref -d
-# The jmgasper/WebKit branch is the published copy of this tree.
+# The airos-works/WebKit branch is the published copy of this tree.
 fork_tree=$(git -C "$SRC" rev-parse -q --verify "$(fork_info webkit commit)^{tree}" 2>/dev/null || true)
 if [[ -z $fork_tree ]]; then
 	git -C "$SRC" fetch -q --depth=3 --filter=blob:none origin "$(fork_info webkit commit)" 2>/dev/null || true
 	fork_tree=$(git -C "$SRC" rev-parse -q --verify "$(fork_info webkit commit)^{tree}" 2>/dev/null || true)
 fi
 if [[ $fork_tree == "$(git -C "$SRC" rev-parse "$patched^{tree}")" ]]; then
-	echo "WebKit ${base:0:12} + Summit's patches = jmgasper/WebKit $(fork_info webkit branch) $(fork_info webkit commit | cut -c1-12)"
+	echo "WebKit ${base:0:12} + Summit's patches = airos-works/WebKit $(fork_info webkit branch) $(fork_info webkit commit | cut -c1-12)"
 else
-	echo "warning: Summit ${summit_commit:0:12}'s engine patches differ from jmgasper/WebKit $(fork_info webkit branch);" \
+	echo "warning: Summit ${summit_commit:0:12}'s engine patches differ from airos-works/WebKit $(fork_info webkit branch);" \
 		"update it with forks/make-forks.py --only webkit --force (after moving the summit source ref)" >&2
 fi
 

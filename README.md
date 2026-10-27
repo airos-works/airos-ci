@@ -1,16 +1,16 @@
 # airos-ci
 
-Build pipelines for **air/OS**, jmgasper's fork of Haiku
-([jmgasper/haiku](https://github.com/jmgasper/haiku)). They run on the
+Build pipelines for **air/OS**, the airos-works fork of Haiku
+([airos-works/haiku](https://github.com/airos-works/haiku)). They run on the
 self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 192.168.1.200) through GitHub Actions runners, one per repository.
 
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
-| Images | `jmgasper/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
+| Images | `airos-works/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, AirTop, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN, Proton Mail Bridge, Aurora and Code - OSS; every app builds from its `main` branch (Code - OSS from `haiku`); a rolling `latest` release and the "Latest builds" section of each README |
 | Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
-| Summit | `jmgasper/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
+| Summit | `airos-works/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
 The applications and Summit go into the **package pool**
@@ -47,7 +47,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 
 ## What the images contain
 
-- Haiku from `jmgasper/haiku` `master`, built with the CI profiles in
+- Haiku from `airos-works/haiku` `master`, built with the CI profiles in
   `tools/airos/ci/UserBuildConfig`: `nightly-airos-x86_64`, `airos-arm64`,
   `airos-rpi4` and `airos-cubie`. They contain the fork's drivers and settings, and none of the
   lab tooling (no telnet shell, no SSH keys or password hashes).
@@ -66,7 +66,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   Each push to the fork's `master` also builds the package in its own
   workflow and publishes it as the rolling `latest` release; images keep
   using the reviewed pin.
-- **Mail** (jmgasper/mail), which replaces Haiku's Mail: built from
+- **Mail** (airos-works/mail), which replaces Haiku's Mail: built from
   the reviewed `main` commit in `apps/mail.lock.json` by `build-pinned.sh mail`
   during image assembly, installed as `apps/Mail` with Haiku's Mail icon and
   its **Applications → Mail** Deskbar entry (verified), and made the preferred
@@ -79,7 +79,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   tree leaves Haiku's Mail out of x86_64 and arm64 images
   (`build/jam/images/definitions/regular`); arm64 images take Mail only from a
   tree that does.
-- **Snap** (jmgasper/snap), in Deskbar's Demos folder beside GLTeapot: a
+- **Snap** (airos-works/snap), in Deskbar's Demos folder beside GLTeapot: a
   photo booth whose camera effects are GLSL shaders on the GPU, some of them
   reacting to the microphone or to music. It runs only where OpenGL 3.1 is
   hardware accelerated (tested on AMD's radeonsi; NVIDIA's Zink and the ARM
@@ -93,18 +93,18 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   HaikuPorts' patches, cross-built from Linux with full ICU, OpenSSL and
   nghttp2 from `airos_openssl` and `airos_nghttp2`, without npm, which the
   image takes from the pool.
-- **Code - OSS** (jmgasper/vscode, branch `haiku`), Visual Studio Code's
+- **Code - OSS** (airos-works/vscode, branch `haiku`), Visual Studio Code's
   open source build, on Aurora: `build_code_oss` builds its workbench with
   gulp on Linux, once per commit, and cross-builds its native modules for
   each architecture with the pool's `aurora-host` as its launcher. On x86_64
   it requires HaikuPorts' `ripgrep` and `git`, which the image takes in;
   arm64 images carry `git` (with `nano`, its editor) from
   `deps/recipes/git.sh` and `nano.sh`, and have no ripgrep.
-- **GitHub Desktop** (jmgasper/desktop, branch `haiku`), on Aurora the same
+- **GitHub Desktop** (airos-works/desktop, branch `haiku`), on Aurora the same
   way (`build_github_desktop`), with the system's git.
-- **AirTop** (jmgasper/airtop), a system monitor, and **Proton VPN**
-  (jmgasper/proton-vpn-airos-app), in Applications.
-- Raspberry Pi 4 and Cubie A7S: **AirPins** (jmgasper/AirPins), the GPIO
+- **AirTop** (airos-works/airtop), a system monitor, and **Proton VPN**
+  (airos-works/proton-vpn-airos-app), in Applications.
+- Raspberry Pi 4 and Cubie A7S: **AirPins** (airos-works/AirPins), the GPIO
   tool for their pin headers.
 - **Office**, between Applications and Utilities in Deskbar: Clipper,
   WordCraft, GridCraft, DeckCraft and PdfCraft on every target. The Craft
@@ -118,12 +118,12 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   pinned beside it. Both render with Vulkan where the machine has a hardware
   driver and fall back to the CPU otherwise.
 - x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
-  Haiku platform plugin from jmgasper/qt6-haikuplugins `airos`, which draws at
+  Haiku platform plugin from airos-works/qt6-haikuplugins `airos`, which draws at
   the desktop's density and reconnects existing tray icons after missed
   heartbeats, at HaikuPorts' revision plus 101
   (`deps/build-qt-airos.sh`). Qt programs installed from HaikuDepot, such as
   Telegram, use it and are sharp at 125 to 175 percent.
-- arm64: libraries built from the jmgasper forks (`airos_*` packages:
+- arm64: libraries built from the airos-works forks (`airos_*` packages:
   OpenSSL, curl, nghttp2, SQLite, TagLib, PCRE2, Scintilla, Lexilla),
   `rock5_ffmpeg` (FFmpeg 6.1.6 with Rockchip MPP hardware decoding),
   `wpa_supplicant`, libpng 1.6.44 as `libpng16` (Haiku's PNG translator is
@@ -178,7 +178,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   off:
   - `nvidia_rm` (X547's Haiku OS layer with the RM core of NVIDIA 570.86.16)
     and its accelerant;
-  - NVK (Vulkan, jmgasper/mesa-nvk, cross-built with Rust for its shader
+  - NVK (Vulkan, airos-works/mesa-nvk, cross-built with Rust for its shader
     compiler);
   - the Zink OpenGL renderer (Mesa 22.0.5), which the boot script switches
     on only where there is an NVIDIA card;
@@ -187,7 +187,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 
   See [docs/x86_64-gpu.md](docs/x86_64-gpu.md).
 - x86_64: the AMD GPU driver **amdgpu_drm** (Linux 6.18's amdgpu on a Linux
-  compatibility layer, `jmgasper/linux-drm`) and **amdgpu_firmwares** (every
+  compatibility layer, `airos-works/linux-drm`) and **amdgpu_firmwares** (every
   amdgpu file of linux-firmware 20260916), as packages in `system/packages`;
   app_server drives it through the `amdgpu_kms` accelerant in `haiku.hpkg`.
   Its user land (libdrm, libva, libglvnd, Mesa's radeonsi, RADV and VA-API
@@ -195,7 +195,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   into place at boot only where amdgpu_drm drives a GPU.
   See [docs/x86_64-gpu.md](docs/x86_64-gpu.md#amd-amdgpu_drm).
 - Wi-Fi and Bluetooth firmware (Intel, Realtek, MediaTek, Broadcom for the
-  Pi) from `jmgasper/airos-firmware` and the Raspberry Pi firmware forks.
+  Pi) from `airos-works/airos-firmware` and the Raspberry Pi firmware forks.
 
 Each image comes with a `manifest.json` listing every package that went in,
 with its SHA-256, the Haiku commit and the airos-ci commit that built it
@@ -211,12 +211,12 @@ UEFI boot's log and screenshot are `serial-uefi-usb.log` and
 After the smoke test, `images/publish-github.py` verifies the compressed and
 uncompressed image hashes, uploads the image, SHA-256 file and manifest to a
 draft GitHub release, verifies GitHub's asset digests, then publishes it as
-an immutable prerelease in `jmgasper/haiku`. Tags start with
+an immutable prerelease in `airos-works/haiku`. Tags start with
 `image-x86_64-`, `image-arm64-`, `image-rpi4-` or `image-cubie-`. Re-running the publisher
 verifies an existing published release without replacing its assets.
 The public website discovers the newest published release for each target.
 
-Each image is also a **release for System Updater** (jmgasper/haiku
+Each image is also a **release for System Updater** (airos-works/haiku
 `docs/airos/SYSTEM-UPDATER.md`) when its tree supports it:
 `images/release-inputs.py` names the release (its id is the image
 directory's name) and lists CI's files for jam, which puts them into the
@@ -233,12 +233,12 @@ SHA-256 as `equivalent`, so that installed systems keep their copy.
 
 Machines update from **GitHub**, not from the build server: then
 `images/publish-feed-github.py TARGET` mirrors the newest six releases of
-that feed to jmgasper/haiku's Releases. Each release is a prerelease
+that feed to airos-works/haiku's Releases. Each release is a prerelease
 `update-TARGET-<id>` with its `update.json` and only the packages no earlier
 one has (an `equivalent` rebuild points at the copy already there); the
 rolling prerelease `updates-TARGET` holds `index.json`, replaced last. That
 is the feed address new images name
-(`https://github.com/jmgasper/haiku/releases/download/updates-TARGET/`;
+(`https://github.com/airos-works/haiku/releases/download/updates-TARGET/`;
 `AIROS_UPDATE_FEED` overrides it). Running it again only adds what is
 missing; releases the index dropped are deleted once no kept one uses their
 files. arm64 images get HTTPS for this through Haiku's SSL build feature with
@@ -286,14 +286,14 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `summit/` | the Summit pipeline: engine libraries (`build-deps.sh`), WebKit (`build-engine.sh`), packages (`build-summit.sh`) |
 | `images/` | `build-image.sh TARGET` (`CLEAN=1`: Haiku from scratch), `smoke-test.sh TARGET`, the nginx that serves the images and the dashboard |
 | `dashboard/` | the build dashboard (`server.py`, `index.html`, `install.sh`) |
-| `forks/` | the third-party sources as jmgasper forks: `forks.json` (what and how), `forks.lock.json` (pinned commits), `make-forks.py`, `patches/` |
-| `runner/register-runner.sh REPO` | adds a self-hosted runner for a repository |
+| `forks/` | the third-party sources as airos-works forks: `forks.json` (what and how), `forks.lock.json` (pinned commits), `make-forks.py`, `patches/` |
+| `runner/register-runner.sh REPO` | adds a self-hosted runner for a repository (`--org`: one for the whole organization) |
 | `server/provision.sh` | the build server's package setup after an Ubuntu install |
 
 ## Third-party sources: the forks
 
 Every third-party component the images or packages build from is a
-repository under [github.com/jmgasper](https://github.com/jmgasper), on an
+repository under [github.com/airos-works](https://github.com/airos-works), on an
 `airos-*` branch: upstream at a release tag, plus the air/OS patches as
 commits. These include Mesa, libglvnd, FFmpeg, Rockchip MPP, OpenSSL, curl,
 SQLite, ICU, WebKit, the firmware, wpa_supplicant, OpenVPN and the rest.
@@ -333,8 +333,10 @@ through locks:
 
 ## Adding a repository
 
-1. `runner/register-runner.sh REPO` (with `gh` logged in as jmgasper and
-   SSH access to the server; `SUDO_PASSWORD` in the environment).
+1. Nothing, if the organization runner exists (`runner/register-runner.sh
+   --org`, once): it serves every airos-works repository. Otherwise
+   `runner/register-runner.sh REPO` (with `gh` logged in as an airos-works
+   owner and SSH access to the server; `SUDO_PASSWORD` in the environment).
 2. Add `.github/workflows/airos.yml` that calls `app.yml` with the app's
    `build-app-packages.sh` name. Push it over SSH: the gh token cannot write
    workflow files.

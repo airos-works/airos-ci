@@ -28,7 +28,7 @@
 # the packages the image is made of ($HAIKU_BUILD/download) into
 # $SUMMIT_ROOT/system/boot/system (a root of its own, so CMake's Haiku search
 # paths work there as in the sysroot). Empty for arm64, whose images have no HaikuPorts: the
-# engine carries the jmgasper forks' builds, as the images' airos_* packages.
+# engine carries the airos-works forks' builds, as the images' airos_* packages.
 
 SDK_NAME=$(sdk_name "$ARCH")
 SUMMIT_ROOT=$AIROS_ROOT/summit/$SDK_NAME

@@ -1,8 +1,8 @@
 # rock5_ffmpeg (arm64): FFmpeg 6.1.6 with Rockchip MPP hardware video decoding
 # for the ROCK 5 ITX (RK3588 VPU), as tools/rock5-itx/build-ffmpeg-arm64.sh and
 # package-ffmpeg-arm64.sh make it, but from the forks:
-#   - FFmpeg: jmgasper/ffmpeg airos-6.1.6 (HaikuPorts patch set)
-#   - MPP:    jmgasper/mpp airos-14729dd (Haiku port + haiku/compat headers)
+#   - FFmpeg: airos-works/ffmpeg airos-6.1.6 (HaikuPorts patch set)
+#   - MPP:    airos-works/mpp airos-14729dd (Haiku port + haiku/compat headers)
 #   - the Haiku FFmpeg media plugin, the RockchipMppDecoder add-on
 #     (00_rockchip_mpp) and Rock5MediaPlayer from the haiku tree the SDK was
 #     built from ($HAIKU_SOURCE).
@@ -112,7 +112,7 @@ name rock5_ffmpeg
 version $VERSION-$PKG_REVISION
 architecture arm64
 summary "FFmpeg codecs and Media Kit plugin for ROCK 5 ITX"
-description "FFmpeg $VERSION shared libraries, Rockchip MPP hardware video decoding, Media Kit plugins, and a sample movie player for arm64. Built by air/OS CI from jmgasper/ffmpeg ${FFMPEG_COMMIT:0:12}, jmgasper/mpp ${MPP_COMMIT:0:12} and jmgasper/haiku ${HAIKU_SHA:0:12}."
+description "FFmpeg $VERSION shared libraries, Rockchip MPP hardware video decoding, Media Kit plugins, and a sample movie player for arm64. Built by air/OS CI from airos-works/ffmpeg ${FFMPEG_COMMIT:0:12}, airos-works/mpp ${MPP_COMMIT:0:12} and airos-works/haiku ${HAIKU_SHA:0:12}."
 packager "air/OS CI"
 vendor "air/OS"
 copyrights { "2000-2024 FFmpeg developers" "2015-2026 Rockchip Electronics Co. LTD" "2004-2026 Haiku, Inc." }
@@ -149,7 +149,7 @@ name rock5_ffmpeg_devel
 version $VERSION-$PKG_REVISION
 architecture arm64
 summary "Headers for rock5_ffmpeg's FFmpeg libraries"
-description "The headers and development links of FFmpeg $VERSION as rock5_ffmpeg has it, for building against it. Built by air/OS CI from jmgasper/ffmpeg ${FFMPEG_COMMIT:0:12}."
+description "The headers and development links of FFmpeg $VERSION as rock5_ffmpeg has it, for building against it. Built by air/OS CI from airos-works/ffmpeg ${FFMPEG_COMMIT:0:12}."
 packager "air/OS CI"
 vendor "air/OS"
 copyrights { "2000-2024 FFmpeg developers" }

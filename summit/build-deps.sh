@@ -2,7 +2,7 @@
 # summit/build-deps.sh ARCH (AIROS_TARGET=r1beta6: for stock Haiku R1/beta6)
 #
 # The third-party libraries of Summit's WebKit engine, cross-built from the
-# jmgasper forks (forks/forks.lock.json) into a prefix of their own,
+# airos-works forks (forks/forks.lock.json) into a prefix of their own,
 # $AIROS_ROOT/summit/SDK_NAME/deps (include/, lib/, lib/pkgconfig/). The engine
 # links them and the summit_webkit package carries them privately in
 # /boot/system/lib/summit-webkit/lib, as Summit's own arm64 build does

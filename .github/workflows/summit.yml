@@ -1,5 +1,5 @@
 # Reusable workflow: the Summit pipeline (summit/build-summit.sh) on the
-# self-hosted air/OS build server: Summit's libraries from the jmgasper forks,
+# self-hosted air/OS build server: Summit's libraries from the airos-works forks,
 # the WebKit engine with Summit's Haiku port (incremental; the first build
 # takes hours), and the summit_webkit and summit packages, which go into the
 # air/OS package pool for the images. On the default branch the packages are
@@ -15,7 +15,7 @@
 # refreshes the package pool, rebuilt against the current SDK, for the image
 # nightly: no new release and no README commit.
 #
-# Called from jmgasper/summit:
+# Called from airos-works/summit:
 #
 #   on:
 #     push:
@@ -25,7 +25,7 @@
 #     workflow_dispatch:
 #   jobs:
 #     airos:
-#       uses: jmgasper/airos-ci/.github/workflows/summit.yml@main
+#       uses: airos-works/airos-ci/.github/workflows/summit.yml@main
 #       permissions:
 #         contents: write
 name: Summit build
@@ -74,7 +74,7 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/airos-ci"
           git clone -q --depth 1 --branch "${{ inputs.airos-ci-ref }}" \
-            https://github.com/jmgasper/airos-ci.git "$RUNNER_TEMP/airos-ci"
+            https://github.com/airos-works/airos-ci.git "$RUNNER_TEMP/airos-ci"
           git -C "$RUNNER_TEMP/airos-ci" log --oneline -1
 
       - name: Build

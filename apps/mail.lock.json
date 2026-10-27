@@ -1,6 +1,6 @@
 {
   "airos_mail": {
-    "repository": "https://github.com/jmgasper/mail.git",
+    "repository": "https://github.com/airos-works/mail.git",
     "branch": "main",
     "commit": "8051c470235c6d183085cf8a74fd5fdfece68434",
     "source_directory": "mail",

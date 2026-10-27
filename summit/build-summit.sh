@@ -4,7 +4,7 @@
 # The Summit pipeline for ARCH, from a Summit checkout (default
 # $GITHUB_WORKSPACE):
 #
-#   1. summit/build-deps.sh    the engine's libraries, from the jmgasper forks
+#   1. summit/build-deps.sh    the engine's libraries, from the airos-works forks
 #   2. summit/build-engine.sh  WebKit with Summit's Haiku port (incremental)
 #   3. the summit_webkit and summit packages (apps/build-app-packages.sh),
 #      into the air/OS package pool, from which the images take them

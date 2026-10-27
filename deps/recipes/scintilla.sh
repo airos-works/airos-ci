@@ -1,4 +1,4 @@
-# Scintilla 5.3.4 with the Haiku backend (jmgasper/scintilla airos-5.3.4, made
+# Scintilla 5.3.4 with the Haiku backend (airos-works/scintilla airos-5.3.4, made
 # from the release tarballs and the HaikuPorts patch set), built and laid out as
 # the HaikuPorts recipe does: Kiri's editor component.
 VERSION=5.3.4

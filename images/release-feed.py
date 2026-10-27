@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """release-feed.py: the System Updater feed of each target
-(jmgasper/haiku docs/airos/SYSTEM-UPDATER.md).
+(airos-works/haiku docs/airos/SYSTEM-UPDATER.md).
 
     release-feed.py extract IMAGE OUT --tools DIR [--boot-file FILE ...]
         Copies every package of the image's system/packages into OUT/packages

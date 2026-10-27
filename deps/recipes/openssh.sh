@@ -1,5 +1,5 @@
 # OpenSSH 10.6p1 for the arm64 system, as HaikuPorts builds it for x86_64
-# (net-misc/openssh/openssh-10.6p1.recipe): jmgasper/openssh-portable
+# (net-misc/openssh/openssh-10.6p1.recipe): airos-works/openssh-portable
 # airos-10.6p1, the release tag with HaikuPorts' patches and post-install
 # scripts, libedit for sftp, against air/OS's OpenSSL 3. Packaged as
 # HaikuPorts' openssh, with its users, groups, settings files and post-install

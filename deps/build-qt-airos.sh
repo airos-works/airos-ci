@@ -2,7 +2,7 @@
 # build-qt-airos.sh
 #
 # Qt for the x86_64 images: HaikuPorts' qt6_base with the Haiku platform plugin
-# (add-ons/Qt6/platforms/libqhaiku.so) built from jmgasper/qt6-haikuplugins
+# (add-ons/Qt6/platforms/libqhaiku.so) built from airos-works/qt6-haikuplugins
 # airos, which draws at the desktop's density: the device pixel ratio is
 # BScreen::DeviceScale(), the backing store has the frame buffer's pixels and
 # is drawn with B_DEVICE_PIXEL_BITMAP, text is grey and lightly hinted when
@@ -172,7 +172,7 @@ info=$pkg/.PackageInfo
 grep -qE "^version[[:space:]]+$QTVERSION-$QTREVISION\$" "$info" \
 	|| die "unexpected version line in $qtname"
 sed -i -E "s/^version([[:space:]]+)$QTVERSION-$QTREVISION\$/version\\1$QTVERSION-$NEWREVISION/" "$info"
-sed -i -E "s/^(description[[:space:]]+\".*)\"\$/\\1 air\\/OS: desktop density support and stable Deskbar tray icons (jmgasper\\/qt6-haikuplugins ${PLUGIN_COMMIT:0:12}).\"/" "$info"
+sed -i -E "s/^(description[[:space:]]+\".*)\"\$/\\1 air\\/OS: desktop density support and stable Deskbar tray icons (airos-works\\/qt6-haikuplugins ${PLUGIN_COMMIT:0:12}).\"/" "$info"
 sed -i -E 's/^packager([[:space:]]+).*/packager\1"air\/OS CI"/' "$info"
 mkdir -p "$OUT/packages"
 rm -f "$OUT"/packages/*.hpkg

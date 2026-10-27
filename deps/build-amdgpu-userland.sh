@@ -7,17 +7,17 @@
 # MESA_PLATFORMS=haiku,wayland, MESA_VULKAN_DRIVERS=amd and
 # MESA_GALLIUM_VA=enabled):
 #
-#   libdrm, libdrm_amdgpu   jmgasper/libdrm airos-2.4.134
-#   libva, libva-drm        jmgasper/libva airos-2.24.1
-#   libglvnd                jmgasper/libglvnd airos-1.7.0 (libGL with the
+#   libdrm, libdrm_amdgpu   airos-works/libdrm airos-2.4.134
+#   libva, libva-drm        airos-works/libva airos-2.24.1
+#   libglvnd                airos-works/libglvnd airos-1.7.0 (libGL with the
 #                           Haiku GL kit, libEGL, libGLESv2, libOpenGL)
-#   Mesa                    jmgasper/mesa airos-amdgpu: radeonsi (OpenGL,
+#   Mesa                    airos-works/mesa airos-amdgpu: radeonsi (OpenGL,
 #                           GLES, EGL; llvmpipe and softpipe besides), RADV
 #                           (Vulkan, with Wayland windows through Haiku's
 #                           in-process Wayland server) and the VA-API driver
-#   FFmpeg (static)         jmgasper/ffmpeg airos-6.1.6, H.264 and HEVC with
+#   FFmpeg (static)         airos-works/ffmpeg airos-6.1.6, H.264 and HEVC with
 #                           VA-API only, for the amdgpu_va media add-on
-#   in-process Wayland      jmgasper/wayland-server airos: X547's server with
+#   in-process Wayland      airos-works/wayland-server airos: X547's server with
 #   server                  the desktop's scale for GTK, Firefox and Vulkan
 #                           windows; ahead of HaikuPorts' wayland_server in
 #                           the library path where it is linked into place

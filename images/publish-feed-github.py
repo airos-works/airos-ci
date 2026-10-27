@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """publish-feed-github.py: System Updater's feed of a target on GitHub Releases
-(jmgasper/haiku docs/airos/SYSTEM-UPDATER.md).
+(airos-works/haiku docs/airos/SYSTEM-UPDATER.md).
 
     publish-feed-github.py TARGET [--feed DIR] [--repo OWNER/NAME] [--keep N]
         [--dry-run]
@@ -264,7 +264,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("target")
     parser.add_argument("--feed")
-    parser.add_argument("--repo", default="jmgasper/haiku")
+    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "airos-works/haiku"))
     parser.add_argument("--keep", type=int, default=KEEP)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

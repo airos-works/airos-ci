@@ -1,16 +1,16 @@
 {
-  "comment": "Third-party code air/OS builds or ships. Each component lives in a repository under jmgasper (a GitHub fork, or an import when upstream is not on GitHub) with the air/OS changes committed on `branch` on top of `base`. forks/make-forks.py creates them; forks.lock.json records the commit every build uses. Patch sources are pinned to the commits in `sources`.",
+  "comment": "Third-party code air/OS builds or ships. Each component lives in a repository under airos-works (a GitHub fork, or an import when upstream is not on GitHub) with the air/OS changes committed on `branch` on top of `base`. forks/make-forks.py creates them; forks.lock.json records the commit every build uses. Patch sources are pinned to the commits in `sources`.",
   "sources": {
     "haiku": {
-      "repo": "jmgasper/haiku",
+      "repo": "airos-works/haiku",
       "ref": "9dc439ceeb30cc97c63855f4c67be9d207875b17"
     },
     "summit": {
-      "repo": "jmgasper/summit",
+      "repo": "airos-works/summit",
       "ref": "ca44cf9614b491fe693cc51d0e9ce0ed18716b04"
     },
     "burrow": {
-      "repo": "jmgasper/burrow",
+      "repo": "airos-works/burrow",
       "ref": "a3fafd3"
     },
     "haikuports": {
@@ -387,7 +387,7 @@
       "create": "existing",
       "base": "92ffa0e23e63804e41c15a7bea318d5be67b0e9b",
       "branch": "airos-25.3.6-rpi4",
-      "origin": "mesa (airos-25.3.6, 92ffa0e) with jmgasper/haiku tools/rpi4/mesa mesa-haiku-texture-cache, mesa-haiku-gpu-readback, mesa-haiku-window-present, mesa-v3d-cache-growth and mesa-haiku-shared-present (one commit each, in build.sh's order), pushed from src/forks/mesa-v3dcache",
+      "origin": "mesa (airos-25.3.6, 92ffa0e) with airos-works/haiku tools/rpi4/mesa mesa-haiku-texture-cache, mesa-haiku-gpu-readback, mesa-haiku-window-present, mesa-v3d-cache-growth and mesa-haiku-shared-present (one commit each, in build.sh's order), pushed from src/forks/mesa-v3dcache",
       "used_by": "Raspberry Pi 4 images: libEGL_mesa (V3D) and libvulkan_broadcom (deps/build-gl.sh); the ROCK 5's Panfrost keeps mesa"
     },
     {

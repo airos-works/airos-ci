@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-deps.sh ARCH [RECIPE...]
 #
-# Cross-build third-party libraries from the jmgasper forks (pinned in
+# Cross-build third-party libraries from the airos-works forks (pinned in
 # forks/forks.lock.json) with the air/OS SDK of ARCH. For each recipe in
 # deps/recipes/ (default: all of them, in dependency order):
 #

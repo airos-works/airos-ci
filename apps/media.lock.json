@@ -1,5 +1,5 @@
 {
-  "photocraft": {"repository": "https://github.com/jmgasper/photocraft.git", "commit": "f0e311157c251b7a1ab00ba3139c6b9d3cfd3c59", "binary": "PhotoCraft"},
-  "lightcraft": {"repository": "https://github.com/jmgasper/lightcraft.git", "commit": "442a81028d0951e0e8f38fd33c12baa12b7a3e8f", "binary": "LightCraft"},
+  "photocraft": {"repository": "https://github.com/airos-works/photocraft.git", "commit": "f0e311157c251b7a1ab00ba3139c6b9d3cfd3c59", "binary": "PhotoCraft"},
+  "lightcraft": {"repository": "https://github.com/airos-works/lightcraft.git", "commit": "442a81028d0951e0e8f38fd33c12baa12b7a3e8f", "binary": "LightCraft"},
   "craft-fonts": {"repository": "https://github.com/storytold/craft-fonts.git", "commit": "3d9ab3a132ed0eff457e424226a435a901da30d3"}
 }
