@@ -439,7 +439,7 @@ if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildCon
 	release=$WORK/release-inputs
 	python3 "$AIROS_CI/images/release-inputs.py" "$release" --id "$stamp" \
 		--target "$TARGET" --arch "$ARCH" \
-		--feed "${AIROS_UPDATE_FEED_BASE:-http://192.168.1.200/updates}/$TARGET/" \
+		--feed "${AIROS_UPDATE_FEED:-https://github.com/jmgasper/haiku/releases/download/updates-$TARGET/}" \
 		--haiku-revision "$HAIKU_REVISION" --haiku-commit "$HAIKU_SHA" \
 		--recipe-commit "$(git -C "$AIROS_CI" rev-parse HEAD 2>/dev/null || echo unknown)" \
 		--tree "system non-packaged lib=$WORK/libs" \
@@ -481,6 +481,12 @@ fi
 	[[ -z $(ls "$WORK/fonts") ]] || echo "AIROS_CI_FONTS = $WORK/fonts ;"
 	[[ -z $(ls "$WORK/freetype") ]] || echo "HAIKU_ARM64_FREETYPE_PACKAGES_DIR = $WORK/freetype ;"
 	[[ -z $(ls "$WORK/libpng") ]] || echo "HAIKU_ARM64_LIBPNG_PACKAGES_DIR = $WORK/libpng ;"
+	# arm64: libbnetapi's HTTPS from CI's OpenSSL (Haiku's BuildFeatures)
+	if [[ $ARCH == arm64 ]] && grep -qF HAIKU_ARM64_OPENSSL_PACKAGE "$HAIKU_SOURCE/build/jam/BuildFeatures"; then
+		openssl=$(ls "$WORK/packages"/airos_openssl-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+		[[ -n $openssl ]] || die "no airos_openssl package for arm64 (deps/recipes/openssl.sh)"
+		echo "HAIKU_ARM64_OPENSSL_PACKAGE = $openssl ;"
+	fi
 	[[ -z $(ls "$WORK/ffmpeg") ]] || echo "HAIKU_ARM64_FFMPEG_PACKAGES_DIR = $WORK/ffmpeg ;"
 	[[ -z $(ls "$WORK/mupdf") ]] || echo "HAIKU_MUPDF_PACKAGES_DIR = $WORK/mupdf ;"
 	[[ -z $(ls "$WORK/libs") ]] || echo "AIROS_CI_LIBS = $WORK/libs ;"

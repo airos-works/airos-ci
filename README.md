@@ -231,6 +231,19 @@ twelve releases are kept. A package built again with nothing but new file
 times (the pinned apps after each Haiku commit) lists the release before's
 SHA-256 as `equivalent`, so that installed systems keep their copy.
 
+Machines update from **GitHub**, not from the build server: then
+`images/publish-feed-github.py TARGET` mirrors the newest six releases of
+that feed to jmgasper/haiku's Releases. Each release is a prerelease
+`update-TARGET-<id>` with its `update.json` and only the packages no earlier
+one has (an `equivalent` rebuild points at the copy already there); the
+rolling prerelease `updates-TARGET` holds `index.json`, replaced last. That
+is the feed address new images name
+(`https://github.com/jmgasper/haiku/releases/download/updates-TARGET/`;
+`AIROS_UPDATE_FEED` overrides it). Running it again only adds what is
+missing; releases the index dropped are deleted once no kept one uses their
+files. arm64 images get HTTPS for this through Haiku's SSL build feature with
+CI's `airos_openssl` (`HAIKU_ARM64_OPENSSL_PACKAGE`).
+
 First-boot setup can grow the Pi's system volume to fill the SD card:
 [docs/rpi4-sd-auto-resize.md](docs/rpi4-sd-auto-resize.md).
 
