@@ -13,8 +13,10 @@
 #      builds and later recipes compile against;
 #   4. package it as airos_<name>-<version>-ARCH.hpkg into the package pool
 #      ($AIROS_PACKAGES/ARCH), from which the images install it. Recipes that
-#      make a system package (wpa_supplicant, libpng, freetype, and OpenSSH
-#      and its libedit, git and nano, which x86_64 gets from HaikuPorts) set
+#      make a system package (wpa_supplicant, libpng, freetype, OpenSSH
+#      and its libedit, git and nano, which x86_64 gets from HaikuPorts, and
+#      icu74 and ncurses6, which replace the arm64 repository's bootstrap
+#      builds) set
 #      NO_PACKAGE and package it under its own name themselves
 #      (system_package below).
 #
@@ -36,9 +38,11 @@ export AIROS_ARCH=$ARCH
 
 if [[ $ARCH == arm64 ]]; then
 	# libedit and openssh (ssh and sshd), nano and git: what x86_64 has from
-	# HaikuPorts and the arm64 repository does not have, under HaikuPorts' names.
+	# HaikuPorts and the arm64 repository does not have, under HaikuPorts' names;
+	# icu74 and ncurses6 in place of the repository's bootstrap builds (their
+	# private unwinders).
 	ORDER=(openssl nghttp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
-		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh nano git)
+		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh nano git icu74 ncurses6)
 else
 	ORDER=(haikuports)
 fi
@@ -237,6 +241,19 @@ system_package() {
 	"$TOOLS/package/package" create -q -z zlib -C "$dir" "$file"
 	chmod -R g+w "$dir"
 	echo "package: $file"
+}
+
+# check_shared_unwinder FILE...: none of the ELF files carries its own copy
+# of libgcc's unwinder (a C++ exception that passes through such a library
+# terminates the program); UNWIND_SPECS links libgcc_s instead.
+check_shared_unwinder() {
+	local file
+	for file in "$@"; do
+		if ${CROSS}readelf -sW "$file" \
+				| awk '$7 != "UND" && $8 ~ /^_Unwind_(RaiseException|Find_FDE)$/ { found = 1 } END { exit !found }'; then
+			die "$file has its own unwinder"
+		fi
+	done
 }
 
 build_recipe() {

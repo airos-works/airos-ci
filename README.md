@@ -140,6 +140,25 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
     unpacks the Linux cross compiler and OpenSSL host headers from the
     checksum-pinned `sdk/cubie-host.lock.json`, without replacing the host’s
     Haiku multilib tools or requiring root.
+- arm64: ICU 74 (`icu74`) and ncurses 6.6 (`ncurses6`) built by CI
+  (`deps/recipes/icu74.sh`, `ncurses6.sh`) in place of the arm64 repository's
+  bootstrap builds, whose `libicuuc`, `libicui18n`, `libicuio` and
+  `libncurses++w` carried private copies of libgcc's unwinder: a C++
+  exception that passed through them ended the program. CI's link
+  `libgcc_s`, like everything else CI builds (`shared-unwinder.specs`), and
+  find their data in `/boot/system/data`. The tree's CI `UserBuildConfig`
+  keeps any repository package that CI has its own build of out of arm64
+  images.
+- arm64: zstd packages can be read. Every arm64 Haiku build (the SDK's and
+  the images') has the zstd build feature, from Zstandard 1.5.7 packages CI
+  builds (`deps/recipes/zstd.sh`, into `image-inputs/arm64/zstd`): packagefs,
+  the boot loader and the package kit read zstd, and the images carry the
+  `zstd` package. Packages CI and the build make stay zlib-compressed
+  (`HAIKU_PACKAGE_DEFAULT_COMPRESSION=zlib`) until arm64 systems without zstd
+  support are gone; only then can arm64 packages switch to zstd. jam takes
+  both settings from the environment (`lib/env.sh` `zstd_build_feature`), and
+  a change of them builds the arm64 Haiku objects again, since jam does not
+  recompile objects whose flags changed.
 - Every image includes the CA root certificate package for HTTPS. ARM64
   images stage an architecture-neutral copy using zlib compression so the
   trust store also works with bootstrap package readers.

@@ -150,6 +150,11 @@ if [[ $ARCH == arm64 ]]; then
 	# openssh.sh, nano.sh, git.sh)
 	build_stage "OpenSSH and git" "deps/recipes/libedit.sh, openssh.sh, nano.sh, git.sh"
 	"$AIROS_CI/deps/build-deps.sh" arm64 libedit openssh nano git
+	# and ICU 74 and ncurses in place of the repository's bootstrap builds,
+	# whose libicuuc, libicui18n, libicuio and libncurses++w carry private
+	# copies of the unwinder (a C++ exception through them ended the program)
+	build_stage "ICU and ncurses" "deps/recipes/icu74.sh, ncurses6.sh"
+	"$AIROS_CI/deps/build-deps.sh" arm64 icu74 ncurses6
 fi
 # ROCK 5 and Pi: the GL stack (Panfrost; V3D and V3DV) against this Haiku
 # revision, which also refuses a Mali CSF ABI that differs from the tree's
@@ -280,6 +285,21 @@ else
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/$name.sh)"
 		cp "$file" "$WORK/packages/"
 	done
+	# ICU 74 and ncurses (above), which the tree's UserBuildConfig puts in
+	# the image instead of the repository's (an older tree would carry both).
+	if grep -qF AIROS_CI_BASE_PACKAGES "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig"; then
+		for name in icu74 ncurses6; do
+			file=$(ls "$pool/$name"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+			[[ -n $file ]] || die "no $name package in $pool (deps/recipes/$name.sh)"
+			cp "$file" "$WORK/packages/"
+		done
+	fi
+	# Zstandard: the zstd build feature (lib/env.sh zstd_build_feature, the
+	# same for the SDK's build) has haiku require libzstd, the zstd package.
+	zstd_build_feature "$ARCH" "$BUILD" "$HAIKU_SOURCE"
+	if [[ -n ${HAIKU_ARM64_ZSTD_PACKAGES_DIR:-} ]]; then
+		cp "$HAIKU_ARM64_ZSTD_PACKAGES_DIR"/zstd-[0-9]*-arm64.hpkg "$WORK/packages/"
+	fi
 	# libpng (above) as HAIKU_ARM64_LIBPNG_PACKAGES_DIR: Haiku's libpng build
 	# feature (the PNG translator) and the libpng16 package in the image.
 	for name in libpng16 libpng16_devel; do

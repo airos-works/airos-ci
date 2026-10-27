@@ -13,6 +13,7 @@
 # The Haiku build directory is $AIROS_BUILD/haiku-ARCH, using the source
 # worktree $AIROS_SRC/wt/haiku-ARCH; the cross compiler is built on first use
 # from jmgasper/buildtools at the revision pinned in tools/rock5-itx/sources.json.
+# arm64 builds have the zstd build feature (lib/env.sh zstd_build_feature).
 # Host tools use --no-full-xattr: attribute data stays in the emulation store
 # but each file is tied to it by an xattr hash (not its inode number)
 # and parallel jobs cannot pick up each other's stale attributes.
@@ -112,6 +113,16 @@ configure_build() {
 }
 
 build_haiku() {
+	# arm64: the zstd build feature (lib/env.sh zstd_build_feature), with the
+	# zstd packages deps/recipes/zstd.sh builds against the SDK there is (a
+	# first SDK is built without it; the next build then has it)
+	if [[ $ARCH == arm64 && -f $SDK/env.sh ]]; then
+		build_stage "zstd" "deps/recipes/zstd.sh"
+		local force=0
+		compgen -G "$AIROS_ROOT/image-inputs/arm64/zstd/zstd-[0-9]*-arm64.hpkg" > /dev/null || force=1
+		FORCE=$force "$AIROS_CI/deps/build-deps.sh" arm64 zstd
+	fi
+	zstd_build_feature "$ARCH" "$BUILD" "$WT"
 	note "jam: haiku packages and host tools ($ARCH)"
 	build_stage "Haiku packages" "jam haiku.hpkg haiku_devel.hpkg"
 	cd "$BUILD"
@@ -139,6 +150,8 @@ assemble_sdk() {
 		cp -a "$dir"/. "$root"/
 	done
 	rm -f "$root/.PackageInfo"
+	# arm64's zstd feature extracts zstd_source into its package's directory
+	rm -rf "$root/develop/sources"
 	# Private headers (AirShot, AirTime, Kiri use them; haiku_devel carries
 	# libshared.a and liblocalestub.a already).
 	mkdir -p "$root/develop/headers"
