@@ -372,6 +372,10 @@
         {
           "from": "ci:forks/patches/mesa-haiku-progname.patch",
           "message": "util: find the Haiku program name from the application image"
+        },
+        {
+          "from": "ci:forks/patches/mesa-v3d-shader-cache.patch",
+          "message": "v3d: disk shader cache key without an ELF build ID on Haiku (mesa-haiku-shader-cache.patch)"
         }
       ],
       "used_by": "arm64 images: libEGL_mesa (Panfrost on the ROCK 5, V3D on the Pi) and libvulkan_broadcom (deps/recipes/gl.sh)"

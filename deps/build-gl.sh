@@ -189,9 +189,23 @@ c_args = [${rpi4_cpu%, }]
 cpp_args = [${rpi4_cpu%, }]
 EOF
 common_v3d+=(--cross-file="$W/rpi4-cpu.ini")
+# The OpenGL driver keeps compiled shaders on disk (64 MB, zlib), as
+# tools/rpi4/mesa/build.sh does: a program's shaders compile once, not at every
+# launch. The bootstrap zlib.pc names its /packages location, absent here.
+cat > "$system/develop/lib/pkgconfig/zlib.pc" <<'EOF'
+prefix=/boot/system
+libdir=${prefix}/develop/lib
+includedir=${prefix}/develop/headers
+Name: zlib
+Description: zlib compression library
+Version: 1.2.13
+Libs: -L${libdir} -lz
+Cflags: -I${includedir}
+EOF
 note "Mesa: V3D (Raspberry Pi 4)"
 mesa_build "$W/mesa-v3d" "${common_v3d[@]}" -Dgallium-drivers=v3d,softpipe '-Dvulkan-drivers=[]' \
-	-Dgles2=enabled -Dopengl=true -Degl=enabled -Dglvnd=enabled
+	-Dgles2=enabled -Dopengl=true -Degl=enabled -Dglvnd=enabled \
+	-Dshader-cache=enabled -Dshader-cache-max-size=64M -Dzlib=enabled
 note "Mesa: V3D Vulkan (Raspberry Pi 4)"
 mesa_build "$W/mesa-v3dv" "${common_v3d[@]}" '-Dgallium-drivers=[]' -Dvulkan-drivers=broadcom \
 	-Dgles2=disabled -Dopengl=false -Degl=disabled -Dglvnd=disabled
