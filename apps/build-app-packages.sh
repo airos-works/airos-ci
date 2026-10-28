@@ -2204,8 +2204,7 @@ build_compose() {
 	docker_go_build "$goarch" "$BUILDDIR/docker-compose" "$SRC" ./cmd
 	stage_begin
 	install_binary "$BUILDDIR/docker-compose" - bin/docker-compose
-	mkdir -p "$STAGE/lib/docker/cli-plugins"
-	ln -s ../../../../bin/docker-compose "$STAGE/lib/docker/cli-plugins/docker-compose"
+	install_binary "$BUILDDIR/docker-compose" - lib/docker/cli-plugins/docker-compose
 	install_file 644 "$SRC/docs/airos.md" documentation/packages/docker_compose/airos.md
 	docker_package_info "$SRC/tools/package-haiku-cross.sh" "$version" "$APPBUILD/compose/PackageInfo"
 	retarget_package_info "$APPBUILD/compose/PackageInfo" "$STAGE/.PackageInfo" '^docker_cli$'
