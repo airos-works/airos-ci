@@ -134,6 +134,7 @@ build_haiku() {
 		[[ -n $HAIKU_ARM64_OPENSSL_PACKAGE ]] || die "no airos_openssl package for arm64 (deps/recipes/openssl.sh)"
 		export HAIKU_ARM64_OPENSSL_PACKAGE
 	fi
+	prune_attributes "$BUILD"
 	note "jam: haiku packages and host tools ($ARCH)"
 	build_stage "Haiku packages" "jam haiku.hpkg haiku_devel.hpkg"
 	cd "$BUILD"

@@ -622,6 +622,9 @@ if [[ -d $BUILD/attributes ]]; then
 		rm -rf "$BUILD/attributes/symlink-$inode"
 	done
 fi
+# The Pi's and the Cubie's own build directories (build-sdk.sh prunes the
+# architecture's; lib/env.sh)
+[[ $BUILD == "$HAIKU_BUILD" ]] || prune_attributes "$BUILD"
 note "jam @$PROFILE $JAM_TARGET"
 build_stage "image" "jam @$PROFILE $JAM_TARGET"
 jam -q -j"$JOBS" "@$PROFILE" $JAM_TARGET

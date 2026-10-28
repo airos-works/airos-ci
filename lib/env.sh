@@ -38,6 +38,26 @@ with_lock() {
 	flock "$AIROS_LOCKS/$name.lock" "$@"
 }
 
+# prune_attributes BUILD: once a day, remove the entries of a Haiku build
+# directory's attribute store (BUILD/attributes/<the file's user.haiku.id>)
+# that no file under AIROS_ROOT or AIROS_DATA refers to; the build's attribute
+# emulation never removes them, and every build remakes ~13 000 files. On
+# 2026-10-28 x86_64's store reached ext4's limit for one directory (about
+# 10 million entries, "index full" in the kernel log): "Failed to create
+# attribute ... Unknown error -1". Takes a few minutes; call it under the
+# build directory's lock.
+prune_attributes() {
+	local stamp=$1/attributes.pruned
+	[[ -d $1/attributes ]] || return 0
+	[[ ! -e $stamp || -n $(find "$stamp" -mmin +1440) ]] || return 0
+	note "pruning $1/attributes"
+	if python3 "$AIROS_CI/images/prune-attributes.py" "$1/attributes" "$AIROS_ROOT" "$AIROS_DATA"; then
+		touch "$stamp"
+	else
+		echo "warning: $1/attributes was not pruned"
+	fi
+}
+
 # haiku_arch_triplet ARCH
 haiku_triplet() {
 	case $1 in
