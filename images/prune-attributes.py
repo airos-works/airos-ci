@@ -6,9 +6,10 @@
 # emulation (libroot_build) keeps a file's attributes in attributes/<id>,
 # where <id> is the file's user.haiku.id, and nothing removes the entry when
 # the file is deleted or rebuilt. The roots are searched for the IDs files
-# still carry (the build directories' own stores are skipped). Entries of
-# symlinks (symlink-<inode>, build-image.sh) and entries changed since the
-# search started stay. Run it under the build directory's lock.
+# still carry (the build directories' own stores are skipped). A symlink's
+# entry is symlink-<inode> instead (build-image.sh); it stays while some
+# symlink under the roots has that inode. Entries changed since the search
+# started stay too. Run it under the build directory's lock.
 import os
 import shutil
 import sys
@@ -18,6 +19,7 @@ store, roots = sys.argv[1], sys.argv[2:]
 start = time.time()
 
 live = set()
+links = set()
 files = 0
 stack = list(roots)
 while stack:
@@ -33,6 +35,8 @@ while stack:
 				if build_dir and entry.name.startswith("attributes"):
 					continue
 				stack.append(entry.path)
+			elif entry.is_symlink():
+				links.add(f"symlink-{entry.inode()}")
 			files += 1
 			live.add(os.getxattr(entry.path, "user.haiku.id",
 				follow_symlinks=False).decode(errors="replace"))
@@ -46,7 +50,7 @@ if len(live) < 10000:
 kept = removed = 0
 for entry in os.scandir(store):
 	try:
-		if (entry.name.startswith("symlink-") or entry.name in live
+		if (entry.name in live or entry.name in links
 				or entry.stat(follow_symlinks=False).st_mtime >= start):
 			kept += 1
 			continue
