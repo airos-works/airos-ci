@@ -264,7 +264,7 @@
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
     "branch": "airos-amdgpu",
-    "commit": "66d514becc8356c00afd16215ad1cb61c3511f36",
+    "commit": "b9e304cc17544c7fd7f4c09dccf62456108ffe87",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
