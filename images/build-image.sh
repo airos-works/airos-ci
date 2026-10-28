@@ -600,12 +600,15 @@ fi
 	deps=$AIROS_ROOT/deps/$ARCH/boot/system
 	[[ $ARCH != arm64 || ! -f $deps/develop/lib/libfluidlite.a ]] || echo "AIROS_CI_FLUIDLITE = $deps ;"
 	[[ $TARGET != rpi4 ]] || echo "HAIKU_RPI_FIRMWARE_DIR = $rpi_firmware ;"
-	echo "include $HAIKU_SOURCE/tools/airos/ci/UserBuildConfig ;"
-	# x86_64: HaikuPorts' newer builds in place of the list's (above)
+	# x86_64: HaikuPorts' newer builds in place of the list's (above), before
+	# the tree's UserBuildConfig: its AddHaikuImageSystemPackages (sqlite)
+	# adds the list's build at once, and a later suppression put both builds
+	# in the image ("would need to uninstall package sqlite-3.50.4.0-1")
 	for file in "${replaced[@]}"; do
 		echo "SuppressHaikuImagePackages ${file%%-[0-9]*} ;"
 		echo "AIROS_CI_BASE_PACKAGES += $file ;"
 	done
+	echo "include $HAIKU_SOURCE/tools/airos/ci/UserBuildConfig ;"
 } > UserBuildConfig
 rm -f "$BUILD/$IMAGE"
 # The build's attribute emulation (libroot_build) keeps a symlink's attributes
