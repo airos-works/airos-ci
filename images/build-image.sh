@@ -190,6 +190,8 @@ pool=$AIROS_PACKAGES/$ARCH
 any=$AIROS_PACKAGES/any
 # HaikuPorts packages for jam to install (AIROS_CI_SYSTEM_PACKAGES)
 system_packages=()
+# x86_64: HaikuPorts packages that replace the build system list's older builds
+replaced=()
 for app in "${IMAGE_APPS[@]}"; do
 	file=$(ls "$pool/$app"-[0-9]*-"$ARCH".hpkg 2>/dev/null | head -n 1 || true)
 	[[ -n $file ]] || die "$app left the package pool during the build"
@@ -461,6 +463,52 @@ PY
 			cp "$file" "$WORK/packages/"
 		fi
 	done
+	# The build system's list pins older builds than HaikuPorts has now. Where
+	# a package here requires more than the pinned build provides (HaikuPorts'
+	# python3.12, for pgAdmin 4: lib:libexpat>=1.12.5, the pin's expat has
+	# 1.12.2), the image takes HaikuPorts' current build instead, as a package
+	# in place of the repository's (as CI's curl), so that package_daemon does
+	# not deactivate the program at boot. The pins are the files jam
+	# downloaded into the build directory; a package without one stays.
+	replace=$(python3 - "$TOOLS/package/package" "$BUILD/download" "$WORK/packages" "$AIROS_CI/deps" \
+			"${system_packages[*]}" $files <<'PY'
+import glob, os, re, subprocess, sys
+tool, download, work, deps, jam = sys.argv[1:6]
+files = sys.argv[6:]
+sys.path.insert(0, deps)
+from haikuports import satisfies
+def attrs(f, kind):
+    out = subprocess.run([tool, "list", "-i", f], check=True, stdout=subprocess.PIPE, text=True).stdout
+    return re.findall(rf"(?m)^\s*{kind}:\s*(.*)$", out)
+requires = set()
+for f in glob.glob(os.path.join(work, "*.hpkg")):
+    requires.update(attrs(f, "requires"))
+for f in files:
+    name = re.sub(r"-[0-9].*", "", os.path.basename(f))
+    if name not in jam.split():
+        continue
+    pins = [p for p in glob.glob(os.path.join(download, name + "-*.hpkg"))
+            if re.sub(r"-[0-9].*", "", os.path.basename(p)) == name]
+    if not pins:
+        continue
+    # strictly: an older build of the same compatible line does not do
+    pinned = [re.sub(r"\s*\(compatible.*\)", "", p) for p in attrs(pins[0], "provides")]
+    current = attrs(f, "provides")
+    if any(any(satisfies(p, r) for p in current) and not any(satisfies(p, r) for p in pinned)
+            for r in requires):
+        print(f)
+PY
+)
+	for file in $replace; do
+		name=$(basename "$file")
+		name=${name%%-[0-9]*}
+		cp "$file" "$WORK/packages/"
+		for i in "${!system_packages[@]}"; do
+			[[ ${system_packages[$i]} != "$name" ]] || unset 'system_packages[$i]'
+		done
+		replaced+=("$(basename "$file")")
+	done
+	[[ -z $replace ]] || echo "HaikuPorts packages newer than the build system's: ${replaced[*]}"
 	echo "HaikuPorts packages jam installs: ${system_packages[*]}"
 	compgen -G "$WORK/packages/nodejs22-[0-9]*-x86_64.hpkg" > /dev/null \
 		|| die "no nodejs22 package for Aurora"
@@ -553,6 +601,11 @@ fi
 	[[ $ARCH != arm64 || ! -f $deps/develop/lib/libfluidlite.a ]] || echo "AIROS_CI_FLUIDLITE = $deps ;"
 	[[ $TARGET != rpi4 ]] || echo "HAIKU_RPI_FIRMWARE_DIR = $rpi_firmware ;"
 	echo "include $HAIKU_SOURCE/tools/airos/ci/UserBuildConfig ;"
+	# x86_64: HaikuPorts' newer builds in place of the list's (above)
+	for file in "${replaced[@]}"; do
+		echo "SuppressHaikuImagePackages ${file%%-[0-9]*} ;"
+		echo "AIROS_CI_BASE_PACKAGES += $file ;"
+	done
 } > UserBuildConfig
 rm -f "$BUILD/$IMAGE"
 # The build's attribute emulation (libroot_build) keeps a symlink's attributes
