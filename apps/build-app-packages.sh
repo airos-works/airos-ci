@@ -10,13 +10,17 @@
 #               natter airtime airtop airpins snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
 #               airos_mail proton_vpn code_oss github_desktop pgadmin4
+#               docker compose docker_desktop (the Docker stack; their own CI
+#               jobs, docker also builds the engine, containerd and buildx
+#               from the pinned forks)
 #               (default: all but airpins, airos_mail, code_oss, github_desktop,
-#               pgadmin4 and Summit's two)
+#               pgadmin4, the Docker stack and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
-#               vscode desktop (CI jobs link their checkout there),
+#               vscode desktop docker compose docker-desktop
+#               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
@@ -2070,6 +2074,169 @@ build_lightcraft() {
 	build_craft lightcraft LightCraft Media
 }
 
+# --- Docker: the CLI, the Engine, containerd, the buildx plugin ---------------
+# Four pure-Go repositories, dependencies vendored with the Haiku shims in
+# vendor/, cross-compiled with CGO disabled by the air/OS Go toolchain
+# (toolchain/go-haiku: the gen2brain/go fork with the air/OS syscall
+# extensions). The CLI (airos-works/docker) is this job's checkout; the
+# Engine (airos-works/moby, dockerd), containerd (the daemon and the Haiku
+# OCI shim, installed as containerd-shim-runc-v2) and the buildx plugin come
+# from the forks pinned in forks/forks.lock.json. Every .PackageInfo is the
+# heredoc of the repository's own packaging script, like Natter's.
+GO_HAIKU_TOOLCHAIN=${GO_HAIKU_TOOLCHAIN:-$AIROS_TOOLCHAIN/go-haiku}
+DOCKER_GOPATH=$APPBUILD/docker/gopath
+DOCKER_GOCACHE=$APPBUILD/docker/go-cache
+
+docker_go_build() { # docker_go_build GOARCH OUT PACKAGE_DIR [go build flags...]
+	local goarch=$1 out=$2 dir=$3
+	shift 3
+	mkdir -p "$DOCKER_GOPATH" "$DOCKER_GOCACHE" "$(dirname "$out")"
+	(
+		cd "$dir"
+		export GOOS=haiku GOARCH=$goarch CGO_ENABLED=0
+		export GOFLAGS=-mod=vendor GOPROXY=off
+		export GOROOT=$GO_HAIKU_TOOLCHAIN GOPATH=$DOCKER_GOPATH GOCACHE=$DOCKER_GOCACHE
+		"$GO_HAIKU_TOOLCHAIN/bin/go" build -trimpath -ldflags="-s -w" -o "$out" "$@"
+	)
+}
+
+# <highest tag>~git.<commits ahead>.<short HEAD>: the version scheme the
+# docker repositories' own packaging scripts compute.
+docker_checkout_version() { # docker_checkout_version GIT_DIR TAG_GLOB
+	local dir=$1 glob=$2 tag
+	tag=$(git -C "$dir" tag -l "$glob" --sort=-v:refname | head -1)
+	[[ -n $tag ]] || tag=v0.0.0
+	echo "${tag#v}~git.$(git -C "$dir" rev-list --count "$tag"..HEAD 2>/dev/null || echo 0).$(git -C "$dir" rev-parse --short HEAD)"
+}
+
+# The .PackageInfo heredoc of a docker repository's own packaging script,
+# evaluated with VERSION set.
+docker_package_info() { # docker_package_info PACKAGING_SCRIPT VERSION OUT
+	local script=$1 version=$2 out=$3 delim template=$APPBUILD/docker/PackageInfo.template
+	mkdir -p "$APPBUILD/docker"
+	delim=$(sed -n 's/^[ \t]*cat > "\$STAGE\/.PackageInfo" <<\([A-Z][A-Z]*\)$/\1/p' "$script")
+	[[ -n $delim ]] || die "no .PackageInfo heredoc in $script"
+	sed -n "/^[ \t]*cat > \"\\\$STAGE\/.PackageInfo\" <<$delim\$/,/^$delim\$/p" "$script" | sed '1d;$d' > "$template"
+	[[ -s $template ]] || die "empty .PackageInfo heredoc in $script"
+	VERSION=$version bash -c 'eval "cat <<PKGEOF
+$(cat "$1")
+PKGEOF"' _ "$template" > "$out"
+}
+
+build_docker() {
+	note "Docker (CLI, engine, containerd, buildx)"
+	local goarch=${ARCH/x86_64/amd64} work=$APPBUILD/docker
+	[[ -x $GO_HAIKU_TOOLCHAIN/bin/go ]] \
+		|| die "no air/OS Go toolchain at $GO_HAIKU_TOOLCHAIN"
+	mkdir -p "$work"
+
+	# The CLI from this job's checkout. docker/cli vendors its deps and ships
+	# no go.mod (vendor.mod instead); materialize one, as its own build script.
+	snapshot docker docker
+	local cli_version
+	cli_version=$(tr -d ' \n' < "$SRC/VERSION")
+	[[ -f $SRC/go.mod ]] || cp "$SRC/vendor.mod" "$SRC/go.mod"
+	docker_go_build "$goarch" "$BUILDDIR/docker" "$SRC" ./cmd/docker
+	stage_begin
+	install_binary "$BUILDDIR/docker" - bin/docker
+	install_file 644 "$SRC/README.md" documentation/packages/docker_cli/README.md
+	install_file 644 "$SRC/docs/airos.md" documentation/packages/docker_cli/airos.md
+	docker_package_info "$SRC/tools/package-haiku-cross.sh" "$cli_version" "$work/cli.PackageInfo"
+	retarget_package_info "$work/cli.PackageInfo" "$STAGE/.PackageInfo"
+	finish_package docker_cli bin/docker
+
+	# The Engine: dockerd from the pinned moby fork, with the session launch
+	# script the package has always carried.
+	local moby=$work/moby version
+	fork_checkout moby "$moby"
+	version=$(docker_checkout_version "$moby" 'v*')
+	docker_go_build "$goarch" "$work/dockerd" "$moby" ./cmd/dockerd
+	stage_begin
+	install_binary "$work/dockerd" - bin/dockerd
+	install_file 644 "$moby/docs/airos.md" documentation/packages/docker_engine/airos.md
+	cat > "$work/dockerd-launch" <<'LAUNCH'
+#!/bin/sh
+# Start the Docker Engine for this user session.
+PATH=/boot/system/bin:/boot/home/config/non-packaged/bin:$PATH
+exec /boot/system/bin/dockerd --userland-proxy=false
+LAUNCH
+	install_file 755 "$work/dockerd-launch" boot/home/config/settings/boot/launch/dockerd
+	docker_package_info "$moby/tools/package-haiku-cross.sh" "$version" "$work/engine.PackageInfo"
+	retarget_package_info "$work/engine.PackageInfo" "$STAGE/.PackageInfo" '^(containerd|docker_cli)$'
+	finish_package docker_engine bin/dockerd
+
+	# containerd: the daemon and the Haiku OCI shim, installed under the name
+	# the runtime asks containerd for.
+	local containerd=$work/containerd
+	fork_checkout containerd "$containerd"
+	version=$(docker_checkout_version "$containerd" 'v2.*')
+	docker_go_build "$goarch" "$work/containerd-bin" "$containerd" ./cmd/containerd
+	docker_go_build "$goarch" "$work/containerd-shim-runc-v2" "$containerd" ./cmd/containerd-shim-haiku-v2
+	stage_begin
+	install_binary "$work/containerd-bin" - bin/containerd
+	install_binary "$work/containerd-shim-runc-v2" - bin/containerd-shim-runc-v2
+	install_file 644 "$containerd/docs/airos.md" documentation/packages/containerd/airos.md
+	docker_package_info "$containerd/tools/package-haiku-cross.sh" "$version" "$work/containerd.PackageInfo"
+	retarget_package_info "$work/containerd.PackageInfo" "$STAGE/.PackageInfo"
+	finish_package containerd bin/containerd bin/containerd-shim-runc-v2
+
+	# The buildx plugin, in the CLI's plugin directory.
+	local buildx=$work/buildx
+	fork_checkout buildx "$buildx"
+	version=$(docker_checkout_version "$buildx" 'v*')
+	docker_go_build "$goarch" "$work/docker-buildx" "$buildx" ./cmd/buildx
+	stage_begin
+	install_binary "$work/docker-buildx" - lib/docker/cli-plugins/docker-buildx
+	install_file 644 "$buildx/docs-airos.md" documentation/packages/docker_buildx/airos.md
+	docker_package_info "$buildx/tools-package-haiku.sh" "$version" "$work/buildx.PackageInfo"
+	retarget_package_info "$work/buildx.PackageInfo" "$STAGE/.PackageInfo" '^docker_cli$'
+	finish_package docker_buildx lib/docker/cli-plugins/docker-buildx
+}
+
+# --- Docker Compose -----------------------------------------------------------
+# The compose job's checkout (airos-works/compose). Installed both as
+# docker-compose and as a Docker CLI plugin, so `docker compose` works.
+build_compose() {
+	note "Docker Compose"
+	snapshot compose compose
+	local goarch=${ARCH/x86_64/amd64} version
+	version=$(docker_checkout_version "$APPS/compose" 'v2.*')
+	docker_go_build "$goarch" "$BUILDDIR/docker-compose" "$SRC" ./cmd
+	stage_begin
+	install_binary "$BUILDDIR/docker-compose" - bin/docker-compose
+	mkdir -p "$STAGE/lib/docker/cli-plugins"
+	ln -s ../../../../bin/docker-compose "$STAGE/lib/docker/cli-plugins/docker-compose"
+	install_file 644 "$SRC/docs/airos.md" documentation/packages/docker_compose/airos.md
+	docker_package_info "$SRC/tools/package-haiku-cross.sh" "$version" "$APPBUILD/compose/PackageInfo"
+	retarget_package_info "$APPBUILD/compose/PackageInfo" "$STAGE/.PackageInfo" '^docker_cli$'
+	finish_package docker_compose bin/docker-compose lib/docker/cli-plugins/docker-compose
+}
+
+# --- Docker Desktop -----------------------------------------------------------
+# The C++/Be API manager for the Engine (airos-works/docker-desktop), built
+# with the cross SDK like the other GUI applications, installed in the
+# Deskbar's Developer folder. The Makefile links with $(CXX), which carries
+# the sysroot, like airShot's.
+build_docker_desktop() {
+	note "Docker Desktop"
+	snapshot docker-desktop docker_desktop
+	local revision version
+	revision=$(git -C "$APPS/docker-desktop" rev-list --count HEAD)
+	version="0.1.0~dev.${revision}.$(git -C "$APPS/docker-desktop" rev-parse --short HEAD)"
+	make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
+		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true
+	stage_begin
+	install_binary "$BUILDDIR/DockerDesktop" "$BUILDDIR/docker-desktop.rsrc" apps/DockerDesktop
+	docs dockerdesktop README.md LICENSE
+	deskbar_link apps/DockerDesktop DockerDesktop Developer
+	sed -e "s/^architecture[ \t].*/architecture x86_64/" \
+		-e "s/^version .*/version $version-1/" \
+		"$SRC/resources/docker-desktop.PackageInfo" > "$APPBUILD/docker_desktop/PackageInfo"
+	retarget_package_info "$APPBUILD/docker_desktop/PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/docker-desktop.rsrc" apps/DockerDesktop
+	finish_package dockerdesktop apps/DockerDesktop
+}
+
 main() {
 	check_prerequisites
 	mkdir -p "$APPBUILD" "$OUT" "$TMPDIR"
@@ -2080,11 +2247,13 @@ main() {
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
 			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
 			summit proton_bridge airos_mail proton_vpn code_oss github_desktop \
-			pgadmin4; do
+			pgadmin4 docker compose docker_desktop; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
-		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own) and Mail (pinned for the images: apps/mail.lock.json; in the pool
-		# its airos_ name would also be copied into images as a library)
-		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss|github_desktop|pgadmin4)$ && ${#SELECTED[@]} -eq 0 ]] \
+		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
+		# (pinned for the images: apps/mail.lock.json; in the pool
+		# its airos_ name would also be copied into images as a library) and the
+		# Docker stack (their own CI jobs; build_docker also checks out forks)
+		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss|github_desktop|pgadmin4|docker|compose|docker_desktop)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done

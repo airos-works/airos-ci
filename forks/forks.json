@@ -1012,6 +1012,33 @@
         }
       ],
       "used_by": "arm64 images: git, as HaikuPorts' git (deps/recipes/git.sh), for the command line and GitHub Desktop"
+    },
+    {
+      "name": "moby",
+      "wave": 6,
+      "create": "fork",
+      "github": "moby/moby",
+      "base": "v28.5.2",
+      "branch": "airos",
+      "used_by": "Docker Engine for air/OS (apps/build-app-packages.sh build_docker)"
+    },
+    {
+      "name": "containerd",
+      "wave": 6,
+      "create": "fork",
+      "github": "containerd/containerd",
+      "base": "v2.4.2",
+      "branch": "airos",
+      "used_by": "containerd for air/OS (apps/build-app-packages.sh build_docker)"
+    },
+    {
+      "name": "buildx",
+      "wave": 6,
+      "create": "fork",
+      "github": "docker/buildx",
+      "base": "v0.38.1",
+      "branch": "airos",
+      "used_by": "docker buildx plugin for air/OS (apps/build-app-packages.sh build_docker)"
     }
   ]
 }

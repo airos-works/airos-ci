@@ -502,5 +502,32 @@
     "repo": "wpa_supplicant",
     "upstream": "https://github.com/haiku/wpa_supplicant.git",
     "url": "https://github.com/airos-works/wpa_supplicant.git"
+  },
+  "moby": {
+    "base": "v28.5.2",
+    "base_commit": "3ef3c07c883be49a2e8097bcf6d2952fce1d70eb",
+    "branch": "airos",
+    "commit": "a897456b03914b09304e6543f2805f2ca1d5d9cf",
+    "repo": "moby",
+    "upstream": "https://github.com/moby/moby.git",
+    "url": "https://github.com/airos-works/moby.git"
+  },
+  "containerd": {
+    "base": "v2.4.2",
+    "base_commit": "49c2af6b7b0785ff636bed8b70a86f073ce8bd6e",
+    "branch": "airos",
+    "commit": "a42ccebec7f3a7a366cb8b08ae75eb08a19d564a",
+    "repo": "containerd",
+    "upstream": "https://github.com/containerd/containerd.git",
+    "url": "https://github.com/airos-works/containerd.git"
+  },
+  "buildx": {
+    "base": "v0.38.1",
+    "base_commit": "0dbe87f36ed472fe36b6796c3f70b4210a731fc5",
+    "branch": "airos",
+    "commit": "6d816fc3c126ce203edae0573c2b5a39000efbb0",
+    "repo": "buildx",
+    "upstream": "https://github.com/docker/buildx.git",
+    "url": "https://github.com/airos-works/buildx.git"
   }
 }

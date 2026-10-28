@@ -12,10 +12,13 @@
 #             kiri natter turbochook lcdmonitor airpins snap wordcraft
 #             gridcraft deckcraft pdfcraft aurora proton_bridge proton_vpn airtop
 #             code_oss github_desktop pgadmin4 (from the aurora repository),
+#             docker compose docker_desktop (the Docker stack: docker also
+#             builds the engine, containerd and buildx from the pinned forks),
 #             or several
 #             with commas (summit_webkit,summit)
 #   REPO_DIR  the directory name build-app-packages.sh knows the repository by
-#             (tasamp for Amp, airTime, airShot, turbochook, ...)
+#             (tasamp for Amp, airTime, airShot, turbochook, docker for the
+#             Docker CLI, compose, docker-desktop, ...)
 #
 # Writes the package path to $OUT_LIST (default $RUNNER_TEMP/packages.txt).
 set -euo pipefail
