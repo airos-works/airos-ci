@@ -2028,9 +2028,7 @@ build_craft() {
 		while IFS= read -r license; do
 			install_file 644 "$SRC/$license" "documentation/packages/$app/licenses/$license"
 		done < <(awk -F '\"' '/^licence_file = / { print $2 }' "$SRC/ATTRIBUTION.toml" | sort -u)
-		for license in "$CARGO_HOME"/registry/src/*/hayro-cmap-0.1.0/assets/LICENSE.txt; do
-			install_file 644 "$license" "documentation/packages/$app/licenses/hayro-cmap/LICENSE.txt"
-		done
+		# hayro-cmap is vendored since PdfCraft 0.15: its licence is in the list above.
 		;;
 	photocraft|lightcraft)
 		# The licences of the assets, fonts and vendored crates the editor
@@ -2055,7 +2053,16 @@ build_craft() {
 	esac
 	case $app in
 	pdfcraft|photocraft|lightcraft)
-		for license in "$CARGO_HOME"/registry/src/*/epaint_default_fonts-0.36.2/fonts/*.txt; do
+		# egui's default fonts come from whichever egui the lock file names
+		# (crates.io before 0.37, the storytold/egui git fork since).
+		local version source fonts
+		read -r version source < <(awk -F '"' '/^name = "epaint_default_fonts"$/ { found = 1; next }
+			found && /^version = / { v = $2 } found && /^source = / { print v, $2; exit }' "$SRC/Cargo.lock")
+		case $source in
+		git+*) fonts=$(echo "$CARGO_HOME"/git/checkouts/egui-*/"${source: -40:7}"/crates/epaint_default_fonts) ;;
+		*) fonts=$(echo "$CARGO_HOME"/registry/src/*/"epaint_default_fonts-$version") ;;
+		esac
+		for license in "$fonts"/fonts/*.txt; do
 			install_file 644 "$license" "documentation/packages/$app/licenses/epaint_default_fonts/$(basename "$license")"
 		done
 		;;
