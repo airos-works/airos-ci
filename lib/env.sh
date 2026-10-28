@@ -77,13 +77,16 @@ build_stage() {
 # zstd_build_feature ARCH BUILD SOURCE: before a jam run in the Haiku build
 # directory BUILD (tree SOURCE). arm64 builds get the zstd build feature from
 # CI's zstd packages (deps/recipes/zstd.sh): packagefs, the boot loader and
-# the package kit read zstd packages, while the packages the build makes stay
-# zlib-compressed, which arm64 systems without zstd support can read. jam
-# takes both settings from the environment (the SDK build has no
+# the package kit read zstd packages, and since 28 October 2026 the packages
+# the build makes (and the host package tool's default, which the deps and
+# apps use) are zstd-compressed too, as on x86_64; arm64 images have read
+# zstd since airos-ci d22fef5 (27 October), older installs are reflashed.
+# jam takes both settings from the environment (the SDK build has no
 # UserBuildConfig). Every jam run in BUILD must have the same setting: jam
 # does not compile objects again when only their flags change, so when it
-# changes, BUILD's Haiku objects go and are built anew (the host tools stay).
-# Only for a tree that has both settings, once the packages exist.
+# changes, BUILD's Haiku objects and its host package tool go and are built
+# anew (the other host tools stay). Only for a tree that has both settings,
+# once the packages exist.
 zstd_build_feature() {
 	local arch=$1 build=$2 source=$3 dir=$AIROS_ROOT/image-inputs/arm64/zstd state=off
 	unset HAIKU_ARM64_ZSTD_PACKAGES_DIR HAIKU_PACKAGE_DEFAULT_COMPRESSION
@@ -91,12 +94,12 @@ zstd_build_feature() {
 	if grep -q HAIKU_ARM64_ZSTD_PACKAGES_DIR "$source/build/jam/BuildFeatures" \
 			&& grep -q HAIKU_PACKAGE_DEFAULT_COMPRESSION "$source/src/tools/package/Jamfile" \
 			&& compgen -G "$dir/zstd-[0-9]*-arm64.hpkg" > /dev/null; then
-		export HAIKU_ARM64_ZSTD_PACKAGES_DIR=$dir HAIKU_PACKAGE_DEFAULT_COMPRESSION=zlib
-		state=zstd
+		export HAIKU_ARM64_ZSTD_PACKAGES_DIR=$dir HAIKU_PACKAGE_DEFAULT_COMPRESSION=zstd
+		state=zstd-packages
 	fi
 	if [[ -d $build/objects/haiku && $(cat "$build/zstd-feature" 2>/dev/null || echo off) != "$state" ]]; then
 		note "zstd build feature $state: the Haiku objects in $build are built again"
-		rm -rf "$build/objects/haiku"
+		rm -rf "$build/objects/haiku" "$build"/objects/*/*/*/tools/package
 	fi
 	mkdir -p "$build"
 	echo "$state" > "$build/zstd-feature"

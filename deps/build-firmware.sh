@@ -12,8 +12,9 @@
 #                             and docs/x399-workstation/tools/build-mediatek-
 #                             wifi-firmware-package.sh make them
 #   $AIROS_PACKAGES/arm64/    HaikuPorts' Intel, Ralink and Realtek Wi-Fi sets,
-#                             recompressed with zlib (packagefs on arm64 reads no
-#                             zstd); x86_64 images get them from HaikuPorts
+#                             as HaikuPorts has them (arm64 images read zstd
+#                             since 27 October 2026); x86_64 images get them
+#                             from HaikuPorts
 #   $AIROS_ROOT/image-inputs/arm64/firmware/mali/arch10.8/mali_csffw.bin
 #   $AIROS_ROOT/image-inputs/rpi4/rpi-firmware/   the Pi 4 boot firmware
 #   $AIROS_ROOT/image-inputs/rpi4/firmware/       CYW43455 Wi-Fi and Bluetooth
@@ -104,19 +105,12 @@ build_package mediatek_wifi_firmwares mt7922wifi "$fw/LICENCE.mediatek" \
 	"$fw"/mediatek/WIFI_MT7922_* "$fw"/mediatek/WIFI_RAM_CODE_MT7922_* \
 	"$fw"/mediatek/WIFI_MT7961_* "$fw"/mediatek/WIFI_RAM_CODE_MT7961_*
 
-note "HaikuPorts Wi-Fi firmware for arm64 (zlib)"
-# Heap compression: the 16-bit field at offset 18 of the hpkg header (2 = zstd).
-compression() { od -An -tu1 -j18 -N2 -- "$1" | awk '{print $1 * 256 + $2}'; }
+note "HaikuPorts Wi-Fi firmware for arm64"
 for source in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" \
 		fetch --no-deps x86_64 intel_wifi_firmwares ralink_wifi_firmwares realtek_wifi_firmwares); do
 	name=$(basename "$source")
 	rm -f "$AIROS_PACKAGES/arm64/${name%%-[0-9]*}"-[0-9]*-any.hpkg
-	if [[ $(compression "$source") == 2 ]]; then
-		"$PACKAGE" recompress -q -z zlib "$source" "$AIROS_PACKAGES/arm64/$name"
-	else
-		cp "$source" "$AIROS_PACKAGES/arm64/$name"
-	fi
-	[[ $(compression "$AIROS_PACKAGES/arm64/$name") != 2 ]] || die "$name is still zstd"
+	cp "$source" "$AIROS_PACKAGES/arm64/$name"
 	echo "$name"
 done
 

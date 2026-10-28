@@ -213,8 +213,9 @@ release_times() {
 # system_package DIR: package the tree DIR, which has its .PackageInfo, into
 # the pool, as HaikuPorts' haikuporter packages it: mimeset --all gives every
 # file its type and enters applications into the package's data/mime_db
-# (against the Haiku build's MIME DB). zlib compression: the arm64 package
-# readers have no zstd. Older versions of the package leave the pool.
+# (against the Haiku build's MIME DB). zstd compression, as HaikuPorts'
+# (arm64 images read it since 27 October 2026). Older versions of the
+# package leave the pool.
 system_package() {
 	local dir=$1 name version file link
 	name=$(sed -n 's/^name[[:space:]]*//p' "$dir/.PackageInfo")
@@ -240,7 +241,7 @@ system_package() {
 	# The package's modes as HaikuPorts' (sshd refuses a group-writable
 	# privilege separation directory); the work tree stays group-writable.
 	chmod -R go-w "$dir"
-	"$TOOLS/package/package" create -q -z zlib -C "$dir" "$file"
+	"$TOOLS/package/package" create -q -z zstd -C "$dir" "$file"
 	chmod -R g+w "$dir"
 	echo "package: $file"
 }

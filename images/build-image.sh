@@ -206,8 +206,7 @@ for set in "${PINNED_SETS[@]}"; do
 done
 # Libraries and system components CI builds (airos_*, rock5_ffmpeg,
 # wpa_supplicant, ...) and firmware: architecture-neutral packages, and on
-# arm64 HaikuPorts' Wi-Fi firmware recompressed with zlib
-# (deps/build-firmware.sh).
+# arm64 HaikuPorts' Wi-Fi firmware (deps/build-firmware.sh).
 for file in "$pool"/airos_*-"$ARCH".hpkg "$pool"/rock5_*-"$ARCH".hpkg \
 		"$pool"/wpa_supplicant-*-"$ARCH".hpkg "$pool"/*_wifi_firmwares-*-any.hpkg "$any"/*.hpkg; do
 	[[ -e $file ]] && cp "$file" "$WORK/packages/"
@@ -248,41 +247,37 @@ if [[ $ARCH == x86_64 ]]; then
 	fi
 else
 	# curl and Summit use /boot/system/data/ssl/CARootCertificates.pem.
-	# This package is architecture-neutral, but the repository copy may use
-	# zstd, which the arm64 release package readers do not necessarily support.
+	# HaikuPorts' architecture-neutral packages go in as they are (zstd):
+	# arm64 images read zstd since 27 October 2026.
 	ca_source=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
 		"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 ca_root_certificates)
 	[[ -f $ca_source && $ca_source == *-any.hpkg ]] \
 		|| die "expected one architecture-neutral CA certificate package"
-	package_tool=$HAIKU_BUILD/objects/linux/x86_64/release/tools/package/package
 	# The architecture-neutral pool may already contain an older bundle.
 	rm -f "$WORK/packages/"ca_root_certificates-*-any.hpkg
-	"$package_tool" recompress -q -z zlib "$ca_source" \
-		"$WORK/packages/$(basename "$ca_source")"
+	cp "$ca_source" "$WORK/packages/"
 	# The system fonts. app_server defaults to Noto Sans and, for the fixed
 	# font, Noto Sans Mono; x86_64 images carry HaikuPorts' noto and the CJK
 	# fallback noto_sans_cjk_jp. The arm64 repository has only the bootstrap
 	# noto (2017, without Noto Sans Mono), with which the fixed font falls back
-	# to a proportional serif. Recompressed like the CA bundle, they go in as
-	# system packages of their own (AIROS_CI_FONTS): they satisfy the haiku
-	# package's noto requirement, so jam leaves the bootstrap noto out.
+	# to a proportional serif. They go in as system packages of their own
+	# (AIROS_CI_FONTS): they satisfy the haiku package's noto requirement, so
+	# jam leaves the bootstrap noto out.
 	for source in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
 			"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 noto noto_sans_cjk_jp); do
 		[[ $source == *-any.hpkg ]] || die "$source is not architecture-neutral"
-		"$package_tool" recompress -q -z zlib "$source" "$WORK/fonts/$(basename "$source")"
+		cp "$source" "$WORK/fonts/"
 	done
 	[[ $(ls "$WORK/fonts" | wc -l) == 2 ]] || die "expected the noto and noto_sans_cjk_jp packages"
 	# The color emoji font Terminal draws emoji with and Noto for the scripts
 	# noto leaves out (noto_regional: Arabic, Hebrew, the Indic scripts, Thai,
-	# ...), recompressed the same way; nothing requires them, so they go in
-	# with the other packages.
+	# ...); nothing requires them, so they go in with the other packages.
 	for name in noto_emoji_color noto_regional; do
 		source=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
 			"$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 $name)
 		[[ -f $source && $source == *-any.hpkg ]] \
 			|| die "expected one architecture-neutral $name package"
-		"$package_tool" recompress -q -z zlib "$source" \
-			"$WORK/packages/$(basename "$source")"
+		cp "$source" "$WORK/packages/"
 	done
 	# FreeType (above) as HAIKU_ARM64_FREETYPE_PACKAGES_DIR: the tree's
 	# BuildFeatures compiles Haiku against freetype_devel and its Jamfile puts

@@ -159,20 +159,19 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   the images') has the zstd build feature, from Zstandard 1.5.7 packages CI
   builds (`deps/recipes/zstd.sh`, into `image-inputs/arm64/zstd`): packagefs,
   the boot loader and the package kit read zstd, and the images carry the
-  `zstd` package. Packages CI and the build make stay zlib-compressed
-  (`HAIKU_PACKAGE_DEFAULT_COMPRESSION=zlib`) until arm64 systems without zstd
-  support are gone; only then can arm64 packages switch to zstd. jam takes
-  both settings from the environment (`lib/env.sh` `zstd_build_feature`), and
-  a change of them builds the arm64 Haiku objects again, since jam does not
-  recompile objects whose flags changed.
-- Every image includes the CA root certificate package for HTTPS. ARM64
-  images stage an architecture-neutral copy using zlib compression so the
-  trust store also works with bootstrap package readers.
+  `zstd` package. Since 28 October 2026 the packages CI and the build make
+  are zstd-compressed too (`HAIKU_PACKAGE_DEFAULT_COMPRESSION=zstd`), as on
+  x86_64: arm64 images read zstd since 27 October, older arm64 installs are
+  reflashed. jam takes both settings from the environment (`lib/env.sh`
+  `zstd_build_feature`), and a change of them builds the arm64 Haiku objects
+  and the host package tool again, since jam does not recompile objects whose
+  flags changed.
+- Every image includes the CA root certificate package for HTTPS.
 - Every image has the system fonts: HaikuPorts' `noto` (Noto Sans, the
   default UI font, and Noto Sans Mono, the default fixed font) and
   `noto_sans_cjk_jp`. Haiku's arm64 repository has only a 2017 bootstrap
-  `noto` without Noto Sans Mono, so ARM64 images stage zlib copies of the
-  current packages instead and the bootstrap one stays out.
+  `noto` without Noto Sans Mono, so ARM64 images stage the current packages
+  instead and the bootstrap one stays out.
 - x86_64: HaikuPorts' packages for what the applications need. The x86_64
   `summit_webkit` carries a private Mesa with EGL (llvmpipe, zink), which
   needs HaikuPorts' LLVM 21 and Vulkan loader. Whatever the packages CI puts
