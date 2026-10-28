@@ -42,11 +42,12 @@ if [[ $ARCH == arm64 ]]; then
 	# icu74 and ncurses6 in place of the repository's bootstrap builds (their
 	# private unwinders); libffi, python312 and postgresql18 (python3.12 and
 	# PostgreSQL's client) for pgAdmin 4.
-	ORDER=(openssl nghttp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
+	ORDER=(openssl nghttp2 nghttp3 ngtcp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
 		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh nano git icu74 ncurses6
 		libffi python312 postgresql18)
 else
-	ORDER=(haikuports)
+	# and curl with HTTP/3 in place of HaikuPorts' (deps/recipes/curl.sh)
+	ORDER=(haikuports nghttp3 ngtcp2 curl)
 fi
 RECIPES=("${@:-${ORDER[@]}}")
 WORKDIR=$AIROS_WORK/deps-$ARCH

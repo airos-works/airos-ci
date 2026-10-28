@@ -1,0 +1,57 @@
+diff -ruN a/Configurations/60-haiku-aarch64.conf b/Configurations/60-haiku-aarch64.conf
+--- a/Configurations/60-haiku-aarch64.conf	1970-01-01 11:00:00.000000000 +1100
++++ b/Configurations/60-haiku-aarch64.conf
+@@ -0,0 +1,8 @@
++my %targets = (
++    "haiku-aarch64" => {
++        inherit_from     => [ "haiku-common" ],
++        bn_ops           => "SIXTY_FOUR_BIT_LONG RC4_CHAR",
++        asm_arch         => 'aarch64',
++        perlasm_scheme   => 'linux64',
++    },
++);
+diff -ruN a/crypto/armcap.c b/crypto/armcap.c
+--- a/crypto/armcap.c	2026-09-30 00:05:00.000000000 +1000
++++ b/crypto/armcap.c
+@@ -253,6 +253,10 @@
+ #if !defined(__APPLE__) && !defined(OSSL_IMPLEMENT_GETAUXVAL)
+     struct sigaction ill_oact, ill_act;
+     sigset_t oset;
++# if defined(__HAIKU__)
++    /* Haiku arm64 reported undefined instructions as SIGBUS, not SIGILL. */
++    struct sigaction bus_oact;
++# endif
+ #endif
+     static int trigger = 0;
+ 
+@@ -367,6 +371,9 @@
+ 
+     sigprocmask(SIG_SETMASK, &ill_act.sa_mask, &oset);
+     sigaction(SIGILL, &ill_act, &ill_oact);
++#  if defined(__HAIKU__)
++    sigaction(SIGBUS, &ill_act, &bus_oact);
++#  endif
+ 
+     OPENSSL_armcap_P |= arm_probe_for(_armv7_neon_probe, ARMV7_NEON);
+ 
+@@ -400,6 +407,9 @@
+      */
+ 
+     sigaction(SIGILL, &ill_oact, NULL);
++#  if defined(__HAIKU__)
++    sigaction(SIGBUS, &bus_oact, NULL);
++#  endif
+     sigprocmask(SIG_SETMASK, &oset, NULL);
+ 
+ #endif /* __APPLE__, OSSL_IMPLEMENT_GETAUXVAL */
+diff -ruN a/os-dep/haiku.h b/os-dep/haiku.h
+--- a/os-dep/haiku.h	2026-09-30 00:05:00.000000000 +1000
++++ b/os-dep/haiku.h
+@@ -7,5 +7,7 @@
+  * https://www.openssl.org/source/license.html
+  */
+ 
++#ifndef __ASSEMBLER__
+ #include <sys/select.h>
+ #include <sys/time.h>
++#endif

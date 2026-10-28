@@ -12,3 +12,7 @@ openssl3_devel
 ffmpeg6_devel
 lzo_devel
 lz4_devel
+# curl with HTTP/3 (deps/recipes/curl.sh) builds against what HaikuPorts' curl links
+nghttp2_devel
+libpsl_devel
+libssh2_devel

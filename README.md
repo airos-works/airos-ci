@@ -129,8 +129,15 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   heartbeats, at HaikuPorts' revision plus 101
   (`deps/build-qt-airos.sh`). Qt programs installed from HaikuDepot, such as
   Telegram, use it and are sharp at 125 to 175 percent.
-- arm64: libraries built from the airos-works forks (`airos_*` packages:
-  OpenSSL, curl, nghttp2, SQLite, TagLib, PCRE2, Scintilla, Lexilla),
+- curl with HTTP/3 on both architectures (`deps/recipes/curl.sh`: curl
+  8.23.0 with ngtcp2 1.25.0 and nghttp3 1.18.0 on OpenSSL 3.5's QUIC
+  interface, as `airos_ngtcp2` and `airos_nghttp3`). On x86_64 it is packaged
+  as `curl`, with HaikuPorts' curl's provides and what it links besides
+  (libpsl, libssh2), and takes its place in the image (the tree's CI
+  `UserBuildConfig`); on arm64 it is `airos_curl`.
+- arm64: libraries built from the airos-works forks or releases (`airos_*`
+  packages: OpenSSL 3.5, curl, nghttp2, SQLite, TagLib, PCRE2, Scintilla,
+  Lexilla),
   `rock5_ffmpeg` (FFmpeg 6.1.6 with Rockchip MPP hardware decoding),
   `wpa_supplicant`, libpng 1.6.44 as `libpng16` (Haiku's PNG translator is
   built with it), FreeType 2.14.3 as `freetype` (app_server's font engine,
