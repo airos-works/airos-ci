@@ -2166,8 +2166,12 @@ build_docker() {
 	retarget_package_info "$work/cli.PackageInfo" "$STAGE/.PackageInfo"
 	finish_package docker_cli bin/docker
 
-	# The Engine: dockerd from the pinned moby fork, with the session launch
-	# script the package has always carried.
+	# The Engine: dockerd from the pinned moby fork, with a user session job
+	# for launch_daemon that starts it at boot when start_at_boot is true in
+	# ~/config/settings/docker_engine (a flattened BMessage; Docker Desktop's
+	# "Start the Docker Engine at boot" check box writes it). The repository's
+	# own script stages a launch script under boot/home in the package, where
+	# nothing runs it. Revision 2: the first package with the job.
 	local moby=$work/moby version
 	fork_checkout moby "$moby"
 	version=$(docker_checkout_version "$moby" 'v*')
@@ -2175,14 +2179,18 @@ build_docker() {
 	stage_begin
 	install_binary "$work/dockerd" - bin/dockerd
 	install_file 644 "$moby/docs/airos.md" documentation/packages/docker_engine/airos.md
-	cat > "$work/dockerd-launch" <<'LAUNCH'
-#!/bin/sh
-# Start the Docker Engine for this user session.
-PATH=/boot/system/bin:/boot/home/config/non-packaged/bin:$PATH
-exec /boot/system/bin/dockerd --userland-proxy=false
+	cat > "$work/dockerd.launch" <<'LAUNCH'
+job x-vnd.airos-docker-engine {
+	env /system/boot/SetupEnvironment
+	launch /boot/system/bin/dockerd --userland-proxy=false
+	if setting ~/config/settings/docker_engine start_at_boot
+	on initial_volumes_mounted
+	no_safemode
+}
 LAUNCH
-	install_file 755 "$work/dockerd-launch" boot/home/config/settings/boot/launch/dockerd
+	install_file 644 "$work/dockerd.launch" data/user_launch/docker_engine
 	docker_package_info "$moby/tools/package-haiku-cross.sh" "$version" "$work/engine.PackageInfo"
+	sed -i "s/^version .*/version $version-2/" "$work/engine.PackageInfo"
 	retarget_package_info "$work/engine.PackageInfo" "$STAGE/.PackageInfo" '^(containerd|docker_cli)$'
 	finish_package docker_engine bin/dockerd
 
