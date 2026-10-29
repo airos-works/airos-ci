@@ -68,7 +68,8 @@ fi
 # in apps/office.lock.json and media.lock.json for the Office and Media folders.
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
 PINNED_SETS=(office media)
-[[ $TARGET != rpi4 ]] || IMAGE_APPS+=(rpi_installer)
+# First-boot setup (whole SD card, time zone) of the SD card images
+[[ $TARGET != rpi4 && $TARGET != cubie ]] || IMAGE_APPS+=(rpi_installer)
 # AirPins, the GPIO tool of the boards' pin headers
 [[ $TARGET != rpi4 && $TARGET != cubie ]] || IMAGE_APPS+=(airpins)
 # Aurora needs Node.js: HaikuPorts' nodejs22 on x86_64 (below), airos-ci's
