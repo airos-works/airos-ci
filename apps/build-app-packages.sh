@@ -196,6 +196,20 @@ install_binary() {
 	[[ $2 == - ]] || "$TOOLS/xres" -o "$dest" "$2"
 }
 
+# install_quick_look <built add-on> <name>: the app's preview for Tracker's
+# Quick Look panel (quick_look_server loads add-ons/quick_look/*), as the
+# app's own tools/package-haiku.sh stages it. An air/OS SDK has Quick Look,
+# so there the add-on must have been built (without it the panel shows only
+# file information); a Haiku release SDK has none and the package goes without.
+install_quick_look() {
+	if [[ ! -f $SYSROOT/boot/system/develop/headers/os/add-ons/quick_look/QuickLook.h ]]; then
+		echo "note: no Quick Look in this SDK, $2 ships without its preview" >&2
+		return
+	fi
+	[[ -f $1 ]] || die "no Quick Look add-on $1 (the Makefile did not find QuickLook.h)"
+	install_binary "$1" - "add-ons/quick_look/$2"
+}
+
 # install_file <mode> <source> <path in package>
 install_file() {
 	mkdir -p "$(dirname "$STAGE/$3")"
@@ -361,6 +375,8 @@ finish_package() {
 	echo "libraries outside the base system:"
 	local binary report=""
 	for binary in "$@"; do
+		# Optional binaries (a Quick Look add-on) may not be staged.
+		[[ -e $STAGE/$binary ]] || continue
 		report+=$(needed_libraries "$STAGE/$binary")$'\n'
 	done
 	report=$(printf '%s' "$report" | sed '/^$/d' | awk '!seen[$1]++' | sort)
@@ -594,6 +610,7 @@ build_airtime() {
 		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true
 	stage_begin
 	install_binary "$BUILDDIR/airTime" "$BUILDDIR/airTime.rsrc" apps/airTime
+	install_quick_look "$BUILDDIR/airTime_quicklook" airTime
 	install_file 755 "$SRC/resources/scripts/airtime-register-default.sh" \
 		boot/post-install/airtime-register-default.sh
 	docs airtime README.md LICENSE
@@ -606,7 +623,7 @@ build_airtime() {
 		retarget_package_info "$SRC/resources/airTime.PackageInfo" "$STAGE/.PackageInfo"
 	fi
 	add_attributes "$BUILDDIR/airTime.rsrc" apps/airTime
-	finish_package airtime apps/airTime
+	finish_package airtime apps/airTime add-ons/quick_look/airTime
 }
 
 # --- Kiri -------------------------------------------------------------------
@@ -667,9 +684,13 @@ INFO
 build_amp() {
 	note Amp
 	snapshot tasamp amp
-	CPATH=$(FARM_CPATH) make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" all
+	# HAIKU_HEADERS: the Makefile builds the Quick Look add-on only when it
+	# finds QuickLook.h there (its default is the build machine's /boot).
+	CPATH=$(FARM_CPATH) make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
+		HAIKU_HEADERS="$SYSROOT/boot/system/develop/headers" all
 	stage_begin
 	install_binary "$BUILDDIR/Amp" "$BUILDDIR/Amp.rsrc" apps/Amp
+	install_quick_look "$BUILDDIR/Amp_quicklook" Amp
 	docs amp README.md LICENSE docs vendor/nlohmann/LICENSE.MIT vendor/nlohmann/UPSTREAM.md \
 		vendor/fontawesome/LICENSE.txt vendor/fontawesome/UPSTREAM.md
 	# each licence named in .PackageInfo needs its text inside the package
@@ -682,7 +703,7 @@ build_amp() {
 	deskbar_link apps/Amp Amp
 	retarget_package_info "$SRC/resources/Amp.PackageInfo" "$STAGE/.PackageInfo"
 	add_attributes "$BUILDDIR/Amp.rsrc" apps/Amp
-	finish_package amp apps/Amp
+	finish_package amp apps/Amp add-ons/quick_look/Amp
 }
 
 # --- Turbo Chook ----------------------------------------------------------------
