@@ -1569,18 +1569,23 @@ build_proton_bridge() {
         "$SRC/tools/haiku/build-host-tools.sh"
         if [[ $ARCH == x86_64 ]]; then
             # Package extraction restores read-only directory modes. Stage into a
-            # fresh sibling so a second build cannot fail while overwriting files.
-            local staged
-            staged=$(mktemp -d "${deps}.stage.XXXXXX")
-            AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
-                "$AIROS_CI/deps/haikuports.py" stage x86_64 "$staged" \
-                qt6_base_devel qt6_declarative_devel qt6_svg_devel grpc_devel protobuf_devel
-            if [[ -d $deps ]]; then
-                [[ -f $deps/.haikuports.json || -z $(ls -A "$deps") ]] || die "refusing to replace an unrecognized Bridge dependency prefix: $deps"
-                chmod -R u+w "$deps"
-                rm -rf "$deps"
+            # fresh sibling so a second build cannot fail while overwriting files,
+            # and only when the packages changed (haikuports.py current); rm_attrs
+            # removes the old prefix's entries from the build's attribute store.
+            local staged bridge_deps=(qt6_base_devel qt6_declarative_devel qt6_svg_devel
+                grpc_devel protobuf_devel)
+            if ! AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+                    "$AIROS_CI/deps/haikuports.py" current x86_64 "$deps" "${bridge_deps[@]}"; then
+                staged=$(mktemp -d "${deps}.stage.XXXXXX")
+                AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
+                    "$AIROS_CI/deps/haikuports.py" stage x86_64 "$staged" "${bridge_deps[@]}"
+                if [[ -d $deps ]]; then
+                    [[ -f $deps/.haikuports.json || -z $(ls -A "$deps") ]] || die "refusing to replace an unrecognized Bridge dependency prefix: $deps"
+                    chmod -R u+w "$deps"
+                    "$TOOLS/rm_attrs" -rf "$deps"
+                fi
+                mv "$staged" "$deps"
             fi
-            mv "$staged" "$deps"
         else
             # Qt's platform plugin from the pinned fork, as the x86_64 images' Qt
             fork_checkout qt6-haikuplugins "$host/qt6-haikuplugins-$SDK_NAME"
@@ -1860,13 +1865,22 @@ build_airos_mail() {
 	stamp=$(TZ=UTC git -C "$APPS/mail" show -s --format=%cd --date=format-local:%Y%m%d.%H%M HEAD)
 	version=0.1.0~git$stamp-1
 	if [[ $ARCH == x86_64 ]]; then
-		# The HaikuPorts development packages it links, as a root of their own.
-		staged=$(mktemp -d "$work/deps.XXXXXX")
-		AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage x86_64 \
-			"$staged/boot/system" sqlite_devel libiconv_devel curl_devel openssl3_devel \
-			libxml2_devel icu74_devel harfbuzz_devel
-		rm -rf "$work/deps"
-		mv "$staged" "$work/deps"
+		# The HaikuPorts development packages it links, as a root of their own,
+		# staged again only when they changed (haikuports.py current); rm_attrs
+		# removes the old root's entries from the build's attribute store.
+		local mail_deps=(sqlite_devel libiconv_devel curl_devel openssl3_devel
+			libxml2_devel icu74_devel harfbuzz_devel)
+		if ! AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" \
+				current x86_64 "$work/deps/boot/system" "${mail_deps[@]}"; then
+			staged=$(mktemp -d "$work/deps.XXXXXX")
+			AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage x86_64 \
+				"$staged/boot/system" "${mail_deps[@]}"
+			if [[ -e $work/deps ]]; then
+				chmod -R u+w "$work/deps"
+				"$TOOLS/rm_attrs" -rf "$work/deps"
+			fi
+			mv "$staged" "$work/deps"
+		fi
 	else
 		mail_arm64_deps "$work/deps"
 	fi

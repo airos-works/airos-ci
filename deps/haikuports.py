@@ -6,6 +6,8 @@
                                                add their dependencies themselves)
     haikuports.py stage ARCH PREFIX REQ...     same, and extract them into PREFIX
                                                (a boot/system tree)
+    haikuports.py current ARCH PREFIX REQ...   exit 0 if PREFIX was staged from
+                                               exactly these files (its record)
 
 REQ is a package name (curl_devel) or a resolvable (devel:libcurl >= 8).
 What the Haiku base already provides (haiku, haiku_devel and the build
@@ -219,16 +221,24 @@ def main():
     if len(args) > 1 and args[1] == "--no-deps":
         deps = False
         del args[1]
-    if len(args) < 2 or args[0] not in ("fetch", "stage"):
+    if len(args) < 2 or args[0] not in ("fetch", "stage", "current"):
         sys.exit(__doc__)
     cmd, arch = args[0], args[1]
-    if cmd == "stage":
+    if cmd in ("stage", "current"):
         prefix, reqs = args[2], args[3:]
     else:
         prefix, reqs = None, args[2:]
     files = fetch(arch, reqs, deps)
     record = [{"file": os.path.basename(f), "sha256": hashlib.sha256(open(f, "rb").read()).hexdigest()}
               for f in files]
+    if cmd == "current":
+        # Staging again extracts every file anew, and the build's attribute
+        # emulation gives each one a new entry in its attribute store.
+        try:
+            with open(os.path.join(prefix, ".haikuports.json")) as f:
+                sys.exit(0 if json.load(f) == record else 1)
+        except (OSError, ValueError):
+            sys.exit(1)
     if prefix:
         os.makedirs(prefix, exist_ok=True)
         package = tool(arch, "package")
