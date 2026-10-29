@@ -11,6 +11,7 @@
 #   APP       build-app-packages.sh name: amp airtime airshot burrow clipper
 #             kiri natter turbochook lcdmonitor airpins snap wordcraft
 #             gridcraft deckcraft pdfcraft aurora proton_bridge proton_vpn airtop
+#             airimager
 #             code_oss github_desktop pgadmin4 (from the aurora repository),
 #             docker compose docker_desktop (the Docker stack: docker also
 #             builds the engine, containerd and buildx from the pinned forks),

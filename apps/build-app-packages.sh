@@ -7,7 +7,7 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
-#               natter airtime airtop airpins snap wordcraft gridcraft deckcraft
+#               natter airtime airtop airpins airimager snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
 #               airos_mail proton_vpn code_oss github_desktop pgadmin4
 #               docker compose docker_desktop (the Docker stack; their own CI
@@ -17,7 +17,7 @@
 #               pgadmin4, the Docker stack and Summit's two)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime AirTop airpins snap wordcraft gridcraft deckcraft pdfcraft
+#               airTime AirTop airpins airimager snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
 #               vscode desktop docker compose docker-desktop
 #               (CI jobs link their checkout there),
@@ -516,6 +516,28 @@ build_airtop() {
 	retarget_package_info "$SRC/resources/AirTop.PackageInfo" "$STAGE/.PackageInfo"
 	add_attributes "$BUILDDIR/AirTop.rsrc" apps/AirTop/AirTop
 	finish_package airtop apps/AirTop/AirTop
+}
+
+# --- airImager --------------------------------------------------------------
+# The image writer (airos-works/airimager): writes the airos.works images to
+# USB sticks and SD cards. In the Deskbar menu's Utilities folder, staged as
+# its tools/package-haiku.sh does; XZ Embedded is compiled in, and the disk
+# device API's private headers come from the SDK's sysroot.
+build_airimager() {
+	note airImager
+	snapshot airimager airimager
+	make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
+		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true all
+	stage_begin
+	install_binary "$BUILDDIR/airImager" "$BUILDDIR/airImager.rsrc" apps/airImager
+	docs airimager README.md LICENSE docs
+	install_file 644 "$SRC/third_party/xz-embedded/COPYING" \
+		documentation/packages/airimager/xz-embedded-COPYING
+	install_file 644 "$SRC/LICENSE" data/licenses/MIT
+	deskbar_link apps/airImager airImager Utilities
+	retarget_package_info "$SRC/resources/airImager.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/airImager.rsrc" apps/airImager
+	finish_package airimager apps/airImager
 }
 
 # --- AirPins ----------------------------------------------------------------
@@ -2311,7 +2333,7 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
-			snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
+			airimager snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
 			summit proton_bridge airos_mail proton_vpn code_oss github_desktop \
 			pgadmin4 docker compose docker_desktop; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their

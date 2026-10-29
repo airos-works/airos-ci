@@ -117,6 +117,9 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   `data/deskbar/menu/Developer` link).
 - **AirTop** (airos-works/airtop), a system monitor, and **Proton VPN**
   (airos-works/proton-vpn-airos-app), in Applications.
+- **airImager** (airos-works/airimager), which writes air/OS images (the
+  `.iso.xz`/`.img.xz` downloads, `.iso`, `.img`) to USB sticks and SD cards
+  and verifies them, on every target, in the Deskbar's **Utilities** folder.
 - Raspberry Pi 4 and Cubie A7S: **AirPins** (airos-works/AirPins), the GPIO
   tool for their pin headers.
 - **Office**, between Applications and Utilities in Deskbar: Clipper,

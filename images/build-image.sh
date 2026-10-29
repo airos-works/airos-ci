@@ -64,9 +64,10 @@ if [[ ${CLEAN:-0} == 1 ]]; then
 fi
 
 # The applications every image carries (Summit is the default browser; Snap
-# is in the Deskbar menu's Demos folder), and the ones built here at the pins
-# in apps/office.lock.json and media.lock.json for the Office and Media folders.
-IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap)
+# is in the Deskbar menu's Demos folder, airImager, the image writer, in its
+# Utilities folder), and the ones built here at the pins in
+# apps/office.lock.json and media.lock.json for the Office and Media folders.
+IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap airimager)
 PINNED_SETS=(office media)
 # First-boot setup (whole SD card, time zone) of the SD card images
 [[ $TARGET != rpi4 && $TARGET != cubie ]] || IMAGE_APPS+=(rpi_installer)
