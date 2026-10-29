@@ -2036,9 +2036,10 @@ build_craft() {
 			# without assuming optional AES/SHA instructions on every board.
 			export AWS_LC_SYS_CFLAGS_aarch64_unknown_haiku='-DOPENSSL_STATIC_ARMCAP -march=armv8-a'
 		fi
-		if [[ $app == lightcraft ]]; then
-			# LightCraft's release embeds the craft-fonts collection (pinned
-			# beside it in media.lock.json), as its tools/haiku/build.sh does.
+		if [[ $app == lightcraft || $app == photocraft ]]; then
+			# LightCraft's and PhotoCraft's releases embed the craft-fonts
+			# collection (pinned beside them in media.lock.json), as their
+			# tools/haiku/build.sh do.
 			export CRAFT_FONTS_DIR=$CRAFT_FONTS CRAFT_FONTS_REQUIRED=1
 		fi
 		# The snapshot has no .git; identify the source used by --version.
@@ -2079,15 +2080,15 @@ build_craft() {
 			install_file 644 "$SRC/assets/ATTRIBUTION.md" "documentation/packages/$app/ASSET-ATTRIBUTION.md"
 			install_file 644 "$SRC/apps/lightcraft-haiku/ATTRIBUTION.md" \
 				"documentation/packages/$app/NATIVE-ATTRIBUTION.md"
-			while IFS= read -r license; do
-				install_file 644 "$CRAFT_FONTS/$license" "documentation/packages/$app/licenses/craft-fonts/$license"
-			done < <(cd "$CRAFT_FONTS" && find . -name .git -prune -o -type f -regextype posix-extended \
-				-regex '(.*/)?(LICENSE|OFL|COPYING)[^/]*' -printf '%P\n' | sort)
 		fi
+		while IFS= read -r license; do
+			install_file 644 "$CRAFT_FONTS/$license" "documentation/packages/$app/licenses/craft-fonts/$license"
+		done < <(cd "$CRAFT_FONTS" && find . -name .git -prune -o -type f -regextype posix-extended \
+			-regex '(.*/)?(LICENSE|OFL|COPYING)[^/]*' -printf '%P\n' | sort)
 		;;
 	esac
 	case $app in
-	pdfcraft|photocraft|lightcraft)
+	*)
 		# egui's default fonts come from whichever egui the lock file names
 		# (crates.io before 0.37, the storytold/egui git fork since).
 		local version source fonts
@@ -2102,6 +2103,19 @@ build_craft() {
 		done
 		;;
 	esac
+	# The print backends render PDFs with hayro, which embeds Foxit fonts,
+	# Adobe CMaps and colour profiles. PdfCraft vendors it (its licences are
+	# in ATTRIBUTION.toml above); the others take it from crates.io.
+	local crate
+	for crate in hayro-cmap hayro-interpret hayro-jpeg2000; do
+		read -r version source < <(awk -F '"' -v name="$crate" '$0 == "name = \"" name "\"" { found = 1; next }
+			found && /^version = / { v = $2 } found && /^source = / { print v, $2; exit }
+			found && /^$/ { exit }' "$SRC/Cargo.lock") || continue
+		[[ $source == registry+* ]] || continue
+		for license in "$CARGO_HOME"/registry/src/*/"$crate-$version"/assets/*LICENSE*; do
+			install_file 644 "$license" "documentation/packages/$app/licenses/$crate/$(basename "$license")"
+		done
+	done
 	add_attributes "$BUILDDIR/$binary.rsrc" "apps/$binary"
 	finish_package "$app" "${binaries[@]}"
 }
@@ -2110,7 +2124,10 @@ build_wordcraft() { build_craft wordcraft WordCraft Office; }
 build_gridcraft() { build_craft gridcraft GridCraft Office; }
 build_deckcraft() { build_craft deckcraft DeckCraft Office; }
 build_pdfcraft() { build_craft pdfcraft PdfCraft Office; }
-build_photocraft() { build_craft photocraft PhotoCraft Media; }
+build_photocraft() {
+	[[ -f $CRAFT_FONTS/fonts/manifest.txt ]] || die "no craft-fonts checkout at $CRAFT_FONTS (CRAFT_FONTS)"
+	build_craft photocraft PhotoCraft Media
+}
 build_lightcraft() {
 	[[ -f $CRAFT_FONTS/fonts/manifest.txt ]] || die "no craft-fonts checkout at $CRAFT_FONTS (CRAFT_FONTS)"
 	build_craft lightcraft LightCraft Media
