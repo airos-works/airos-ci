@@ -65,6 +65,14 @@ update_sources() {
 		mkdir -p "$(dirname "$WT")"
 		with_lock haiku-clone git -C "$CLONE" worktree add -q --detach "$WT" "$SHA"
 	else
+		# The build's attribute emulation sets user.haiku.id on source files
+		# (headers it packages), which changes their ctime; a forced checkout
+		# then rewrote every such file although its content was the same, and
+		# the new mtimes of SupportDefs.h, math.h and others rebuilt all
+		# ~13 000 targets each time (and filled the attribute store with the
+		# rewritten files' new IDs). Refreshing the index first leaves
+		# unchanged files alone.
+		git -C "$WT" update-index -q --refresh > /dev/null || true
 		git -C "$WT" checkout -q --detach --force "$SHA"
 		git -C "$WT" clean -qfdx
 	fi
