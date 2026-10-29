@@ -85,6 +85,10 @@ IMAGE_APPS+=(airtop code_oss github_desktop)
 # HaikuPorts' python3.12 and PostgreSQL client (the requires below), arm64
 # images get them from deps/recipes (below).
 IMAGE_APPS+=(pgadmin4)
+# The Docker stack (the docker, compose and docker_desktop app jobs): the CLI,
+# the Engine with containerd and the buildx plugin, Compose, and Docker
+# Desktop, which joins the three above in the Deskbar's Developer folder.
+IMAGE_APPS+=(docker_cli docker_engine containerd docker_buildx docker_compose dockerdesktop)
 PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	PINNED_SETS+=(mail)

@@ -108,6 +108,13 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   take HaikuPorts' python3.12 and PostgreSQL client through its requires;
   arm64 images carry `libffi`, `python3.12` and `postgresql18` (the client)
   from `deps/recipes/`.
+- **Docker** (the `docker`, `compose` and `docker_desktop` app jobs): the CLI
+  (`docker_cli`), the Engine (`docker_engine`) with `containerd` and the
+  buildx plugin (`docker_buildx`), Compose (`docker_compose`) and Docker
+  Desktop (`dockerdesktop`), on both architectures.
+- Code - OSS, GitHub Desktop, pgAdmin 4 and Docker Desktop are in the
+  Deskbar's **Developer** folder (each package's own
+  `data/deskbar/menu/Developer` link).
 - **AirTop** (airos-works/airtop), a system monitor, and **Proton VPN**
   (airos-works/proton-vpn-airos-app), in Applications.
 - Raspberry Pi 4 and Cubie A7S: **AirPins** (airos-works/AirPins), the GPIO
