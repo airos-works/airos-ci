@@ -7,7 +7,7 @@
     },
     "summit": {
       "repo": "airos-works/summit",
-      "ref": "ca44cf9614b491fe693cc51d0e9ce0ed18716b04"
+      "ref": "1fe2f9344c1dd046dcabab520c52e010f173239a"
     },
     "burrow": {
       "repo": "airos-works/burrow",
@@ -432,6 +432,10 @@
         {
           "from": "summit:tools/mesa-vm/mesa-25.3.6-summit-06-present-into-screen.patch",
           "message": "EGL Haiku: present into the screen (Summit)"
+        },
+        {
+          "from": "summit:tools/mesa-vm/mesa-25.3.6-summit-07-deferred-present.patch",
+          "message": "EGL Haiku: deferred presents, copied by a helper thread (Summit)"
         },
         {
           "from": "ci:forks/patches/mesa-hgl-format-dep.patch",

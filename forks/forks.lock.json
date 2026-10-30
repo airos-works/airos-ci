@@ -300,7 +300,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos-25.3.6-x86_64",
-    "commit": "d7d67ef2c570ea9e64fa3db3978cf7e2be7a771a",
+    "commit": "4472bbe162179b08de7b3a0509f1280631319c80",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
