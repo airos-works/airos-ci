@@ -2427,15 +2427,16 @@ build_docker_desktop() {
 	make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
 		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true
 	stage_begin
-	install_binary "$BUILDDIR/DockerDesktop" "$BUILDDIR/docker-desktop.rsrc" apps/DockerDesktop
+	# Installed as "Docker Desktop": the Deskbar names a running app by its file.
+	install_binary "$BUILDDIR/DockerDesktop" "$BUILDDIR/docker-desktop.rsrc" "apps/Docker Desktop"
 	docs dockerdesktop README.md LICENSE
-	deskbar_link apps/DockerDesktop DockerDesktop Developer
+	deskbar_link "apps/Docker Desktop" "Docker Desktop" Developer
 	sed -e "s/^architecture[ \t].*/architecture x86_64/" \
 		-e "s/^version .*/version $version-1/" \
 		"$SRC/resources/docker-desktop.PackageInfo" > "$APPBUILD/docker_desktop/PackageInfo"
 	retarget_package_info "$APPBUILD/docker_desktop/PackageInfo" "$STAGE/.PackageInfo"
-	add_attributes "$BUILDDIR/docker-desktop.rsrc" apps/DockerDesktop
-	finish_package dockerdesktop apps/DockerDesktop
+	add_attributes "$BUILDDIR/docker-desktop.rsrc" "apps/Docker Desktop"
+	finish_package dockerdesktop "apps/Docker Desktop"
 }
 
 main() {
