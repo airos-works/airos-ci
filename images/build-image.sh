@@ -344,7 +344,11 @@ else
 fi
 if [[ $TARGET == cubie ]]; then
 	build_stage "Cubie inputs" "PowerVR graphics, firmware and U-Boot"
-	"$AIROS_CI/deps/build-cubie.sh"
+	# Byte-order collation: the tree's tools/cubie-a7s/mesa/build.sh checks
+	# symbols with sort -u | comm, which en_US.UTF-8 collation (the
+	# dashboard's builds inherit it; the runners' do not) makes comm reject
+	# as unsorted, stopping the build.
+	LC_COLLATE=C.UTF-8 "$AIROS_CI/deps/build-cubie.sh"
 fi
 # arm64 EFI: the Dragon Q8B's GPU user land (deps/build-dragon.sh), once the
 # tree has its build
