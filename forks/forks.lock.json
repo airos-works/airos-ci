@@ -516,7 +516,7 @@
     "base": "v2.4.2",
     "base_commit": "49c2af6b7b0785ff636bed8b70a86f073ce8bd6e",
     "branch": "airos",
-    "commit": "932b93ed1c3bbcf4fc49a191301ea4fac0f590cc",
+    "commit": "daa379edd89d9aa2e69f19a79999a5245771d701",
     "repo": "containerd",
     "upstream": "https://github.com/containerd/containerd.git",
     "url": "https://github.com/airos-works/containerd.git"
@@ -552,7 +552,7 @@
     "base": null,
     "base_commit": null,
     "branch": "main",
-    "commit": "29d8326defd0df338e8ee71408e1ceab24845437",
+    "commit": "9ce7f613cd97dc974060d42017dd5ccb5e519cd1",
     "repo": "linuxvm",
     "upstream": null,
     "url": "https://github.com/airos-works/linuxvm.git"
