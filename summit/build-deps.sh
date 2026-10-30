@@ -11,8 +11,9 @@
 #
 #   zlib (the SDK's), OpenSSL, nghttp2, libpsl, curl, SQLite, libxml2,
 #   libxslt, libjpeg-turbo, libpng, libwebp, Little-CMS, Brotli, WOFF2,
-#   libzip, ICU 78.3, and for GL compositing FreeType, Expat, Fontconfig,
-#   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh).
+#   libzip, ICU 78.3, for GL compositing FreeType, Expat, Fontconfig,
+#   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh),
+#   and for AVIF images dav1d and libavif.
 #
 # For x86_64 (air/OS, and a Haiku release with AIROS_TARGET=r1beta6) only
 # ICU 78, libzip and libepoxy are built: the image has the others, and the
@@ -230,15 +231,18 @@ r_harfbuzz() {
 		-DHB_HAVE_GLIB=OFF
 }
 r_system() { # the image's own libraries (SYSLIBS): their pkg-config files
-	local dir=$SYSLIBS/develop/lib/pkgconfig name
+	local dir=$SYSLIBS/develop/lib/pkgconfig name edits
 	for name in openssl libssl libcrypto libnghttp2 libpsl libcurl sqlite3 libxml-2.0 libxslt libexslt \
 			libjpeg libpng libpng16 libwebp libwebpdemux libwebpmux libsharpyuv lcms2 \
 			libbrotlicommon libbrotlidec libbrotlienc libwoff2common libwoff2dec freetype2 expat \
-			fontconfig harfbuzz harfbuzz-icu; do
+			fontconfig harfbuzz harfbuzz-icu libavif; do
 		[[ -f $dir/$name.pc ]] || die "no $name.pc in $SYSLIBS (summit/lib.sh, sdk/build-release-sdk.sh)"
-		# HaikuPorts' files name the package's own directory
-		sed -e "s|^prefix=.*|prefix=$SYSLIBS|" -e "s|/boot/system/|$SYSLIBS/|g" \
-			"$dir/$name.pc" > "$P/lib/pkgconfig/$name.pc"
+		# HaikuPorts' files name the package's own directory. libavif's
+		# Requires.private (dav1d, rav1e: for static linking) have no devel
+		# packages staged, and pkg-config would fail on them.
+		edits=(-e "s|^prefix=.*|prefix=$SYSLIBS|" -e "s|/boot/system/|$SYSLIBS/|g")
+		[[ $name != libavif ]] || edits+=(-e '/^Requires\.private:/d')
+		sed "${edits[@]}" "$dir/$name.pc" > "$P/lib/pkgconfig/$name.pc"
 	done
 }
 r_libepoxy() {
@@ -284,9 +288,48 @@ EOF
 	ninja -C _b install
 }
 
+r_dav1d() { # libavif's AV1 decoder, with its NEON code on arm64
+	cat > _cross.ini <<EOF
+[binaries]
+c = '${CROSS}gcc'
+ar = '${CROSS}ar'
+strip = '${CROSS}strip'
+pkg-config = '/usr/bin/pkg-config'
+
+[host_machine]
+system = 'haiku'
+cpu_family = '$PROCESSOR'
+cpu = '$PROCESSOR'
+endian = 'little'
+
+[properties]
+needs_exe_wrapper = true
+pkg_config_libdir = ['$P/lib/pkgconfig']
+
+[built-in options]
+c_args = ['--sysroot=$SYSROOT']
+c_link_args = ['--sysroot=$SYSROOT', '-specs=$UNWIND_SPECS', '-Wl,--hash-style=both', '-Wl,-Bsymbolic-functions']
+EOF
+	rm -rf _b
+	env -u CC -u CXX -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS \
+		meson setup _b . --cross-file=_cross.ini --prefix="$P" --libdir=lib --buildtype=release \
+		-Ddefault_library=shared -Denable_tools=false -Denable_examples=false -Denable_tests=false \
+		-Denable_docs=false
+	ninja -C _b -j"$JOBS"
+	ninja -C _b install
+	# meson puts a Haiku target's pkg-config file in develop/lib/pkgconfig
+	mv "$P/develop/lib/pkgconfig/dav1d.pc" "$P/lib/pkgconfig/"
+}
+r_libavif() { # AVIF images (WebKit's USE_AVIF): decoding only, with dav1d
+	cm -DAVIF_CODEC_DAV1D=SYSTEM -DAVIF_CODEC_AOM=OFF -DAVIF_CODEC_RAV1E=OFF -DAVIF_CODEC_SVT=OFF \
+		-DAVIF_CODEC_LIBGAV1=OFF -DAVIF_CODEC_AVM=OFF -DAVIF_LIBYUV=OFF -DAVIF_LIBSHARPYUV=OFF \
+		-DAVIF_LIBXML2=OFF -DAVIF_JPEG=OFF -DAVIF_ZLIBPNG=OFF -DAVIF_BUILD_APPS=OFF \
+		-DAVIF_BUILD_TESTS=OFF -DAVIF_BUILD_EXAMPLES=OFF
+}
+
 if [[ -z $SYSLIBS ]]; then
 	ORDER=(zlib openssl nghttp2 libpsl curl sqlite libxml2 libxslt libjpeg-turbo libpng libwebp
-		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy)
+		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy dav1d libavif)
 else
 	ORDER=(zlib system libzip icu libepoxy)
 fi

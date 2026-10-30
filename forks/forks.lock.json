@@ -529,5 +529,23 @@
     "repo": "buildx",
     "upstream": "https://github.com/docker/buildx.git",
     "url": "https://github.com/airos-works/buildx.git"
+  },
+  "dav1d": {
+    "base": "1.5.4",
+    "base_commit": "54706fc6bc0cdecab7e9593974a4039cc038fca7",
+    "branch": "airos-1.5.4",
+    "commit": "54706fc6bc0cdecab7e9593974a4039cc038fca7",
+    "repo": "dav1d",
+    "upstream": "https://github.com/videolan/dav1d.git",
+    "url": "https://github.com/airos-works/dav1d.git"
+  },
+  "libavif": {
+    "base": "v1.4.2",
+    "base_commit": "c5240fc79fe5c2407e10afd35f5505ef6333ea49",
+    "branch": "airos-v1.4.2",
+    "commit": "c5240fc79fe5c2407e10afd35f5505ef6333ea49",
+    "repo": "libavif",
+    "upstream": "https://github.com/AOMediaCodec/libavif.git",
+    "url": "https://github.com/airos-works/libavif.git"
   }
 }

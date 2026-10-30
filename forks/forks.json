@@ -762,6 +762,26 @@
       "used_by": "Summit engine with GL compositing (Pi / ROCK 5 build-gl-deps.sh)"
     },
     {
+      "name": "dav1d",
+      "wave": 4,
+      "create": "fork",
+      "github": "videolan/dav1d",
+      "base": "1.5.4",
+      "branch": "airos-1.5.4",
+      "patches": [],
+      "used_by": "Summit engine dependency (arm64 build-deps.sh): the AV1 decoder of libavif (AVIF images)"
+    },
+    {
+      "name": "libavif",
+      "wave": 4,
+      "create": "fork",
+      "github": "AOMediaCodec/libavif",
+      "base": "v1.4.2",
+      "branch": "airos-v1.4.2",
+      "patches": [],
+      "used_by": "Summit engine dependency (arm64 build-deps.sh): AVIF images (USE_AVIF), decoding with dav1d"
+    },
+    {
       "name": "open-gpu-kernel-modules",
       "repo": "open-gpu-kernel-modules",
       "wave": 5,

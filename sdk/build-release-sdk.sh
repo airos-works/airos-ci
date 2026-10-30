@@ -61,7 +61,7 @@ UPSTREAM=${HAIKU_UPSTREAM:-https://github.com/haiku/haiku.git}
 HAIKUPORTS=(gcc_syslibs_devel zlib_devel curl_devel openssl3_devel nghttp2_devel libpsl_devel
 	sqlite_devel libxml2_devel libxslt_devel libjpeg_turbo_devel libpng16_devel libwebp_devel
 	lcms_devel brotli_devel woff2_devel freetype_devel expat_devel fontconfig_devel harfbuzz_devel
-	libexecinfo_devel scintilla scintilla_devel lexilla lexilla_devel)
+	libavif1.0_devel libexecinfo_devel scintilla scintilla_devel lexilla lexilla_devel)
 
 if [[ ${AIROS_LOCKED:-} != haiku-$NAME ]]; then
 	exec env AIROS_LOCKED=haiku-$NAME flock "$AIROS_LOCKS/haiku-$NAME.lock" "$0" "$@"

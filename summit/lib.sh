@@ -32,8 +32,8 @@
 
 SDK_NAME=$(sdk_name "$ARCH")
 SUMMIT_ROOT=$AIROS_ROOT/summit/$SDK_NAME
-SUMMIT_SYSTEM_LIBS=(brotli curl expat fontconfig freetype harfbuzz lcms libexecinfo libjpeg_turbo
-	libpng16 libpsl libwebp libxml2 libxslt nghttp2 openssl3 sqlite woff2)
+SUMMIT_SYSTEM_LIBS=(brotli curl expat fontconfig freetype harfbuzz lcms libavif1.0 libexecinfo
+	libjpeg_turbo libpng16 libpsl libwebp libxml2 libxslt nghttp2 openssl3 sqlite woff2)
 if [[ $ARCH != x86_64 ]]; then
 	SYSLIBS=
 elif [[ $SDK_NAME == "$ARCH" ]]; then
