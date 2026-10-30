@@ -516,7 +516,7 @@
     "base": "v2.4.2",
     "base_commit": "49c2af6b7b0785ff636bed8b70a86f073ce8bd6e",
     "branch": "airos",
-    "commit": "8d6d90efc6610981cad558240f9562403c6f0fe6",
+    "commit": "400ef1402710729a7cf34de685eea9c2ed6ce025",
     "repo": "containerd",
     "upstream": "https://github.com/containerd/containerd.git",
     "url": "https://github.com/airos-works/containerd.git"
