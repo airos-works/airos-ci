@@ -507,7 +507,7 @@
     "base": "v28.5.2",
     "base_commit": "3ef3c07c883be49a2e8097bcf6d2952fce1d70eb",
     "branch": "airos",
-    "commit": "a6bc149e36ab34830a08784c5650e7b3664a34c9",
+    "commit": "e042e2f131554c22c373659cab3643b451f90073",
     "repo": "moby",
     "upstream": "https://github.com/moby/moby.git",
     "url": "https://github.com/airos-works/moby.git"
@@ -516,7 +516,7 @@
     "base": "v2.4.2",
     "base_commit": "49c2af6b7b0785ff636bed8b70a86f073ce8bd6e",
     "branch": "airos",
-    "commit": "d6c2a1800a0113d871559c22d93941b5bb3119e6",
+    "commit": "932b93ed1c3bbcf4fc49a191301ea4fac0f590cc",
     "repo": "containerd",
     "upstream": "https://github.com/containerd/containerd.git",
     "url": "https://github.com/airos-works/containerd.git"
@@ -552,7 +552,7 @@
     "base": null,
     "base_commit": null,
     "branch": "main",
-    "commit": "24da9360a805c729204951d1026796e57bcac055",
+    "commit": "29d8326defd0df338e8ee71408e1ceab24845437",
     "repo": "linuxvm",
     "upstream": null,
     "url": "https://github.com/airos-works/linuxvm.git"
