@@ -22,12 +22,12 @@
 #
 # And the GPU user land, in $AIROS_ROOT/image-inputs/x86_64/amdgpu/userland:
 # libdrm, libva, libglvnd and Mesa (radeonsi, RADV, the VA-API driver) from
-# deps/build-amdgpu-userland.sh, and the amdgpu_va media add-on (H.264 and HEVC
-# on the GPU through VA-API; installed as "amduvd", the name airTime and Summit
-# load AMD decoders by), built here from the Haiku tree. The image ships the
-# tree in system/non-packaged/amdgpu; its boot script links it into
-# system/non-packaged only where amdgpu_drm drives a GPU (Haiku's
-# tools/airos/ci/boot/UserBootscript).
+# deps/build-amdgpu-userland.sh, and the amdgpu_va media add-on (H.264, HEVC,
+# VP9 and AV1 on the GPU through VA-API; installed as "amduvd", the name
+# airTime and Summit load AMD decoders by), built here from the Haiku tree.
+# The image ships the tree in system/non-packaged/amdgpu; its boot script
+# links it into system/non-packaged only where amdgpu_drm drives a GPU
+# (Haiku's tools/airos/ci/boot/UserBootscript).
 #
 # images/build-image.sh x86_64 runs this with every image build, so the
 # driver and the add-on match the image's Haiku revision; the sdk-deps

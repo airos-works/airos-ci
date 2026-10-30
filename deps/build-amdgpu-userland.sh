@@ -15,8 +15,8 @@
 #                           GLES, EGL; llvmpipe and softpipe besides), RADV
 #                           (Vulkan, with Wayland windows through Haiku's
 #                           in-process Wayland server) and the VA-API driver
-#   FFmpeg (static)         airos-works/ffmpeg airos-6.1.6, H.264 and HEVC with
-#                           VA-API only, for the amdgpu_va media add-on
+#   FFmpeg (static)         airos-works/ffmpeg airos-6.1.6, H.264, HEVC, VP9 and
+#                           AV1 with VA-API only, for the amdgpu_va media add-on
 #   in-process Wayland      airos-works/wayland-server airos: X547's server with
 #   server                  the desktop's scale for GTK, Firefox and Vulkan
 #                           windows; ahead of HaikuPorts' wayland_server in
@@ -267,11 +267,14 @@ mkdir -p "$W/build-ffmpeg"
 	--enable-static --disable-shared --enable-pic --disable-programs --disable-doc \
 	--disable-avdevice --disable-avformat --disable-avfilter --disable-swresample \
 	--disable-swscale --disable-network --disable-autodetect --disable-everything \
-	--enable-decoder=h264,hevc --enable-parser=h264,hevc \
-	--enable-hwaccel=h264_vaapi,hevc_vaapi --enable-vaapi > "$W/ffmpeg-configure.log" 2>&1) \
+	--enable-decoder=h264,hevc,vp9,av1 --enable-parser=h264,hevc,vp9,av1 \
+	--enable-hwaccel=h264_vaapi,hevc_vaapi,vp9_vaapi,av1_vaapi --enable-vaapi \
+	> "$W/ffmpeg-configure.log" 2>&1) \
 	|| { tail -30 "$W/ffmpeg-configure.log"; die "FFmpeg configure failed ($W/ffmpeg-configure.log)"; }
-grep -q '^CONFIG_H264_VAAPI_HWACCEL=yes' "$W/build-ffmpeg/ffbuild/config.mak" \
-	|| die "FFmpeg was configured without H.264 on VA-API"
+for hwaccel in H264 HEVC VP9 AV1; do
+	grep -q "^CONFIG_${hwaccel}_VAAPI_HWACCEL=yes" "$W/build-ffmpeg/ffbuild/config.mak" \
+		|| die "FFmpeg was configured without $hwaccel on VA-API"
+done
 cross make -C "$W/build-ffmpeg" -j"$JOBS" install > "$W/ffmpeg-build.log" 2>&1 \
 	|| { grep -m5 -B2 -A12 -E 'error' "$W/ffmpeg-build.log"; die "FFmpeg build failed ($W/ffmpeg-build.log)"; }
 # and libva for the add-on to link against
