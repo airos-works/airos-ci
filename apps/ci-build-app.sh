@@ -16,7 +16,7 @@
 #             docker compose docker_desktop (the Docker stack: docker also
 #             builds the engine, containerd and buildx from the pinned forks),
 #             or several
-#             with commas (summit_webkit,summit)
+#             with commas (summit_webkit,summit,summit_webkitlegacy)
 #   REPO_DIR  the directory name build-app-packages.sh knows the repository by
 #             (tasamp for Amp, airTime, airShot, turbochook, docker for the
 #             Docker CLI, compose, docker-desktop, ...)

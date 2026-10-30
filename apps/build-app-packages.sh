@@ -8,13 +8,14 @@
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
 #               natter airtime airtop airpins airimager snap wordcraft gridcraft deckcraft
-#               pdfcraft photocraft lightcraft aurora summit_webkit summit proton_bridge
-#               airos_mail proton_vpn code_oss github_desktop pgadmin4
+#               pdfcraft photocraft lightcraft aurora summit_webkit summit
+#               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
+#               github_desktop pgadmin4
 #               docker compose docker_desktop (the Docker stack; their own CI
 #               jobs, docker also builds the engine, containerd and buildx
 #               from the pinned forks)
 #               (default: all but airpins, airos_mail, code_oss, github_desktop,
-#               pgadmin4, the Docker stack and Summit's two)
+#               pgadmin4, the Docker stack and Summit's three)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins airimager snap wordcraft gridcraft deckcraft pdfcraft
@@ -848,6 +849,9 @@ INFO"' _ "$work/PackageInfo.template" > "$work/Natter.PackageInfo"
 #                  libraries of summit/build-deps.sh), the public headers in
 #                  develop/headers/summit-webkit
 #   summit         the browser, the system's default web browser
+#   summit_webkitlegacy
+#                  HaikuWebKit's BWebView API (WebPositive's) on the engine, in
+#                  place of HaikuPorts' haikuwebkit (below)
 # With AIROS_TARGET=r1beta6 (lib/sdk.sh: SDK_NAME x86_64-r1beta6) both are for
 # a stock Haiku R1/beta6 installation instead: built against that release,
 # the browser without what only air/OS's app_server takes (SUMMIT_AIROS=0),
@@ -1186,6 +1190,115 @@ INFO
 	DROPPED="(none)"
 	add_attributes "$BUILDDIR/Summit.rsrc" apps/Summit
 	finish_package summit apps/Summit
+}
+
+# summit_webkitlegacy: libWebKitLegacy, the BWebView API of HaikuWebKit
+# (WebPositive's) on Summit's engine, from the Summit checkout's legacy/ (its
+# Makefile, as Summit's tools/package-summit-webkitlegacy.sh builds it on a
+# workstation) with Summit's developer tools from src/ as its web inspector.
+# It takes the place of HaikuPorts' haikuwebkit and haikuwebkit_devel: it
+# provides both (WebPositive requires haikuwebkit >= 1.10.0), holds their
+# library and header paths, and replaces and conflicts with them, so a
+# program built for HaikuWebKit runs on the engine of the same build. Built
+# with summit_webkit, after the engine (summit/build-summit.sh).
+SUMMIT_WEBKITLEGACY_API=1.10.0
+build_summit_webkitlegacy() {
+	note "summit_webkitlegacy (the BWebView API on Summit's engine)"
+	summit_engine_built || die "no Summit engine in $SUMMIT_ENGINE_BUILD (summit/build-engine.sh)"
+	summit_versions
+	snapshot summit summit_webkitlegacy
+	[[ -f $SRC/legacy/Makefile ]] || die "no legacy/Makefile in this Summit revision"
+	local work=$APPBUILD/summit_webkitlegacy
+	# The engine's public headers, as an installed engine has them (times
+	# kept: the developer tools' objects follow them through their -MMD lists).
+	rm -rf "$work/engine"
+	mkdir -p "$work/engine/include/WebKit"
+	local header
+	for header in $(engine_api_headers); do
+		cp -p "$header" "$work/engine/include/WebKit/"
+	done
+	# legacy/'s own objects list only its headers as dependencies; they are
+	# few, so they are always compiled again (an engine header may have
+	# changed).
+	rm -f "$BUILDDIR"/*.o
+	local develop=$SYSROOT/boot/system/develop
+	local static
+	for static in libnetservices.a libshared.a libcolumnlistview.a; do
+		[[ -f $develop/lib/$static ]] || die "summit_webkitlegacy: no $static in the SDK ($develop/lib)"
+	done
+	[[ -e $FARM/include/scintilla && -e $FARM/include/lexilla && -e $FARM/lib/libscintilla.so \
+		&& -e $FARM/lib/liblexilla.so ]] || die "summit_webkitlegacy: no Scintilla or Lexilla in DEPS"
+	# CXX carries the sysroot and the farm (-lscintilla, -llexilla); the
+	# linker follows libWebKit's own libraries through -rpath-link. The
+	# library's run-time path is the installed engine's (legacy/Makefile).
+	local link="-Wl,-rpath-link,$SUMMIT_ENGINE_BUILD/lib -Wl,-rpath-link,$SUMMIT_LIBS/lib"
+	link+=" -Wl,-rpath-link,$TLS_DEPS/lib -Wl,-rpath-link,$GL_SYSTEM/lib"
+	[[ -z $SUMMIT_SYSLIBS ]] || link+=" -Wl,-rpath-link,$SUMMIT_SYSLIBS/lib"
+	link+=" -Wl,-rpath-link,$SYSROOT/boot/system/lib"
+	make -C "$SRC/legacy" -s -j"$JOBS" OUT="$BUILDDIR" CXX="$CXX_T" CXXFLAGS=-O2 \
+		LDFLAGS="$link" VERSION="$SUMMIT_WEBKITLEGACY_API" \
+		ENGINE_HEADERS="$work/engine/include" ENGINE_LIB="$SUMMIT_ENGINE_BUILD/lib" \
+		ENGINE_RUNPATH="$ENGINE_DIR/lib" PRIVATE_HEADERS="$develop/headers/private" \
+		SCINTILLA_HEADERS="$FARM/include/scintilla $FARM/include/lexilla" \
+		STATIC_LIBS="$develop/lib" SUMMIT_SRC="$SRC/src" SUMMIT_VENDOR="$SRC/vendor"
+	local library=libWebKitLegacy.so.$SUMMIT_WEBKITLEGACY_API
+	[[ -f $BUILDDIR/$library ]] || die "summit_webkitlegacy: make left no $library"
+
+	stage_begin
+	install_binary "$BUILDDIR/$library" - "lib/$library"
+	ln -s "$library" "$STAGE/lib/libWebKitLegacy.so.1"
+	mkdir -p "$STAGE/develop/lib" "$STAGE/develop/headers"
+	ln -s ../../lib/libWebKitLegacy.so.1 "$STAGE/develop/lib/libWebKitLegacy.so"
+	cp "$SRC"/legacy/headers/*.h "$STAGE/develop/headers/"
+	chmod 644 "$STAGE"/develop/headers/*.h
+	docs summit_webkitlegacy legacy/README.md docs/legacy-webview.md LICENSE
+	# x86_64: Scintilla and Lexilla (the inspector's text views) from
+	# HaikuPorts; arm64 images carry airos_scintilla and airos_lexilla, which
+	# provide no lib: names (as retarget_package_info, no lib: requires on
+	# arm64).
+	local text_requires=""
+	[[ $ARCH == arm64 ]] || text_requires=$'\tlib:libscintilla\n\tlib:liblexilla'
+	cat > "$STAGE/.PackageInfo" <<INFO
+name			summit_webkitlegacy
+version			$SUMMIT_WEBKIT_VERSION
+architecture	$ARCH
+summary			"The BWebView API of WebPositive on the Summit browser's engine"
+description		"libWebKitLegacy with the classes of HaikuWebKit's API (BWebView, BWebPage, BWebWindow, BWebDownload, BWebSettings, BWebFrame) running on the Summit browser's WebKit engine (summit_webkit), with Summit's developer tools as its web inspector. Programs built for HaikuWebKit, such as WebPositive, run on it unchanged. Replaces haikuwebkit and haikuwebkit_devel. The $SUMMIT_FOR build, made by air/OS CI from Summit $(git -C "$APPS/summit" rev-parse --short HEAD) against the summit_webkit engine of the same build."
+packager		"air/OS CI"
+vendor			"Summit project"
+copyrights {
+	"2026 Summit contributors"
+	"2007-2010 Andrea Anzani, Ryan Leavengood, Maxime Simon, Stephan Aßmus (BWebWindow, headers)"
+	"2012 Alexandre Deckner (WebKitInfo.h)"
+	"2013-2025 Niels Lohmann"
+}
+licenses {
+	"MIT"
+	"BSD (2-clause)"
+}
+provides {
+	summit_webkitlegacy = ${SUMMIT_WEBKIT_VERSION%-*}
+	haikuwebkit = ${SUMMIT_WEBKIT_VERSION%-*}
+	haikuwebkit_devel = ${SUMMIT_WEBKIT_VERSION%-*}
+	lib:libWebKitLegacy = $SUMMIT_WEBKITLEGACY_API compat >= 1
+	devel:libWebKitLegacy = $SUMMIT_WEBKITLEGACY_API compat >= 1
+}
+requires {
+	$SUMMIT_HAIKU_REQUIRES
+	summit_webkit >= ${SUMMIT_WEBKIT_VERSION%-*}
+$text_requires
+}
+conflicts {
+	haikuwebkit
+	haikuwebkit_devel
+}
+replaces {
+	haikuwebkit
+	haikuwebkit_devel
+}
+INFO
+	DROPPED="(none)"
+	finish_package summit_webkitlegacy "lib/$library"
 }
 
 # --- Aurora -------------------------------------------------------------------
@@ -2334,14 +2447,14 @@ main() {
 	local app
 	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
 			airimager snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
-			summit proton_bridge airos_mail proton_vpn code_oss github_desktop \
+			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
 			pgadmin4 docker compose docker_desktop; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
 		# (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library) and the
 		# Docker stack (their own CI jobs; build_docker also checks out forks)
-		[[ $app =~ ^(airpins|summit_webkit|summit|airos_mail|code_oss|github_desktop|pgadmin4|docker|compose|docker_desktop)$ && ${#SELECTED[@]} -eq 0 ]] \
+		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|docker|compose|docker_desktop)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done

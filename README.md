@@ -10,7 +10,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Images | `airos-works/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, AirTop, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN, Proton Mail Bridge, Aurora and Code - OSS; every app builds from its `main` branch (Code - OSS from `haiku`); a rolling `latest` release and the "Latest builds" section of each README |
 | Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
-| Summit | `airos-works/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine) and `summit` (the browser); with `haiku-releases`, the same for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
+| Summit | `airos-works/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine), `summit` (the browser) and `summit_webkitlegacy` (HaikuWebKit's BWebView API on the engine); with `haiku-releases`, the first two for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
 The applications and Summit go into the **package pool**
@@ -55,6 +55,13 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   preferred app for http/https links, HTML and XHTML), with its engine
   `summit_webkit`. The engine has GL compositing, WebGL, WebRTC and media
   playback.
+- `summit_webkitlegacy` (Summit's `legacy/`): `libWebKitLegacy`, HaikuWebKit's
+  BWebView API (WebPositive's) on Summit's engine, with Summit's developer
+  tools as its web inspector. It provides, replaces and conflicts with
+  HaikuPorts' `haikuwebkit` and `haikuwebkit_devel`, so programs built for
+  HaikuWebKit run on the image's engine and pkgman does not fetch
+  HaikuPorts' engine for them. The images have no WebPositive (the tree
+  stopped building it on 17 October 2026, Summit is the browser).
 - Amp, airTime, Kiri, airShot and Burrow.
 - **Proton Mail Bridge**, built from the reviewed `master` commit in
   `apps/bridge.lock.json`, with the native system key store and Qt Quick desktop.
@@ -303,7 +310,7 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `deps/build-amdgpu-userland.sh` | x86_64 AMD GPU user land: libdrm, libva, libglvnd, Mesa (radeonsi, RADV, VA-API), static FFmpeg for `amduvd` |
 | `deps/build-nvk.sh`, `deps/build-zink.sh` | x86_64: NVK (Vulkan) and the Zink renderer add-on of the OpenGL kit; run by every x86_64 image build |
 | `sdk/build-rust.sh` | a pinned Rust nightly with std for x86_64 and ARM64 Haiku; bindgen and cbindgen for NVK's NAK |
-| `apps/build-app-packages.sh` | cross-builds the applications, `summit_webkit` and `summit` into Haiku packages |
+| `apps/build-app-packages.sh` | cross-builds the applications, `summit_webkit`, `summit` and `summit_webkitlegacy` into Haiku packages |
 | `apps/ci-build-app.sh`, `apps/publish.sh` | the CI step of the app pipelines; the release and README update |
 | `summit/` | the Summit pipeline: engine libraries (`build-deps.sh`), WebKit (`build-engine.sh`), packages (`build-summit.sh`) |
 | `images/` | `build-image.sh TARGET` (`CLEAN=1`: Haiku from scratch), `smoke-test.sh TARGET`, the nginx that serves the images and the dashboard |

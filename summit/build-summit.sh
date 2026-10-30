@@ -6,8 +6,11 @@
 #
 #   1. summit/build-deps.sh    the engine's libraries, from the airos-works forks
 #   2. summit/build-engine.sh  WebKit with Summit's Haiku port (incremental)
-#   3. the summit_webkit and summit packages (apps/build-app-packages.sh),
-#      into the air/OS package pool, from which the images take them
+#   3. the summit_webkit, summit and summit_webkitlegacy packages
+#      (apps/build-app-packages.sh), into the air/OS package pool, from which
+#      the images take them; summit_webkitlegacy is HaikuWebKit's BWebView
+#      API (WebPositive's) on the engine, in place of HaikuPorts' haikuwebkit
+#      (air/OS only)
 #   4. the engine, as the summit_webkit package installs it, into DEPS, so
 #      Natter's builds link it for Slack web sign-in
 #
@@ -42,7 +45,12 @@ fi
 
 note "packages"
 before=$(wc -l < "$OUT_LIST" 2>/dev/null || echo 0)
-"$AIROS_CI/apps/ci-build-app.sh" "$ARCH" summit_webkit,summit summit "$SUMMIT_DIR"
+apps=summit_webkit,summit
+# summit_webkitlegacy for air/OS only: on a stock Haiku installation it would
+# take haikuwebkit's place under the release's own WebPositive, which stays
+# the user's choice (Summit's tools/package-summit-webkitlegacy.sh).
+[[ $SDK_NAME != "$ARCH" ]] || apps+=,summit_webkitlegacy
+"$AIROS_CI/apps/ci-build-app.sh" "$ARCH" "$apps" summit "$SUMMIT_DIR"
 engine=$(tail -n +"$((before + 1))" "$OUT_LIST" | grep '/summit_webkit-[^/]*\.hpkg$' | tail -n 1)
 [[ -n $engine ]] || die "no summit_webkit package was made"
 # Natter's builds are for air/OS.

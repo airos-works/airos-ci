@@ -69,6 +69,12 @@ fi
 # apps/office.lock.json and media.lock.json for the Office and Media folders.
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap airimager)
 PINNED_SETS=(office media)
+# HaikuWebKit's BWebView API on Summit's engine (Summit's legacy/, built by
+# the Summit pipeline), in place of HaikuPorts' haikuwebkit: it provides and
+# replaces haikuwebkit and haikuwebkit_devel, so WebPositive and other
+# programs built for HaikuWebKit run on the engine the image has, and pkgman
+# does not fetch HaikuPorts' (an old engine, 43 MB) for them.
+IMAGE_APPS+=(summit_webkitlegacy)
 # First-boot setup (whole SD card, time zone) of the SD card images
 [[ $TARGET != rpi4 && $TARGET != cubie ]] || IMAGE_APPS+=(rpi_installer)
 # AirPins, the GPIO tool of the boards' pin headers
