@@ -2336,6 +2336,13 @@ build_docker() {
 	install_file 644 "$SRC/README.md" documentation/packages/docker_cli/README.md
 	install_file 644 "$SRC/docs/airos.md" documentation/packages/docker_cli/airos.md
 	docker_package_info "$SRC/tools/package-haiku-cross.sh" "$cli_version" "$work/cli.PackageInfo"
+	# VERSION only changes with docker/cli releases: the revision counts the
+	# commits since, so every build is newer than the last (pkgman cannot
+	# replace a package by one of the same name).
+	local cli_rev
+	cli_rev=$(( $(git -C "$APPS/docker" rev-list --count \
+		"$(git -C "$APPS/docker" log -1 --format=%H -- VERSION)..HEAD") + 1 ))
+	sed -i "s/^version .*/version $cli_version-$cli_rev/" "$work/cli.PackageInfo"
 	retarget_package_info "$work/cli.PackageInfo" "$STAGE/.PackageInfo"
 	finish_package docker_cli bin/docker
 
