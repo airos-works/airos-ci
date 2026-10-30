@@ -2374,13 +2374,44 @@ LAUNCH
 	version=$(docker_checkout_version "$containerd" 'v2.*')
 	docker_go_build "$goarch" "$work/containerd-bin" "$containerd" ./cmd/containerd
 	docker_go_build "$goarch" "$work/containerd-shim-runc-v2" "$containerd" ./cmd/containerd-shim-haiku-v2
+	docker_go_build "$goarch" "$work/containerd-linuxvm" "$containerd" ./cmd/containerd-linuxvm
 	stage_begin
 	install_binary "$work/containerd-bin" - bin/containerd
 	install_binary "$work/containerd-shim-runc-v2" - bin/containerd-shim-runc-v2
+	install_binary "$work/containerd-linuxvm" - bin/containerd-linuxvm
 	install_file 644 "$containerd/docs/airos.md" documentation/packages/containerd/airos.md
 	docker_package_info "$containerd/tools/package-haiku-cross.sh" "$version" "$work/containerd.PackageInfo"
 	retarget_package_info "$work/containerd.PackageInfo" "$STAGE/.PackageInfo"
-	finish_package containerd bin/containerd bin/containerd-shim-runc-v2
+	finish_package containerd bin/containerd bin/containerd-shim-runc-v2 bin/containerd-linuxvm
+
+	# The Linux VM that runs containers from Linux images (airos-works/linuxvm):
+	# QEMU for air/OS with NVMM and virtio-9p, the VM's kernel, and an Alpine
+	# initramfs whose init is containerd's containerd-linuxvm-agent, built
+	# with the repository's own scripts. x86_64 only: QEMU's libraries (GLib,
+	# libslirp) are not built for arm64 yet, and arm64 has no hypervisor.
+	if [[ $ARCH == x86_64 ]]; then
+		local linuxvm=$work/linuxvm lvm_build=$work/linuxvm-build-$ARCH
+		fork_checkout linuxvm "$linuxvm"
+		version=0.1.0~git.$(git -C "$linuxvm" rev-list --count HEAD).$(git -C "$linuxvm" rev-parse --short HEAD)
+		lvm() { # lvm STEP [ARGS...]: one of the repository's build scripts
+			env ARCH="$ARCH" LINUXVM_BUILD="$lvm_build" LINUXVM_CACHE="$AIROS_CACHE/linuxvm" \
+				AIROS_SDK="$AIROS_SDK" AIROS_CI="$AIROS_CI" AIROS_CACHE="$AIROS_CACHE" JOBS="$JOBS" \
+				bash "$linuxvm/tools/$1.sh" "${@:2}" >/dev/null || die "linuxvm: $1 failed"
+		}
+		lvm build-qemu
+		lvm build-kernel
+		lvm build-agent "$containerd"
+		lvm build-initramfs
+		stage_begin
+		install_binary "$lvm_build/qemu-system-x86_64" - lib/linuxvm/qemu-system-x86_64
+		install_file 644 "$lvm_build/vmlinuz" data/linuxvm/vmlinuz
+		install_file 644 "$lvm_build/initramfs.img" data/linuxvm/initramfs.img
+		install_file 755 "$lvm_build/firmware" data/linuxvm/firmware
+		install_file 644 "$linuxvm/README.md" documentation/packages/linuxvm/README.md
+		docker_package_info "$linuxvm/tools/package-haiku-cross.sh" "$version" "$work/linuxvm.PackageInfo"
+		retarget_package_info "$work/linuxvm.PackageInfo" "$STAGE/.PackageInfo"
+		finish_package linuxvm lib/linuxvm/qemu-system-x86_64
+	fi
 
 	# The buildx plugin, in the CLI's plugin directory.
 	local buildx=$work/buildx

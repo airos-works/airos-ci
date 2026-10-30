@@ -1052,6 +1052,14 @@
       "used_by": "containerd for air/OS (apps/build-app-packages.sh build_docker)"
     },
     {
+      "name": "linuxvm",
+      "wave": 6,
+      "create": "existing",
+      "branch": "main",
+      "origin": "airos-works/linuxvm, written for air/OS: QEMU 10.2 patches (NVMM, virtio-9p on a Haiku host), the VM's kernel configuration and initramfs builder",
+      "used_by": "the linuxvm package, the Linux VM that runs containers from Linux images (apps/build-app-packages.sh build_docker, x86_64)"
+    },
+    {
       "name": "buildx",
       "wave": 6,
       "create": "fork",
