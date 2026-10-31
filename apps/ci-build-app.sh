@@ -10,8 +10,8 @@
 #
 #   APP       build-app-packages.sh name: amp airtime airshot burrow clipper
 #             kiri natter turbochook lcdmonitor airpins snap wordcraft
-#             gridcraft deckcraft pdfcraft aurora proton_bridge proton_vpn airtop
-#             airimager
+#             gridcraft deckcraft pdfcraft photocraft lightcraft aurora
+#             proton_bridge proton_vpn airtop airimager
 #             code_oss github_desktop pgadmin4 (from the aurora repository),
 #             docker compose docker_desktop (the Docker stack: docker also
 #             builds the engine, containerd and buildx from the pinned forks),
@@ -38,6 +38,22 @@ out=$JOBTMP/out-$SDK_NAME
 rm -rf "$apps" "$out"
 mkdir -p "$apps" "$out"
 ln -s "$SOURCE" "$apps/$REPO_DIR"
+
+# PhotoCraft and LightCraft embed the craft-fonts collection, at the revision
+# pinned beside them in apps/media.lock.json (as the image builds use it).
+if [[ ,$APP, == *,photocraft,* || ,$APP, == *,lightcraft,* ]] && [[ -z ${CRAFT_FONTS:-} ]]; then
+	read -r fonts_repo fonts_commit < <(python3 -c 'import json, sys
+pin = json.load(open(sys.argv[1]))["craft-fonts"]
+print(pin["repository"], pin["commit"])' "$AIROS_CI/apps/media.lock.json")
+	fonts=$AIROS_WORK/craft-fonts
+	with_lock craft-fonts bash -c '
+		set -euo pipefail
+		[[ -d $1/.git ]] || git clone -q --no-checkout "$2" "$1"
+		git -C "$1" cat-file -e "$3^{commit}" 2>/dev/null || git -C "$1" fetch -q origin "$3"
+		git -C "$1" checkout -q --detach --force "$3"
+		git -C "$1" clean -qfdx
+		cp -a "$1" "$4"' _ "$fonts" "$fonts_repo" "$fonts_commit" "$apps/craft-fonts"
+fi
 
 # One build tree per repository and architecture, kept between runs so make
 # only rebuilds what changed.
