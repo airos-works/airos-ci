@@ -138,7 +138,7 @@
     "base": "libdrm-2.4.134",
     "base_commit": "libdrm-2.4.134",
     "branch": "airos-2.4.134",
-    "commit": "2310822c6ff14696125a5278d721031fa70317bb",
+    "commit": "eec11b92d6d3b4115f58c5cc9d82b71f450e9952",
     "repo": "libdrm",
     "upstream": "https://gitlab.freedesktop.org/mesa/drm.git",
     "url": "https://github.com/airos-works/libdrm.git"

@@ -71,6 +71,21 @@ fork_checkout mesa-amdgpu "$W/mesa"; MESA_COMMIT=$FORK_COMMIT
 fork_checkout ffmpeg "$W/ffmpeg"; FFMPEG_COMMIT=$FORK_COMMIT
 fork_checkout wayland-server "$W/wayland-server"; WLS_COMMIT=$FORK_COMMIT
 
+# Direct present on AMD GPUs (Summit, jmgasper/haiku#37) takes both forks:
+# RADV asks amdgpu_drm for the screen's frame buffer (VkImportScanoutMemoryHAIKU)
+# and imports the handle it gets as a KMS handle, which only libdrm's Haiku
+# amdgpu_bo_import() takes (eec11b92). A RADV with the first half and a libdrm
+# without the second build and run, but every present fails (-3) and Summit
+# copies its frames through app_server: the images of October 2026 shipped
+# that way, the libdrm pin left on 2310822c. Checked before the cache, so a
+# user land built from such a pair is not reused either.
+if grep -q 'amdgpu_bo_handle_type_kms, scanout.handle' \
+		"$W/mesa/src/amd/vulkan/winsys/amdgpu/radv_amdgpu_bo.c"; then
+	grep -q DRM_HAIKU_IOCTL_SCANOUT "$W/libdrm/include/drm/drm_haiku.h" \
+		&& grep -q __HAIKU__ "$W/libdrm/amdgpu/amdgpu_bo.c" \
+		|| die "RADV ($MESA_COMMIT) imports the screen's frame buffer as a KMS handle, but libdrm ($DRM_COMMIT) cannot: pin libdrm at eec11b92 or later (forks/forks.lock.json)"
+fi
+
 AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 \
 	"${HAIKUPORTS[@]}" | xargs -n1 basename > "$W/haikuports.txt"
 key=$(cat "$0" "$W/haikuports.txt" <(printf '%s\n' "$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" \
