@@ -2130,6 +2130,9 @@ build_proton_vpn() {
 	install_binary "$BUILDDIR/proton-wireguard" - "$app/helpers/proton-wireguard"
 	install_binary "$BUILDDIR/proton-openvpn" - "$app/helpers/proton-openvpn"
 	install_binary "$BUILDDIR/proton-vpn-cli" - bin/proton-vpn-cli
+	# The boot job that drops name servers a connection left in resolv.conf.
+	[[ -f $SRC/resources/launch/proton_vpn ]] &&
+		install_file 644 "$SRC/resources/launch/proton_vpn" data/launch/proton_vpn
 	docs proton_vpn README.md LICENSE docs
 	# OpenVPN is GPL 2: ship how proton-openvpn was made next to the binary.
 	mkdir -p "$STAGE/documentation/packages/proton_vpn/openvpn"
