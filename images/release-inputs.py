@@ -102,7 +102,8 @@ def main():
             "The GPU stacks, drivers and firmware of the air/OS release that "
             "live in system/non-packaged, which links to them here, so that "
             "they change with the release and an older version brings its "
-            "own back.",
+            "own back; on arm64 also GLTeapot and GLInfo, in system/demos "
+            "and system/apps.",
             "airos_payload"))
 
     # one rule per file of each tree, so that jam knows every file

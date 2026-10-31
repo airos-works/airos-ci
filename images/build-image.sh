@@ -196,7 +196,7 @@ fi
 
 WORK=$AIROS_WORK/image-$TARGET
 rm -rf "$WORK"
-mkdir -p "$WORK"/{packages,fonts,freetype,libpng,ffmpeg,mupdf,libs,egl,demos,firmware,add-ons}
+mkdir -p "$WORK"/{packages,fonts,freetype,libpng,ffmpeg,mupdf,libs,egl,demos,apps,firmware,add-ons}
 
 # 2. The inputs.
 note "inputs"
@@ -373,6 +373,7 @@ gl=$AIROS_ROOT/image-inputs/$TARGET
 [[ -d $gl/lib ]] && cp -a "$gl/lib/." "$WORK/libs/"
 [[ -d $gl/egl ]] && cp -a "$gl/egl/." "$WORK/egl/"
 [[ -d $gl/demos ]] && cp -a "$gl/demos/." "$WORK/demos/"
+[[ -d $gl/apps ]] && cp -a "$gl/apps/." "$WORK/apps/"
 [[ -d $gl/firmware ]] && cp -a "$gl/firmware/." "$WORK/firmware/"
 # arm64: Terminal's OpenGL renderer, built with the GL stack
 [[ -d $gl/add-ons ]] && cp -a "$gl/add-ons/." "$WORK/add-ons/"
@@ -543,6 +544,20 @@ ls -1 "$WORK/packages" "$WORK/fonts" "$WORK/freetype" "$WORK/libpng" "$WORK/mupd
 # then named to jam, as AIROS_CI_FILES.
 stamp=$(date -u +%Y%m%d-%H%M)-$HAIKU_REVISION
 release=
+# arm64: GLTeapot and GLInfo where x86_64's haiku package has them, in
+# system/demos (with its Deskbar Demos entry) and system/apps, from the payload
+# package of a release, so that System Updater brings them with each release;
+# a tree that does not know AIROS_CI_SYSTEM_DEMOS gets both in
+# system/non-packaged/demos as before.
+system_gl=
+nonpackaged_demos=$WORK/demos
+if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig" \
+		&& grep -q "AIROS_CI_SYSTEM_DEMOS" "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig"; then
+	system_gl=1
+	nonpackaged_demos=$WORK/no-nonpackaged-demos
+else
+	cp -a "$WORK/apps/." "$WORK/demos/"
+fi
 if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig"; then
 	release=$WORK/release-inputs
 	python3 "$AIROS_CI/images/release-inputs.py" "$release" --id "$stamp" \
@@ -552,7 +567,7 @@ if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildCon
 		--recipe-commit "$(git -C "$AIROS_CI" rev-parse HEAD 2>/dev/null || echo unknown)" \
 		--tree "system non-packaged lib=$WORK/libs" \
 		--tree "system non-packaged add-ons opengl egl_vendor.d=$WORK/egl" \
-		--tree "system non-packaged demos=$WORK/demos" \
+		--tree "system non-packaged demos=$nonpackaged_demos" \
 		--tree "system non-packaged add-ons=$WORK/add-ons" \
 		--tree "system non-packaged data firmware=$WORK/firmware" \
 		--tree "system non-packaged amdgpu=$WORK/amdgpu" \
@@ -599,7 +614,12 @@ fi
 	[[ -z $(ls "$WORK/mupdf") ]] || echo "HAIKU_MUPDF_PACKAGES_DIR = $WORK/mupdf ;"
 	[[ -z $(ls "$WORK/libs") ]] || echo "AIROS_CI_LIBS = $WORK/libs ;"
 	[[ -z $(ls "$WORK/egl") ]] || echo "AIROS_CI_EGL = $WORK/egl ;"
-	[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_DEMOS = $WORK/demos ;"
+	if [[ -n $system_gl ]]; then
+		[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_SYSTEM_DEMOS = $WORK/demos ;"
+		[[ -z $(ls "$WORK/apps") ]] || echo "AIROS_CI_SYSTEM_APPS = $WORK/apps ;"
+	else
+		[[ -z $(ls "$WORK/demos") ]] || echo "AIROS_CI_DEMOS = $WORK/demos ;"
+	fi
 	[[ -z $(ls "$WORK/firmware") ]] || echo "AIROS_CI_FIRMWARE = $WORK/firmware ;"
 	[[ -z $(ls "$WORK/add-ons") ]] || echo "AIROS_CI_ADDONS = $WORK/add-ons ;"
 	[[ ! -d $WORK/amdgpu ]] || echo "AIROS_CI_AMDGPU = $WORK/amdgpu ;"
