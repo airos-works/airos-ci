@@ -2402,7 +2402,11 @@ LAUNCH
 	{
 		local linuxvm=$work/linuxvm lvm_build=$work/linuxvm-build-$ARCH
 		fork_checkout linuxvm "$linuxvm"
-		version=0.1.0~git.$(git -C "$linuxvm" rev-list --count HEAD).$(git -C "$linuxvm" rev-parse --short HEAD)
+		# The agent in the initramfs comes from containerd: its commits count
+		# too, or a containerd-only change would rebuild the same version.
+		local agent_commits
+		agent_commits=$(git -C "$containerd" rev-list --count "$(git -C "$containerd" tag -l 'v2.*' --sort=-v:refname | head -1)"..HEAD 2>/dev/null || echo 0)
+		version=0.1.0~git.$(git -C "$linuxvm" rev-list --count HEAD).$agent_commits.$(git -C "$linuxvm" rev-parse --short HEAD)
 		lvm() { # lvm STEP [ARGS...]: one of the repository's build scripts
 			env ARCH="$ARCH" LINUXVM_BUILD="$lvm_build" LINUXVM_CACHE="$AIROS_CACHE/linuxvm" \
 				AIROS_SDK="$AIROS_SDK" AIROS_CI="$AIROS_CI" AIROS_CACHE="$AIROS_CACHE" JOBS="$JOBS" \

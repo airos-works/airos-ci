@@ -98,8 +98,8 @@ IMAGE_APPS+=(pgadmin4)
 # Desktop, which joins the three above in the Deskbar's Developer folder.
 IMAGE_APPS+=(docker_cli docker_engine containerd docker_buildx docker_compose dockerdesktop)
 # The Linux VM that runs containers from Linux images (built by the docker
-# job, for x86_64 only).
-[[ $TARGET != x86_64 ]] || IMAGE_APPS+=(linuxvm)
+# job): NVMM on x86_64, emulation (TCG, much slower) on arm64.
+IMAGE_APPS+=(linuxvm)
 PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	PINNED_SETS+=(mail)
