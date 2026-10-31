@@ -387,7 +387,7 @@
       "create": "existing",
       "base": "92ffa0e23e63804e41c15a7bea318d5be67b0e9b",
       "branch": "airos-25.3.6-rpi4",
-      "origin": "mesa (airos-25.3.6, 92ffa0e) with airos-works/haiku tools/rpi4/mesa mesa-haiku-texture-cache, mesa-haiku-gpu-readback, mesa-haiku-window-present, mesa-v3d-cache-growth and mesa-haiku-shared-present (one commit each, in build.sh's order), pushed from src/forks/mesa-v3dcache",
+      "origin": "mesa (airos-25.3.6, 92ffa0e) with airos-works/haiku tools/rpi4/mesa mesa-haiku-texture-cache, mesa-haiku-gpu-readback, mesa-haiku-window-present, mesa-v3d-cache-growth and mesa-haiku-shared-present (one commit each, in build.sh's order), pushed from src/forks/mesa-v3dcache; then Summit's v3d linear cached staging targets and haiku_mesa_shared_target_* (6bbc954, 6a80b76, summit#138)",
       "used_by": "Raspberry Pi 4 images: libEGL_mesa (V3D) and libvulkan_broadcom (deps/build-gl.sh); the ROCK 5's Panfrost keeps mesa"
     },
     {
