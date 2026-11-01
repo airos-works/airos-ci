@@ -360,6 +360,11 @@ forks/make-forks.py --only mesa --force   # remake one fork after changing its p
 | `/data2/airos/cache`, `/data2/airos/work`, `/data2/airos/locks` | downloads and git caches, scratch space, `flock` locks |
 | `/data1/runner/REPO` | the GitHub runners (user `ghrunner`) |
 
+`/data2/airos/artifacts` and `/data2/airos/cache` are bind mounts of
+`/data3/airos/artifacts` and `/data3/airos/cache`. /data3 is a RAID10 of six
+1.2 TB SAS disks (`server/setup-data3.sh`). /data1 and /data2 are SSDs and
+keep the build trees and job scratch.
+
 Jobs from different repositories run at the same time. They coordinate
 through locks:
 - `haiku-ARCH`: exclusive to rebuild an SDK, its dependencies or an image;
