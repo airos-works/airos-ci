@@ -12,6 +12,15 @@
 #   arm64   qemu-system-aarch64 (virt, UEFI firmware), the ISO as a USB disk
 #   rpi4    not booted (QEMU's raspi4b cannot run Haiku's Pi loader); the SD
 #           image's partition table and boot files are checked instead
+# Regression checks on every boot (2026-11-01):
+#   guest tests  the Haiku tree's tools/airos/ci/guest-tests, which
+#                build-image.sh published in IMAGE_DIR/guest-tests, are copied
+#                into the image and run once at boot (images/guest-tests.py);
+#                each must exit with 0, their output is in the serial log
+#   USB ports    the UEFI boots give QEMU's xHCI 30 ports (USB 3 ports 1-15,
+#                USB 2 ports 16-30) and put the keyboard and tablet on ports 25
+#                and 27: both must enumerate. A root hub clamped to 16 ports
+#                once hid the X399's Bluetooth radio on port 20.
 # Writes smoke.log, serial.log and screen.png (the first boot) next to the
 # image; further boots add serial-NAME.log and screen-NAME.png. Every boot
 # must pass.
@@ -78,8 +87,30 @@ if [[ $TARGET == rpi4 ]]; then
 	exit 0
 fi
 
-# qemu_for BOOT: the QEMU command line of one way to boot the image, in qemu.
+# The regression tests published with the image go into this copy of it and
+# run once at boot (images/guest-tests.py); bfs_shell is the image build's.
+guest_tests=
+if [[ -d $DIR/guest-tests && -n $(ls -A "$DIR/guest-tests") ]]; then
+	tools=$AIROS_BUILD/haiku-$TARGET/objects/linux/x86_64/release/tools
+	[[ -x $tools/bfs_shell/bfs_shell ]] || die "no bfs_shell in $tools for the guest tests"
+	python3 "$AIROS_CI/images/guest-tests.py" inject "$work/image" "$tools" "$DIR/guest-tests"
+	guest_tests=$DIR/guest-tests
+fi
+
+# The UEFI boots' xHCI: 15 USB 3 ports (1-15) and 15 USB 2 ports (16-30), more
+# than the 16 a SuperSpeed hub descriptor allows an external hub. The stick is
+# a USB 3 device on port 1; the full-speed keyboard and tablet sit on USB 2
+# ports 25 and 27 (QEMU port=10 and 12), which Haiku logs 0-based as "port 24"
+# and "port 26" of the root hub.
+xhci=(-device qemu-xhci,id=xhci,p2=15,p3=15
+	-device usb-kbd,bus=xhci.0,port=10 -device usb-tablet,bus=xhci.0,port=12)
+xhci_stick=bus=xhci.0,port=1
+
+# qemu_for BOOT: the QEMU command line of one way to boot the image, in qemu,
+# and the root hub ports (Haiku's numbering) whose devices must enumerate, in
+# usb_ports.
 qemu_for() {
+	usb_ports=()
 	case $TARGET/$1 in
 		x86_64/bios-cd)
 			qemu=(qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 4
@@ -98,10 +129,11 @@ qemu_for() {
 			qemu=(qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 4
 				-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd
 				-drive if=pflash,format=raw,file="$work/vars.fd"
-				-device qemu-xhci -device usb-kbd -device usb-tablet
+				"${xhci[@]}"
 				-drive if=none,id=stick,format=qcow2,file="$work/stick.qcow2"
-				-device usb-storage,drive=stick,removable=on
-				-vga std) ;;
+				-device usb-storage,$xhci_stick,drive=stick,removable=on
+				-vga std)
+			usb_ports=(24 26) ;;
 		arm64/uefi-usb|cubie/uefi-usb)
 			fw=/usr/share/AAVMF/AAVMF_CODE.fd
 			[[ -f $fw ]] || fw=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd
@@ -109,9 +141,11 @@ qemu_for() {
 			qemu=(qemu-system-aarch64 -M virt -cpu cortex-a72 -m 4096 -smp 4
 				-drive if=pflash,format=raw,readonly=on,file="$fw"
 				-drive if=pflash,format=raw,file="$work/vars.fd"
-				-device qemu-xhci -device usb-kbd -device usb-tablet
-				-drive if=none,id=stick,format=raw,file="$work/image" -device usb-storage,drive=stick
-				-device ramfb) ;;
+				"${xhci[@]}"
+				-drive if=none,id=stick,format=raw,file="$work/image"
+				-device usb-storage,$xhci_stick,drive=stick
+				-device ramfb)
+			usb_ports=(24 26) ;;
 		*) die "no QEMU set-up for $TARGET/$1" ;;
 	esac
 }
@@ -143,6 +177,15 @@ boot() {
 			break
 		fi
 	done
+	# The guest tests run from a launch job at boot; give them up to two
+	# minutes more to finish (a test kills itself after one).
+	local waited
+	for ((waited = 0; waited < 120; waited += 5)); do
+		[[ -n $guest_tests && $result == PASS ]] || break
+		kill -0 $qemu_pid 2>/dev/null || break
+		grep -aq "GUEST TESTS DONE" "$serial" && break
+		sleep 5
+	done
 	if kill -0 $qemu_pid 2>/dev/null; then
 		printf 'screendump %s\n' "$work/$name.ppm" | socat - "UNIX-CONNECT:$monitor" >/dev/null 2>&1 || true
 		sleep 2
@@ -153,8 +196,23 @@ boot() {
 	wait $qemu_pid 2>/dev/null || true
 	cp "$serial" "$DIR/serial$suffix.log"
 	[[ ! -f $screen ]] || cp "$screen" "$DIR/screen$suffix.png"
-	local details colours
+	local details colours port
 	details=$(grep -aE "Welcome to Kernel Debugging Land|PANIC:|AddOnManager::" "$serial" | head -5 || true)
+	for port in "${usb_ports[@]}"; do
+		if ! grep -aqE "usb hub [0-9]+: port $port: new device connected" "$serial"; then
+			result=FAIL
+			details+=$'\n'"the USB device on xHCI port $((port + 1)) did not enumerate"
+		fi
+	done
+	if [[ -n $guest_tests ]]; then
+		local tests_report
+		if tests_report=$(python3 "$AIROS_CI/images/guest-tests.py" check "$serial" "$guest_tests"); then
+			details+=$'\n'"$tests_report"
+		else
+			result=FAIL
+			details+=$'\n'"$tests_report"
+		fi
+	fi
 	if [[ $result == PASS && -f $screen ]]; then
 		# A drawn desktop has hundreds of colours; a blank or hung screen a few.
 		colours=$(python3 -c 'import sys; from PIL import Image; print(len(Image.open(sys.argv[1]).getcolors(1 << 20) or []))' "$screen")

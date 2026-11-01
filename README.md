@@ -235,7 +235,14 @@ then boots the image through UEFI on QEMU’s ARM64 virt machine. These checks
 do not emulate the boards’ GPUs or qualify their physical hardware. x86_64 boots twice, with a legacy BIOS from a CD and with UEFI
 (OVMF) from a USB stick through the EFI system partition, as a PC does; the
 UEFI boot's log and screenshot are `serial-uefi-usb.log` and
-`screen-uefi-usb.png`. Images are served at
+`screen-uefi-usb.png`. Every boot also runs regression checks: the test
+programs the Haiku tree lists in `tools/airos/ci/guest-tests` (built with the
+image, published in its `guest-tests/` folder) are copied into the smoke
+test's copy of the image and run once at boot by `images/guest-tests.py`, with
+their output on the serial log, and each must exit with 0; and the UEFI boots
+give QEMU's xHCI 30 ports with the keyboard and tablet on ports 25 and 27,
+which must enumerate (a root hub clamped to 16 ports once hid devices on the
+upper ports). Images are served at
 `http://airos-build.local/images/<target>/latest/`.
 After the smoke test, `images/publish-github.py` verifies the compressed and
 uncompressed image hashes, uploads the image, SHA-256 file and manifest to a

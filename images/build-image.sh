@@ -674,6 +674,19 @@ if [[ $TARGET == cubie ]]; then
 		"$BUILD/haiku-airos-cubie.image" "$BUILD/$IMAGE"
 fi
 [[ -f $BUILD/$IMAGE ]] || die "build made no $IMAGE"
+# The regression tests the smoke test runs inside the image (the tree's
+# tools/airos/ci/guest-tests: one jam target per line; images/guest-tests.py).
+# The Pi's image is not booted in QEMU.
+guest_tests=()
+if [[ $TARGET != rpi4 && -f $HAIKU_SOURCE/tools/airos/ci/guest-tests ]]; then
+	mapfile -t guest_tests < <(sed -e 's/#.*//' "$HAIKU_SOURCE/tools/airos/ci/guest-tests" \
+		| awk 'NF { print $1 }')
+fi
+if [[ ${#guest_tests[@]} -gt 0 ]]; then
+	note "guest tests: ${guest_tests[*]}"
+	build_stage "image" "guest tests: ${guest_tests[*]}"
+	jam -q -j"$JOBS" "${guest_tests[@]}"
+fi
 # The SDK's build directory must not keep this UserBuildConfig.
 [[ $TARGET == rpi4 || $TARGET == cubie ]] || rm -f "$BUILD/UserBuildConfig"
 
@@ -684,6 +697,13 @@ dest=$AIROS_ARTIFACTS/images/$TARGET/$stamp
 mkdir -p "$dest"
 size=$(stat -c %s "$BUILD/$IMAGE")
 xz -T0 -6 -c "$BUILD/$IMAGE" > "$dest/$IMAGE.xz"
+for test in "${guest_tests[@]}"; do
+	program=$(find "$BUILD/objects/haiku/$ARCH" -path '*/release/tests/*' -type f \
+		-name "$test" | head -n 1)
+	[[ -n $program ]] || die "guest test $test was not built"
+	mkdir -p "$dest/guest-tests"
+	cp "$program" "$dest/guest-tests/"
+done
 ( cd "$dest" && sha256sum "$IMAGE.xz" > "$IMAGE.xz.sha256" )
 image_sha=$(sha256sum "$BUILD/$IMAGE" | cut -d' ' -f1)
 # The airos-ci revision that made the image: its fork pins, Office and Media
