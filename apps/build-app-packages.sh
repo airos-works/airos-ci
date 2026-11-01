@@ -1125,14 +1125,28 @@ PY
 	# src/core/BuildTarget.h
 	[[ $SDK_NAME == "$ARCH" ]] || flags+=(-DSUMMIT_AIROS=0 "-DSUMMIT_TARGET_NAME=\"$SUMMIT_FOR\"")
 	local source objects=() object
+	# One compile per 2 GB available, at most JOBS: some of Summit's sources
+	# (BrowserWindow.cpp, main.cpp) take 2-3 GB each, and one per core (48)
+	# next to an engine build ran the host out of memory; an OOM-killed
+	# cc1plus made g++ exit 4 with nothing in the log (two failed runs, 1 Nov).
+	local mem_gb compile_jobs
+	mem_gb=$(awk '/MemAvailable/ {print int($2 / 1048576)}' /proc/meminfo)
+	compile_jobs=$(( mem_gb / 2 ))
+	(( compile_jobs >= 2 )) || compile_jobs=2
+	(( compile_jobs <= JOBS )) || compile_jobs=$JOBS
+	note "compile ($compile_jobs jobs)"
+	local compile_failed=0
 	for source in $sources; do
 		object=$BUILDDIR/obj/$(echo "${source%.cpp}" | tr / _).o
 		objects+=("$object")
 		object_is_current "$object" && continue
-		${CROSS}g++ --sysroot="$SYSROOT" "${flags[@]}" -MMD -MF "$object.d" -c "$SRC/$source" -o "$object" &
-		while [[ $(jobs -rp | wc -l) -ge $JOBS ]]; do wait -n; done
+		{ ${CROSS}g++ --sysroot="$SYSROOT" "${flags[@]}" -MMD -MF "$object.d" -c "$SRC/$source" -o "$object" \
+			|| { status=$?; echo "Summit: compiling $source failed (status $status)" >&2; rm -f "$object"; exit $status; }; } &
+		while [[ $(jobs -rp | wc -l) -ge $compile_jobs ]]; do wait -n || compile_failed=1; done
 	done
-	wait
+	while [[ -n $(jobs -rp) ]]; do wait -n || compile_failed=1; done
+	wait || compile_failed=1
+	(( compile_failed == 0 )) || die "Summit: a source did not compile (see above)"
 	for object in "${objects[@]}"; do [[ -e $object ]] || die "Summit: $object did not compile"; done
 	# As Summit's own build links it: the libraries most symbols are found in
 	# right after libWebKit, and a GNU hash table (the loader settles most
