@@ -18,7 +18,7 @@
 #                                       lib/summit-webkit/mesa/lib
 #   $AIROS_ROOT/gl/x86_64-mesa/haikuports.json   the HaikuPorts packages it
 #                                       was built against (llvm21_libs and
-#                                       vulkan are what it needs at run time)
+#                                       vulkan_loader are what it needs at run time)
 set -euo pipefail
 umask 002
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
@@ -48,7 +48,7 @@ rm -rf "$GLROOT"
 mkdir -p "$GLROOT"
 cp -a "$SYSROOT/." "$GLROOT/"
 AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage --no-deps x86_64 \
-	"$system" llvm21 llvm21_libs vulkan vulkan_devel > /dev/null
+	"$system" llvm21 llvm21_libs vulkan_loader vulkan_loader_devel vulkan_headers > /dev/null
 cp "$system/.haikuports.json" "$W/haikuports.json"
 # absolute links inside the sysroot point into it
 while IFS= read -r -d '' link; do

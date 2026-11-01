@@ -36,7 +36,7 @@ GLROOT=$W/sysroot
 system=$GLROOT/boot/system
 rsync -rlc --delete "$SYSROOT/" "$GLROOT/"
 AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" stage --no-deps x86_64 \
-	"$system" vulkan vulkan_devel > /dev/null
+	"$system" vulkan_loader vulkan_loader_devel vulkan_headers > /dev/null
 while IFS= read -r -d '' link; do
 	target=$(readlink "$link")
 	[[ $target == /boot/system/* ]] && ln -sfn "$(realpath -m --relative-to="$(dirname "$link")" "$GLROOT$target")" "$link"

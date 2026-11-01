@@ -242,7 +242,7 @@ if [[ $ARCH == x86_64 ]]; then
 	# (noto_regional: Arabic, Hebrew, the Indic scripts, Thai, Armenian,
 	# Georgian, Ethiopic, ...), which web pages fall back to.
 	AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" fetch --no-deps \
-		x86_64 taglib2 scintilla lexilla lzo lz4 llvm21_libs vulkan \
+		x86_64 taglib2 scintilla lexilla lzo lz4 llvm21_libs vulkan_loader \
 		libelf wayland wayland_server libffi \
 		intel_wifi_firmwares ralink_wifi_firmwares realtek_wifi_firmwares \
 		x264 x265 svt_av13 noto_emoji_color noto_regional | xargs -r cp -t "$WORK/packages/"
