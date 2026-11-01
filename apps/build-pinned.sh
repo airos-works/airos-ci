@@ -2,7 +2,7 @@
 # build-pinned.sh SET ARCH OUTPUT_DIR
 #
 # Build the packages of one Deskbar folder at the reviewed revisions in
-# apps/SET.lock.json: office (Clipper, WordCraft, GridCraft, DeckCraft,
+# apps/SET.lock.json: office (Clipper, MSGA, WordCraft, GridCraft, DeckCraft,
 # PdfCraft), media (PhotoCraft, LightCraft), bridge (Proton Mail Bridge) or
 # mail (Mail, which replaces Haiku's). An entry with a "binary" is an
 # application; one without is a source the applications build with

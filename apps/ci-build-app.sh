@@ -8,7 +8,7 @@
 # and its packages go to $AIROS_DATA/packages-RELEASE/ARCH instead, which no
 # image reads.
 #
-#   APP       build-app-packages.sh name: amp airtime airshot burrow clipper
+#   APP       build-app-packages.sh name: amp airtime airshot burrow clipper msga
 #             kiri natter turbochook lcdmonitor airpins snap wordcraft
 #             gridcraft deckcraft pdfcraft photocraft lightcraft aurora
 #             proton_bridge proton_vpn airtop airimager

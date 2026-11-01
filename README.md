@@ -8,8 +8,8 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
 | Images | `airos-works/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
-| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, airShot, AirTop, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN, Proton Mail Bridge, Aurora and Code - OSS; every app builds from its `main` branch (Code - OSS from `haiku`); a rolling `latest` release and the "Latest builds" section of each README |
-| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
+| Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, MSGA, airShot, AirTop, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN, Proton Mail Bridge, Aurora and Code - OSS; every app builds from its `main` branch (Code - OSS from `haiku`, MSGA from `airos`); a rolling `latest` release and the "Latest builds" section of each README |
+| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, MSGA, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
 | Summit | `airos-works/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine), `summit` (the browser) and `summit_webkitlegacy` (HaikuWebKit's BWebView API on the engine); with `haiku-releases`, the first two for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
@@ -130,7 +130,9 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - Raspberry Pi 4 and Cubie A7S: **AirPins** (airos-works/AirPins), the GPIO
   tool for their pin headers.
 - **Office**, between Applications and Utilities in Deskbar: Clipper,
-  WordCraft, GridCraft, DeckCraft and PdfCraft on every target. The Craft
+  MSGA (airos-works/msga, the native Slack client on the Be API, from its
+  `airos` branch), WordCraft, GridCraft, DeckCraft and PdfCraft on every
+  target. The Craft
   apps use the pinned Rust nightly with a compiled standard library; ARM64
   uses `sdk/targets/aarch64-unknown-haiku.json`. PDFCraft’s ARM64 AWS-LC
   build uses static ARMv8-A capabilities because AWS-LC has no Haiku

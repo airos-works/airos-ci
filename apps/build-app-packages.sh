@@ -6,7 +6,7 @@
 #   AIROS_ARCH=x86_64|arm64 APPS=DIR apps/build-app-packages.sh [OUTPUT_DIR] [APP ...]
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
-#   APP         any of: airshot clipper burrow kiri lcdmonitor amp turbochook
+#   APP         any of: airshot clipper msga burrow kiri lcdmonitor amp turbochook
 #               natter airtime airtop airpins airimager snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
@@ -17,7 +17,7 @@
 #               (default: all but airpins, airos_mail, code_oss, github_desktop,
 #               pgadmin4, the Docker stack and Summit's three)
 #   APPS        a directory with the application repositories under the names
-#               airShot clipper burrow kiri lcdmonitor tasamp turbochook natter
+#               airShot clipper msga burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins airimager snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
 #               vscode desktop docker compose docker-desktop
@@ -499,6 +499,35 @@ build_clipper() {
 	add_attributes "$BUILDDIR/Clipper.rsrc" apps/Clipper
 	finish_package clipper apps/Clipper add-ons/input_server/filters/Clipper_shortcuts \
 		add-ons/input_server/devices/Clipper_paste
+}
+
+# --- MSGA -------------------------------------------------------------------
+# The Slack client (airos-works/msga, branch airos: make-slack-great-again on
+# its air/OS platform layer), in the Office folder. CMake with the fork's
+# tools/haiku/toolchain.cmake against this SDK; FreeType and HarfBuzz come
+# from their pinned release tarballs (FetchContent, verified by hash, kept in
+# the build tree so a rebuild downloads nothing), TLS from the system's
+# OpenSSL. Its resources are generated (tools/haiku/make-rdef.py: version
+# from version.cmake, the HVIF icon made from the logo).
+build_msga() {
+	note MSGA
+	snapshot msga msga
+	cmake -S "$SRC" -B "$BUILDDIR" -DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_TOOLCHAIN_FILE="$SRC/tools/haiku/toolchain.cmake" \
+		-DHAIKU_ARCH="$ARCH" -DHAIKU_SDK="$AIROS_SDK/$SDK_NAME" -DHAIKU_CROSS="$CROSS" \
+		-DFETCHCONTENT_BASE_DIR="$BUILDDIR/_deps" -DMSGA_SIZE_MAP=OFF >/dev/null
+	cmake --build "$BUILDDIR" --target msga -j"$JOBS" >/dev/null
+	python3 "$SRC/tools/haiku/make-rdef.py" "$BUILDDIR/msga.rdef"
+	"$TOOLS/rc/rc" -o "$BUILDDIR/msga.rsrc" "$BUILDDIR/msga.rdef"
+	stage_begin
+	install_binary "$BUILDDIR/msga" "$BUILDDIR/msga.rsrc" apps/MSGA
+	docs msga README.md LICENSE THIRD_PARTY_LICENSES docs
+	# FreeType's licence, which the system's licences lack.
+	install_file 644 "$BUILDDIR/_deps/msga_freetype-src/docs/FTL.TXT" data/licenses/FTL
+	deskbar_link apps/MSGA MSGA Office
+	retarget_package_info "$SRC/resources/haiku/msga.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/msga.rsrc" apps/MSGA
+	finish_package msga apps/MSGA
 }
 
 # --- AirTop -----------------------------------------------------------------
@@ -2518,7 +2547,7 @@ main() {
 	setup_host_tools
 	setup_dependency_farm
 	local app
-	for app in airshot clipper burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
+	for app in airshot clipper msga burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
 			airimager snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
 			pgadmin4 docker compose docker_desktop; do
