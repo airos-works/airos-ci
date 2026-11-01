@@ -944,6 +944,17 @@ build_summit_webkit() {
 		"$STRIP" --strip-debug "$STAGE/$engine/$name"
 		set_rpath "$STAGE/$engine/$name" "$process_rpath"
 	done
+	# WebDriver (Summit #159), when the engine was built with ENABLE_WEBDRIVER:
+	# the driver Selenium-style clients start, which starts Summit with
+	# --automation; bin/summitdriver names it like Safari's safaridriver.
+	if [[ -x $SUMMIT_ENGINE_BUILD/bin/WebKitWebDriver ]]; then
+		cp "$SUMMIT_ENGINE_BUILD/bin/WebKitWebDriver" "$STAGE/$engine/WebKitWebDriver"
+		chmod 755 "$STAGE/$engine/WebKitWebDriver"
+		"$STRIP" --strip-debug "$STAGE/$engine/WebKitWebDriver"
+		set_rpath "$STAGE/$engine/WebKitWebDriver" '$ORIGIN/lib'
+		mkdir -p "$STAGE/bin"
+		ln -sfn "../$engine/WebKitWebDriver" "$STAGE/bin/summitdriver"
+	fi
 	# The resources go on last: strip and patchelf drop them. Without them
 	# the web process registers as an ordinary application (B_BACKGROUND_APP
 	# is in its app flags) and the Deskbar lists it as "WebProcess".
