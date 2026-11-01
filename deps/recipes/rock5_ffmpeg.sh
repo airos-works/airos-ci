@@ -9,10 +9,13 @@
 # FFmpeg's libraries and headers also go into DEPS, for airTime. With libvpx
 # and LAME (deps/recipes/libvpx.sh, lame.sh) for VP8/VP9 and MP3 encoding.
 VERSION=6.1.6
-PKG_REVISION=6
+PKG_REVISION=7
 FORK=ffmpeg
 NO_PACKAGE=1
-STAMP_EXTRA="mpp:$(fork_info mpp commit)"
+# The add-on comes from the haiku tree: a change there rebuilds the package.
+STAMP_EXTRA="mpp:$(fork_info mpp commit) addon:$(sha256sum \
+	"${HAIKU_SOURCE:-/nonexistent}/tools/rock5-itx/RockchipMppDecoder.cpp" 2>/dev/null \
+	| cut -c1-16)"
 SUMMARY="FFmpeg codecs and Media Kit plugin for ROCK 5 ITX"
 COPYRIGHT="2000-2024 FFmpeg developers"
 LICENSE="LGPLv2.1"
