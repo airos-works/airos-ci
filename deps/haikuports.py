@@ -4,6 +4,10 @@
     haikuports.py fetch ARCH REQ...            download what REQ needs; print the files
     haikuports.py fetch --no-deps ARCH PKG...  download exactly these packages (images
                                                add their dependencies themselves)
+    haikuports.py fetch --have DIR ARCH REQ... count what the packages in DIR provide
+                                               as there (repeatable): an image's own
+                                               builds of HaikuPorts packages (qt6_base)
+                                               are not fetched again as dependencies
     haikuports.py stage ARCH PREFIX REQ...     same, and extract them into PREFIX
                                                (a boot/system tree)
     haikuports.py current ARCH PREFIX REQ...   exit 0 if PREFIX was staged from
@@ -166,9 +170,27 @@ def installed_provides(arch):
     return provides
 
 
-def resolve(arch, requirements, deps=True):
+def package_provides(directories, arch):
+    """Provides of the packages (*.hpkg) in the given directories."""
+    package = tool(arch, "package")
+    provides = []
+    for directory in directories:
+        for name in sorted(os.listdir(directory)):
+            if name.endswith(".hpkg"):
+                out = subprocess.run([package, "list", "-i", os.path.join(directory, name)],
+                                     check=True, stdout=subprocess.PIPE, text=True).stdout
+                provides += re.findall(r"(?m)^\s*provides:\s*(.*)$", out)
+    return provides
+
+
+def resolve(arch, requirements, deps=True, have=()):
     pkgs = [p for p in repository(arch) if p.get("architecture") in (arch, "any")
             and not p["name"].endswith(("_debuginfo", "_source"))]
+    # What the caller already has (an image's own qt6_base) is never fetched,
+    # not even as a dependency of something that is: HaikuPorts' qt6_base came
+    # in next to the patched one for qt6_declarative's lib:libqt6core==6.10.3,
+    # and the image had two (airos-works/haiku#46).
+    have = package_provides(have, arch) if have else []
     # The provides of the architecture's base are read only when a
     # requirement needs them: they come from the architecture's build
     # directory, which another job may be rebuilding (a fetch of named
@@ -180,6 +202,8 @@ def resolve(arch, requirements, deps=True):
     while todo:
         req = todo.pop(0)
         rn, op, rv, _ = split(req)
+        if any(satisfies(p, req) for p in have):
+            continue
         if not op and any(p["name"] == rn for p in pkgs) and rn not in chosen:
             candidates = [p for p in pkgs if p["name"] == rn]
         else:
@@ -201,11 +225,11 @@ def resolve(arch, requirements, deps=True):
     return list(chosen.values())
 
 
-def fetch(arch, requirements, deps=True):
+def fetch(arch, requirements, deps=True, have=()):
     d = os.path.join(CACHE, "haikuports", arch, "packages")
     os.makedirs(d, exist_ok=True)
     files = []
-    for p in sorted(resolve(arch, requirements, deps), key=lambda p: p["name"]):
+    for p in sorted(resolve(arch, requirements, deps, have), key=lambda p: p["name"]):
         fname = f"{p['name']}-{p['version']}-{p['architecture']}.hpkg"
         path = os.path.join(d, fname)
         if not os.path.exists(path):
@@ -218,9 +242,16 @@ def fetch(arch, requirements, deps=True):
 def main():
     args = sys.argv[1:]
     deps = True
-    if len(args) > 1 and args[1] == "--no-deps":
-        deps = False
-        del args[1]
+    have = []
+    while len(args) > 1 and args[1] in ("--no-deps", "--have"):
+        if args[1] == "--no-deps":
+            deps = False
+            del args[1]
+        else:
+            if len(args) < 3:
+                sys.exit(__doc__)
+            have.append(args[2])
+            del args[1:3]
     if len(args) < 2 or args[0] not in ("fetch", "stage", "current"):
         sys.exit(__doc__)
     cmd, arch = args[0], args[1]
@@ -228,7 +259,7 @@ def main():
         prefix, reqs = args[2], args[3:]
     else:
         prefix, reqs = None, args[2:]
-    files = fetch(arch, reqs, deps)
+    files = fetch(arch, reqs, deps, have)
     record = [{"file": os.path.basename(f), "sha256": hashlib.sha256(open(f, "rb").read()).hexdigest()}
               for f in files]
     if cmd == "current":
