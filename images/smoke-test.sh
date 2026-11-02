@@ -20,7 +20,9 @@
 #   USB ports    the UEFI boots give QEMU's xHCI 30 ports (USB 3 ports 1-15,
 #                USB 2 ports 16-30) and put the keyboard and tablet on ports 25
 #                and 27: both must enumerate. A root hub clamped to 16 ports
-#                once hid the X399's Bluetooth radio on port 20.
+#                once hid the X399's Bluetooth radio on port 20. A full-speed
+#                hub on port 26 carries a mouse, which the guest test
+#                usb_hub_child_test must find.
 # Writes smoke.log, serial.log and screen.png (the first boot) next to the
 # image; further boots add serial-NAME.log and screen-NAME.png. Every boot
 # must pass.
@@ -101,9 +103,13 @@ fi
 # than the 16 a SuperSpeed hub descriptor allows an external hub. The stick is
 # a USB 3 device on port 1; the full-speed keyboard and tablet sit on USB 2
 # ports 25 and 27 (QEMU port=10 and 12), which Haiku logs 0-based as "port 24"
-# and "port 26" of the root hub.
+# and "port 26" of the root hub. A full-speed QEMU usb-hub sits on port 26
+# ("port 25") with a mouse on its first port: the guest test
+# usb_hub_child_test checks that the mouse enumerates (devices behind a
+# full-speed hub got a wrong route string from xHCI).
 xhci=(-device qemu-xhci,id=xhci,p2=15,p3=15
-	-device usb-kbd,bus=xhci.0,port=10 -device usb-tablet,bus=xhci.0,port=12)
+	-device usb-kbd,bus=xhci.0,port=10 -device usb-tablet,bus=xhci.0,port=12
+	-device usb-hub,bus=xhci.0,port=11 -device usb-mouse,bus=xhci.0,port=11.1)
 xhci_stick=bus=xhci.0,port=1
 
 # qemu_for BOOT: the QEMU command line of one way to boot the image, in qemu,
@@ -133,7 +139,7 @@ qemu_for() {
 				-drive if=none,id=stick,format=qcow2,file="$work/stick.qcow2"
 				-device usb-storage,$xhci_stick,drive=stick,removable=on
 				-vga std)
-			usb_ports=(24 26) ;;
+			usb_ports=(24 25 26) ;;
 		arm64/uefi-usb|cubie/uefi-usb)
 			fw=/usr/share/AAVMF/AAVMF_CODE.fd
 			[[ -f $fw ]] || fw=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd
@@ -145,7 +151,7 @@ qemu_for() {
 				-drive if=none,id=stick,format=raw,file="$work/image"
 				-device usb-storage,$xhci_stick,drive=stick
 				-device ramfb)
-			usb_ports=(24 26) ;;
+			usb_ports=(24 25 26) ;;
 		*) die "no QEMU set-up for $TARGET/$1" ;;
 	esac
 }

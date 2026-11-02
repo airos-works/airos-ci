@@ -244,7 +244,9 @@ test's copy of the image and run once at boot by `images/guest-tests.py`, with
 their output on the serial log, and each must exit with 0; and the UEFI boots
 give QEMU's xHCI 30 ports with the keyboard and tablet on ports 25 and 27,
 which must enumerate (a root hub clamped to 16 ports once hid devices on the
-upper ports). Images are served at
+upper ports), plus a full-speed QEMU hub on port 26 with a mouse behind it,
+which the guest test `usb_hub_child_test` must find (xHCI once gave devices
+behind such a hub a wrong route string). Images are served at
 `http://airos-build.local/images/<target>/latest/`.
 After the smoke test, `images/publish-github.py` verifies the compressed and
 uncompressed image hashes, uploads the image, SHA-256 file and manifest to a
