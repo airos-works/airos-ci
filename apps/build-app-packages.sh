@@ -521,13 +521,17 @@ build_msga() {
 	"$TOOLS/rc/rc" -o "$BUILDDIR/msga.rsrc" "$BUILDDIR/msga.rdef"
 	stage_begin
 	install_binary "$BUILDDIR/msga" "$BUILDDIR/msga.rsrc" apps/MSGA
+	# The tray icon: a Deskbar add-on of its own (built with msga), which
+	# MSGA finds at <prefix>/add-ons/MSGA beside <prefix>/apps.
+	[[ ! -f $BUILDDIR/msga_deskbar.so ]] \
+		|| install_binary "$BUILDDIR/msga_deskbar.so" - "add-ons/MSGA/MSGA Deskbar item"
 	docs msga README.md LICENSE THIRD_PARTY_LICENSES docs
 	# FreeType's licence, which the system's licences lack.
 	install_file 644 "$BUILDDIR/_deps/msga_freetype-src/docs/FTL.TXT" data/licenses/FTL
 	deskbar_link apps/MSGA MSGA Office
 	retarget_package_info "$SRC/resources/haiku/msga.PackageInfo" "$STAGE/.PackageInfo"
 	add_attributes "$BUILDDIR/msga.rsrc" apps/MSGA
-	finish_package msga apps/MSGA
+	finish_package msga apps/MSGA "add-ons/MSGA/MSGA Deskbar item"
 }
 
 # --- AirTop -----------------------------------------------------------------
