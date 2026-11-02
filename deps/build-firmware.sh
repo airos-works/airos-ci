@@ -7,7 +7,8 @@
 # HaikuPorts:
 #
 #   $AIROS_PACKAGES/any/      intel_, realtek_ and mediatek_bluetooth_firmwares,
-#                             mediatek_wifi_firmwares (architecture any), as
+#                             mediatek_wifi_firmwares, intel_wifi7_firmwares
+#                             (BE200; architecture any), as
 #                             tools/rock5-itx/build-bluetooth-firmware-packages.sh
 #                             and docs/x399-workstation/tools/build-mediatek-
 #                             wifi-firmware-package.sh make them
@@ -104,6 +105,20 @@ build_package mediatek_wifi_firmwares mt7922wifi "$fw/LICENCE.mediatek" \
 	"Firmware for the Wi-Fi half of MediaTek MT7921 and MT7922 cards (such as the TP-Link Archer TX55E), loaded by the mt7922wifi driver" \
 	"$fw"/mediatek/WIFI_MT7922_* "$fw"/mediatek/WIFI_RAM_CODE_MT7922_* \
 	"$fw"/mediatek/WIFI_MT7961_* "$fw"/mediatek/WIFI_RAM_CODE_MT7961_*
+
+# The Wi-Fi half of the Intel Wi-Fi 7 BE200 (Gl MAC, Fm radio), which
+# HaikuPorts' intel_wifi_firmwares lacks: iaxwifi200 loads it as
+# iwx-gl-c0-fm-c0-83 (API 83, the newest image for its command set) with the
+# PNVM released alongside it.
+iwx=$WORK/iwx-be200
+rm -rf "$iwx"
+mkdir -p "$iwx"
+cp "$fw/iwlwifi-gl-c0-fm-c0-83.ucode" "$iwx/iwx-gl-c0-fm-c0-83"
+cp "$fw/iwlwifi-gl-c0-fm-c0.pnvm" "$iwx/iwx-gl-c0-fm-c0.pnvm"
+build_package intel_wifi7_firmwares iaxwifi200 "$fw/LICENCE.iwlwifi_firmware" \
+	"Intel Wireless Firmware" "2018-2024 Intel Corporation" "Intel Wi-Fi 7 firmware" \
+	"Firmware for the Wi-Fi half of the Intel Wi-Fi 7 BE200, loaded by the iaxwifi200 driver" \
+	"$iwx"/iwx-*
 
 note "HaikuPorts Wi-Fi firmware for arm64"
 for source in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" \
