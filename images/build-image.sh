@@ -445,8 +445,11 @@ for f in sorted(glob.glob(os.path.join(directory, "*.hpkg"))):
 print("\n".join(sorted({r for r in requires if not any(satisfies(p, r) for p in provides)})))
 PY
 )
+	# What is in $WORK/packages already is not fetched again as a dependency:
+	# HaikuPorts' qt6_base came in for qt6_declarative next to the patched one,
+	# and the image had both (airos-works/haiku#46).
 	files=$(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK \
-		"$AIROS_CI/deps/haikuports.py" fetch x86_64 nodejs22 $requires) \
+		"$AIROS_CI/deps/haikuports.py" fetch --have "$WORK/packages" x86_64 nodejs22 $requires) \
 		|| die "HaikuPorts cannot provide what the image's packages require"
 	# Architecture-neutral packages that the build system's list names under
 	# the architecture (file_data, which file and with it python3.12 need: jam
@@ -483,6 +486,10 @@ PY
 			cp "$file" "$WORK/packages/"
 		fi
 	done
+	# and no package goes in twice under two versions
+	dupes=$(for file in "$WORK"/packages/*.hpkg; do
+		name=$(basename "$file"); echo "${name%%-[0-9]*}"; done | sort | uniq -d)
+	[[ -z $dupes ]] || die "two versions of a package in the image:" $dupes
 	# The build system's list pins older builds than HaikuPorts has now. Where
 	# a package here requires more than the pinned build provides (HaikuPorts'
 	# python3.12, for pgAdmin 4: lib:libexpat>=1.12.5, the pin's expat has
