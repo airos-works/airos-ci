@@ -2234,6 +2234,22 @@ build_craft() {
 	local res=$SRC/apps/$app-haiku/resources triple=${RUST_TARGET//-/_}
 	local crates=(-p "$app-haiku") binaries=("apps/$binary")
 	[[ $app != pdfcraft ]] || crates+=(-p pdfcraft-cli)
+	# Since WordCraft 0.15 the translations, spelling word lists and
+	# hyphenation patterns come from storytold/craft-i18n at the commit the
+	# app's craft-i18n.rev names, embedded at build time as upstream's
+	# releases do (without it the interface is English only).
+	local i18n=
+	if [[ -f $SRC/craft-i18n.rev ]]; then
+		i18n=$BUILDDIR/craft-i18n
+		with_lock craft-i18n bash -c '
+			set -euo pipefail
+			[[ -d $1/.git ]] || git clone -q --no-checkout https://github.com/storytold/craft-i18n.git "$1"
+			git -C "$1" cat-file -e "$2^{commit}" 2>/dev/null || git -C "$1" fetch -q origin "$2"
+			git -C "$1" checkout -q --detach --force "$2"
+			git -C "$1" clean -qfdx
+			rsync -a --delete --exclude=/.git "$1/" "$3/"' _ \
+			"$AIROS_WORK/craft-i18n" "$(tr -d '[:space:]' < "$SRC/craft-i18n.rev")" "$i18n"
+	fi
 	# Cargo takes a linker without arguments: wrappers carry the sysroot.
 	printf '#!/bin/sh\nexec %s "$@"\n' "$CC_T" > "$HOSTBIN/craft-cc"
 	printf '#!/bin/sh\nexec %s "$@"\n' "$CXX_T" > "$HOSTBIN/craft-c++"
@@ -2256,6 +2272,7 @@ build_craft() {
 			# tools/haiku/build.sh do.
 			export CRAFT_FONTS_DIR=$CRAFT_FONTS CRAFT_FONTS_REQUIRED=1
 		fi
+		[[ -z $i18n ]] || export CRAFT_I18N_DIR=$i18n CRAFT_I18N_REQUIRED=1
 		# The snapshot has no .git; identify the source used by --version.
 		export "${app^^}_BUILD_SHA=$(git -C "$APPS/$app" rev-parse HEAD)"
 		cargo build --release --locked --target "$RUST_TARGET" -Zbuild-std=std,panic_abort \
@@ -2269,6 +2286,14 @@ build_craft() {
 	deskbar_link "apps/$binary" "$binary" "$folder"
 	retarget_package_info "$res/$binary.PackageInfo" "$STAGE/.PackageInfo"
 	local license
+	if [[ -n $i18n ]]; then
+		# craft-i18n's own licences and the licences of the word lists and
+		# hyphenation patterns it embeds.
+		while IFS= read -r license; do
+			install_file 644 "$i18n/$license" "documentation/packages/$app/licenses/craft-i18n/$license"
+		done < <(cd "$i18n" && { echo ATTRIBUTION.md; echo language-data/manifest.toml; find . -type f -regextype posix-extended \
+			-regex '\./((.*/)?(LICEN[CS]E|COPYING)[^/]*|language-data/licences/.*)' -printf '%P\n'; } | sort -u)
+	fi
 	case $app in
 	pdfcraft)
 		install_binary "$BUILDDIR/target/$RUST_TARGET/release/pdfcraft-cli" - bin/pdfcraft-cli
