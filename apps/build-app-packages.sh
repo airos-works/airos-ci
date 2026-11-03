@@ -7,7 +7,7 @@
 #
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper msga burrow kiri lcdmonitor amp turbochook
-#               natter airtime airtop airpins airimager snap wordcraft gridcraft deckcraft
+#               natter airtime airtop airpins airimager aircal snap wordcraft gridcraft deckcraft
 #               pdfcraft photocraft lightcraft aurora summit_webkit summit
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
 #               github_desktop pgadmin4
@@ -18,7 +18,7 @@
 #               pgadmin4, the Docker stack and Summit's three)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper msga burrow kiri lcdmonitor tasamp turbochook natter
-#               airTime AirTop airpins airimager snap wordcraft gridcraft deckcraft pdfcraft
+#               airTime AirTop airpins airimager aircal snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
 #               vscode desktop docker compose docker-desktop
 #               (CI jobs link their checkout there),
@@ -444,6 +444,24 @@ build_airshot() {
 	retarget_package_info "$SRC/resources/airShot.PackageInfo" "$STAGE/.PackageInfo"
 	add_attributes "$BUILDDIR/airShot.rsrc" apps/airShot
 	finish_package airshot apps/airShot add-ons/input_server/filters/airShot
+}
+
+# --- airCal -------------------------------------------------------------------
+# Calendars and to-dos (airos-works/airCal): Google Calendar and Tasks, CalDAV
+# and Todoist. libcurl comes from the dependency farm, ICU from the SDK.
+build_aircal() {
+	note airCal
+	snapshot aircal aircal
+	CPATH=$(FARM_CPATH) make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
+		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true all
+	stage_begin
+	install_binary "$BUILDDIR/airCal" "$BUILDDIR/airCal.rsrc" apps/airCal
+	docs aircal README.md LICENSE vendor/nlohmann/LICENSE.MIT
+	install_file 644 "$SRC/LICENSE" data/licenses/MIT
+	deskbar_link apps/airCal airCal
+	retarget_package_info "$SRC/resources/airCal.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/airCal.rsrc" apps/airCal
+	finish_package aircal apps/airCal
 }
 
 # --- Snap -------------------------------------------------------------------
@@ -2552,7 +2570,7 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper msga burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
-			airimager snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
+			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
 			pgadmin4 docker compose docker_desktop; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
