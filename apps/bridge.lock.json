@@ -2,7 +2,7 @@
   "proton_bridge": {
     "repository": "https://github.com/airos-works/proton-bridge.git",
     "branch": "master",
-    "commit": "794b91905ba10a069782e1ef2ae32b9b602ed9d3",
+    "commit": "a53bc5e9cb761ea4913e6101d25e8d7d3248e44a",
     "source_directory": "proton-bridge",
     "binary": "ProtonMailBridge/launcher",
     "menu_folder": "Applications",
