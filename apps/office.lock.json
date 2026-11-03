@@ -1,8 +1,8 @@
 {
   "clipper": {"repository": "https://github.com/airos-works/clipper.git", "commit": "56f3b9d57f0ce9c3f64bb70c1e55a259af0a392e", "binary": "Clipper"},
   "msga": {"repository": "https://github.com/airos-works/msga.git", "commit": "c7e23d09abd759195e5c6ae0f20b03b3b502ee2a", "branch": "airos", "binary": "MSGA"},
-  "wordcraft": {"repository": "https://github.com/airos-works/wordcraft.git", "commit": "71118994af9c66d71b8084de214134ca839c7e08", "binary": "WordCraft"},
-  "gridcraft": {"repository": "https://github.com/airos-works/gridcraft.git", "commit": "45e5d79a26179250a185f96c23644bb0ad43ee3d", "binary": "GridCraft"},
-  "deckcraft": {"repository": "https://github.com/airos-works/deckcraft.git", "commit": "aed9d0b81b1220573191525945a71c8886ab0868", "binary": "DeckCraft"},
-  "pdfcraft": {"repository": "https://github.com/airos-works/pdfcraft.git", "commit": "16859e24a9019f8ee74920fe997616b85d317bc7", "binary": "PdfCraft"}
+  "wordcraft": {"repository": "https://github.com/airos-works/wordcraft.git", "commit": "ecbe7a55f41eec67cc0787200490109faffe95b6", "binary": "WordCraft"},
+  "gridcraft": {"repository": "https://github.com/airos-works/gridcraft.git", "commit": "56994c1d07e51ba637f6ef0b7a25f82fd7ba45cf", "binary": "GridCraft"},
+  "deckcraft": {"repository": "https://github.com/airos-works/deckcraft.git", "commit": "dfd803f13590d1e2ae6d608ccf5e154ff900b785", "binary": "DeckCraft"},
+  "pdfcraft": {"repository": "https://github.com/airos-works/pdfcraft.git", "commit": "106c117c305967f2192c19611297aea55666c56e", "binary": "PdfCraft"}
 }
