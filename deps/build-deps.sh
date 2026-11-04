@@ -13,7 +13,7 @@
 #      builds and later recipes compile against;
 #   4. package it as airos_<name>-<version>-ARCH.hpkg into the package pool
 #      ($AIROS_PACKAGES/ARCH), from which the images install it. Recipes that
-#      make a system package (wpa_supplicant, libpng, freetype, OpenSSH
+#      make a system package (wpa_supplicant, libpng, freetype, harfbuzz, OpenSSH
 #      and its libedit, git and nano, and libffi, python3.12 and postgresql18
 #      for pgAdmin 4, which x86_64 gets from HaikuPorts, and icu74 and
 #      ncurses6, which replace the arm64 repository's bootstrap builds) set
@@ -43,7 +43,7 @@ if [[ $ARCH == arm64 ]]; then
 	# private unwinders); libffi, python312 and postgresql18 (python3.12 and
 	# PostgreSQL's client) for pgAdmin 4.
 	ORDER=(openssl nghttp2 nghttp3 ngtcp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
-		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype nodejs22 libedit openssh nano git icu74 ncurses6
+		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype harfbuzz nodejs22 libedit openssh nano git icu74 ncurses6
 		libffi python312 postgresql18)
 else
 	# and curl with HTTP/3 in place of HaikuPorts' (deps/recipes/curl.sh)

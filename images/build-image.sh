@@ -157,12 +157,13 @@ if [[ $TARGET == x86_64 ]]; then
 	"$AIROS_CI/deps/build-zink.sh"
 fi
 # arm64: libpng and FreeType for the system, which Haiku's arm64 repository
-# has not (libpng) or only as the bootstrap FreeType 2.6.3
-# (deps/recipes/libpng.sh, freetype.sh, under this build's lock; nothing to do
-# while the fork pins and the recipes stay the same).
+# has not (libpng) or only as the bootstrap FreeType 2.6.3, and HarfBuzz,
+# which FreeType loads at run time (deps/recipes/libpng.sh, freetype.sh,
+# harfbuzz.sh, under this build's lock; nothing to do while the fork pins and
+# the recipes stay the same).
 if [[ $ARCH == arm64 ]]; then
-	build_stage "libpng and FreeType" "deps/recipes/libpng.sh, freetype.sh"
-	"$AIROS_CI/deps/build-deps.sh" arm64 libpng freetype
+	build_stage "libpng, FreeType and HarfBuzz" "deps/recipes/libpng.sh, freetype.sh, harfbuzz.sh"
+	"$AIROS_CI/deps/build-deps.sh" arm64 libpng freetype harfbuzz
 	# and OpenSSH (ssh, sshd) with its libedit, and git with nano (its
 	# editor; GitHub Desktop and Code - OSS need git), which x86_64 has from
 	# HaikuPorts; under HaikuPorts' names (deps/recipes/libedit.sh,
@@ -304,6 +305,11 @@ else
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/freetype.sh)"
 		cp "$file" "$WORK/freetype/"
 	done
+	# HarfBuzz (above), which x86_64 images have from HaikuPorts: FreeType
+	# dlopen()s it.
+	file=$(ls "$pool"/harfbuzz-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+	[[ -n $file ]] || die "no harfbuzz package in $pool (deps/recipes/harfbuzz.sh)"
+	cp "$file" "$WORK/packages/"
 	# OpenSSH, libedit, nano and git (above): x86_64 images have them from
 	# HaikuPorts, and every arm64 image must have ssh and git too.
 	for name in libedit openssh nano git; do
