@@ -1077,6 +1077,11 @@ build_summit_webkit() {
 	fi
 	# x86_64: the libraries the engine links from the image (or the release),
 	# at the image's versions.
+	# WebRTC's H.264 encoder (Summit #184): the engine opens HaikuPorts'
+	# OpenH264 (libopenh264.so.7) when a call needs it, and offers H.264
+	# only when it is there. It is not linked, so nothing above sees it.
+	local codec_requires=""
+	[[ $ARCH != x86_64 ]] || codec_requires=$'\tlib:libopenh264 >= 2\n'
 	local system_requires=""
 	if [[ -n $SUMMIT_SYSLIBS ]]; then
 		system_requires=$(python3 "$AIROS_CI/apps/release-requires.py" "$TOOLS/package/package" \
@@ -1129,7 +1134,7 @@ requires {
 	$SUMMIT_HAIKU_REQUIRES
 $mesa_requires
 $system_requires
-$quic_requires}
+$quic_requires$codec_requires}
 INFO
 	DROPPED="(none)"
 	finish_package summit_webkit "$engine/WebProcess" "$engine/NetworkProcess"
