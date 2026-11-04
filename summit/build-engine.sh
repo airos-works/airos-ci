@@ -180,6 +180,10 @@ fi
 options=(-DUSE_HAIKU_GL_COMPOSITING=ON -DUSE_SKIA=ON -DENABLE_WEBGL=ON -DENABLE_ASYNC_SCROLLING=ON
 	-DHaikuFFmpeg_INCLUDE_DIR="$ffmpeg/include")
 [[ $ARCH != x86_64 ]] || options+=(-DENABLE_SMOOTH_SCROLLING=ON)
+# WebTransport (Summit #176): ngtcp2 and nghttp3 of the air/OS prefix, which
+# the image's curl uses too. A Haiku release's sysroot has none: the engine
+# is then built without WebTransport.
+[[ $SDK_NAME != "$ARCH" ]] || options+=(-DHAIKU_QUIC_ROOT="$DEPS")
 mkdir -p "$B"
 cmake -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/arm64/rpi4-gl/init-cache-rtc.cmake" \
 	-DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release "${options[@]}" > "$B/configure.log" 2>&1 \
