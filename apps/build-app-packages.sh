@@ -933,7 +933,21 @@ fi
 # What the packages say about where they run.
 if [[ $SDK_NAME == "$ARCH" ]]; then
 	SUMMIT_FOR="air/OS"
-	SUMMIT_HAIKU_REQUIRES="haiku >= r1~beta6"
+	# The air/OS revision it was built against, or anything later, as the
+	# haiku package spells it (SDK hrev60207-2460-g<sha> -> r1~beta6_hrev60207_2460),
+	# on x86_64 and arm64 alike: the binaries need what that revision's
+	# libraries have (the SDK's libcolumnlistview.a calls BAccessible, added to
+	# libbe in hrev60207-2237), and with only r1~beta6 pkgman installed a Summit
+	# that an older air/OS could not start (Summit #192). The count is the
+	# commits since the hrev tag, so a tree that contains the SDK's revision
+	# (System Updater images, built from the fork's pushes; board branches once
+	# they have merged it) satisfies it; on one that does not, Summit could not
+	# run anyway, and pkgman now says why.
+	if [[ ${HAIKU_REVISION:-} =~ ^hrev([0-9]+)-([0-9]+)-g ]]; then
+		SUMMIT_HAIKU_REQUIRES="haiku >= r1~beta6_hrev${BASH_REMATCH[1]}_${BASH_REMATCH[2]}"
+	else
+		SUMMIT_HAIKU_REQUIRES="haiku >= r1~beta6"
+	fi
 else
 	SUMMIT_FOR="Haiku R1/beta6"
 	# the release it was built against, or anything later
