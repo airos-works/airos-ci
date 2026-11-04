@@ -1016,6 +1016,7 @@ build_summit_webkit() {
 	# and the third-party libraries of the engine.
 	local pending=("$engine/WebProcess" "$engine/NetworkProcess") item needed source
 	local -A seen=()
+	local quic_requires=""
 	# The engine's libraries find each other, and on x86_64 the private EGL.
 	local lib_rpath='$ORIGIN'
 	[[ ! -d $SUMMIT_MESA/lib ]] || lib_rpath='$ORIGIN:$ORIGIN/../mesa/lib'
@@ -1043,6 +1044,12 @@ build_summit_webkit() {
 					&& continue
 				case $needed in
 					libtracker.so|libtranslation.so|libmedia.so|libtextencoding.so) continue ;;
+					# WebTransport (Summit #176): the image's ngtcp2 and nghttp3
+					# (airos_ngtcp2, airos_nghttp3, also its curl's), from the
+					# air/OS prefix rather than the staged image libraries.
+					libngtcp2.so.*|libngtcp2_crypto_ossl.so.*|libnghttp3.so.*)
+						quic_requires+=$'\tlib:'"${needed%%.so*}"$'\n'
+						continue ;;
 				esac
 				die "summit_webkit: no $needed"
 			fi
@@ -1122,7 +1129,7 @@ requires {
 	$SUMMIT_HAIKU_REQUIRES
 $mesa_requires
 $system_requires
-}
+$quic_requires}
 INFO
 	DROPPED="(none)"
 	finish_package summit_webkit "$engine/WebProcess" "$engine/NetworkProcess"
