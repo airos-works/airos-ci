@@ -1125,6 +1125,13 @@ build_summit_webkit() {
 	mkdir -p "$STAGE/documentation/packages/summit_webkit"
 	cp "$SUMMIT_ENGINE_BUILD/engine.json" "$STAGE/documentation/packages/summit_webkit/build.json"
 	cp "$SUMMIT_LIBS/forks.json" "$STAGE/documentation/packages/summit_webkit/libraries.json"
+	# WebGPU (Summit #158): Dawn and what it is built from (abseil, SPIRV-Tools:
+	# Apache 2.0).
+	local dawn_licenses=""
+	if [[ -e $STAGE/$engine/lib/libwebgpu_dawn.so && -d $SUMMIT_LIBS/dawn/licenses ]]; then
+		cp -R "$SUMMIT_LIBS/dawn/licenses" "$STAGE/documentation/packages/summit_webkit/dawn-licenses"
+		dawn_licenses=$'\t"Apache v2"\n'
+	fi
 	local base
 	base=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["webkit"]["base"][:12])' \
 		"$SUMMIT_ENGINE_BUILD/engine.json")
@@ -1146,7 +1153,7 @@ licenses {
 	"BSD (2-clause)"
 	"BSD (3-clause)"
 	"MIT"
-}
+$dawn_licenses}
 provides {
 	summit_webkit = ${SUMMIT_WEBKIT_VERSION%-*}
 }

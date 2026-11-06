@@ -375,6 +375,14 @@ r_dawn() { # WebGPU (Summit #158): Dawn's Vulkan backend, libwebgpu_dawn.so
 	ninja -C _b -j"$JOBS" webgpu_dawn
 	ninja -C _b install
 	cp -a "$P/dawn/lib/libwebgpu_dawn.so" "$P/lib/"
+	# The licences of what libwebgpu_dawn.so is made of, for the package.
+	mkdir -p "$P/dawn/licenses"
+	cp LICENSE "$P/dawn/licenses/dawn"
+	cp third_party/abseil-cpp/LICENSE "$P/dawn/licenses/abseil-cpp"
+	cp third_party/spirv-tools/src/LICENSE "$P/dawn/licenses/spirv-tools"
+	cp third_party/spirv-headers/src/LICENSE "$P/dawn/licenses/spirv-headers"
+	cp third_party/vulkan-headers/src/LICENSE.md "$P/dawn/licenses/vulkan-headers"
+	cp third_party/vulkan-utility-libraries/src/LICENSE.md "$P/dawn/licenses/vulkan-utility-libraries"
 }
 
 if [[ -z $SYSLIBS ]]; then
