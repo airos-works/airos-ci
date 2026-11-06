@@ -188,6 +188,9 @@ options=(-DUSE_HAIKU_GL_COMPOSITING=ON -DUSE_SKIA=ON -DENABLE_WEBGL=ON -DENABLE_
 # prefix to the image's (summit/build-deps.sh r_openssl), and a cached path
 # would point at the removed copy.
 options+=(-U "OPENSSL_*")
+# WebGPU (Summit #158): Dawn from summit/build-deps.sh, for the engines whose
+# init cache turns ENABLE_WEBGPU on.
+[[ ! -f $P/dawn/include/webgpu/webgpu_cpp.h ]] || options+=(-DDAWN_INSTALL_DIR="$P/dawn")
 mkdir -p "$B"
 cmake -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/arm64/rpi4-gl/init-cache-rtc.cmake" \
 	-DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release "${options[@]}" > "$B/configure.log" 2>&1 \

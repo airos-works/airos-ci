@@ -13,8 +13,8 @@
 #   libxslt, libjpeg-turbo, libpng, libwebp, Little-CMS, Brotli, WOFF2,
 #   libzip, ICU 78.3, for GL compositing FreeType, Expat, Fontconfig,
 #   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh),
-#   for AVIF images dav1d and libavif, and for JPEG XL images highway and
-#   libjxl.
+#   for AVIF images dav1d and libavif, for JPEG XL images highway and
+#   libjxl, and for WebGPU Dawn.
 #
 # For x86_64 (air/OS, and a Haiku release with AIROS_TARGET=r1beta6) only
 # ICU 78, libzip, libepoxy, highway and libjxl are built (HaikuPorts' libjxl
@@ -347,13 +347,42 @@ r_libjxl() { # JPEG XL images (WebKit's USE_JPEGXL, Summit #154): the decoder li
 	cm -DBUILD_TESTING=OFF "${options[@]}" -DJPEGXL_FORCE_SYSTEM_LCMS2=ON \
 		-DJPEGXL_FORCE_SYSTEM_BROTLI=ON -DJPEGXL_FORCE_SYSTEM_HWY=ON -DJPEGXL_BUNDLE_LIBPNG=OFF
 }
+r_dawn() { # WebGPU (Summit #158): Dawn's Vulkan backend, libwebgpu_dawn.so
+	# Dawn's dependencies at the commits its DEPS pins (googlesource; Dawn's
+	# own script, no depot_tools), abseil with its Haiku patch
+	# (forks/patches/abseil-cpp-dawn-haiku.patch: GetTID). Installed in a
+	# prefix of its own, $P/dawn, so its webgpu/webgpu.h stays out of the
+	# engine's include path (WebKit has a WebGPU.h of its own); the library
+	# goes into $P/lib too, where summit_webkit's packaging finds it. Dawn
+	# opens libvulkan.so.1 itself: a machine without Vulkan only has no
+	# WebGPU adapter.
+	python3 tools/fetch_dawn_dependencies.py --shallow
+	patch -d third_party/abseil-cpp -p1 < "$AIROS_CI/forks/patches/abseil-cpp-dawn-haiku.patch"
+	rm -rf _b "$P/dawn"
+	local tint_off=(CMD_TOOLS TESTS BENCHMARKS FUZZERS IR_BINARY SPV_READER WGSL_WRITER GLSL_WRITER
+		GLSL_VALIDATOR HLSL_WRITER MSL_WRITER) feature options=()
+	for feature in "${tint_off[@]}"; do options+=(-DTINT_BUILD_$feature=OFF); done
+	cmake -S . -B _b -G Ninja -DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX="$P/dawn" -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED -DBUILD_SHARED_LIBS=OFF \
+		-DDAWN_ENABLE_INSTALL=ON -DDAWN_FETCH_DEPENDENCIES=OFF -DDAWN_ENABLE_VULKAN=ON -DDAWN_ENABLE_NULL=ON \
+		-DDAWN_ENABLE_D3D11=OFF -DDAWN_ENABLE_D3D12=OFF -DDAWN_ENABLE_METAL=OFF -DDAWN_ENABLE_DESKTOP_GL=OFF \
+		-DDAWN_ENABLE_OPENGLES=OFF -DDAWN_ENABLE_WEBGPU_ON_WEBGPU=OFF -DDAWN_ENABLE_SPIRV_VALIDATION=OFF \
+		-DDAWN_USE_X11=OFF -DDAWN_USE_WAYLAND=OFF -DDAWN_USE_GLFW=OFF -DDAWN_USE_WINDOWS_UI=OFF \
+		-DDAWN_BUILD_SAMPLES=OFF -DDAWN_BUILD_TESTS=OFF -DDAWN_BUILD_BENCHMARKS=OFF \
+		-DDAWN_BUILD_NODE_BINDINGS=OFF -DDAWN_BUILD_FUZZERS=OFF -DDAWN_BUILD_PROTOBUF=OFF \
+		"${options[@]}" -DTINT_BUILD_WGSL_READER=ON -DTINT_BUILD_SPV_WRITER=ON \
+		-DDAWN_SUPPORTS_CXX_MODULES=OFF -DEXECINFO_LIBRARY=OFF
+	ninja -C _b -j"$JOBS" webgpu_dawn
+	ninja -C _b install
+	cp -a "$P/dawn/lib/libwebgpu_dawn.so" "$P/lib/"
+}
 
 if [[ -z $SYSLIBS ]]; then
 	ORDER=(zlib openssl nghttp2 libpsl curl sqlite libxml2 libxslt libjpeg-turbo libpng libwebp
 		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy dav1d libavif
-		highway libjxl)
+		highway libjxl dawn)
 else
-	ORDER=(zlib system libzip icu libepoxy highway libjxl)
+	ORDER=(zlib system libzip icu libepoxy highway libjxl dawn)
 fi
 # A prefix that still has the copies of the system's libraries the x86_64
 # engine carried until 12 October 2026 starts again: CMake would find them

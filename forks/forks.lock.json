@@ -574,5 +574,14 @@
     "repo": "libjxl",
     "upstream": "https://github.com/libjxl/libjxl.git",
     "url": "https://github.com/airos-works/libjxl.git"
+  },
+  "dawn": {
+    "base": "8674283f1e131f4beb9a9acebf1a82b72c0dc1a9",
+    "base_commit": "8674283f1e131f4beb9a9acebf1a82b72c0dc1a9",
+    "branch": "airos-8674283f",
+    "commit": "fe81b6285f7466ec321a675cb4f80f6533973857",
+    "repo": "dawn",
+    "upstream": "https://github.com/google/dawn.git",
+    "url": "https://github.com/airos-works/dawn.git"
   }
 }
