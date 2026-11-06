@@ -1064,6 +1064,12 @@ build_summit_webkit() {
 					libngtcp2.so.*|libngtcp2_crypto_ossl.so.*|libnghttp3.so.*)
 						quic_requires+=$'\tlib:'"${needed%%.so*}"$'\n'
 						continue ;;
+					# arm64: the image's OpenSSL (airos_openssl), as x86_64
+					# links HaikuPorts' openssl3 from the image; a private copy
+					# came before it and broke the image's ngtcp2 (QUIC).
+					libssl.so.*|libcrypto.so.*)
+						quic_requires+=$'\tlib:'"${needed%%.so*}"$'\n'
+						continue ;;
 				esac
 				die "summit_webkit: no $needed"
 			fi
@@ -2070,9 +2076,10 @@ PY
 
 # mail_arm64_deps ROOT: arm64 has no HaikuPorts libraries. Mail links ICU 74
 # from the Haiku base (the SDK's, as on x86_64), and the libraries the Summit
-# engine carries (libxml2, HarfBuzz, curl, OpenSSL and SQLite in
+# engine carries (libxml2, HarfBuzz, curl and SQLite in
 # /boot/system/lib/summit-webkit/lib, which is Mail's RPATH), so the process
-# has one copy of each, with their headers from the engine's deps prefix; GNU
+# has one copy of each, with their headers from the engine's deps prefix; the
+# image's OpenSSL (airos_openssl, which the engine links too); GNU
 # libiconv from DEPS (airos_libiconv); and HarfBuzz's subsetter, which the
 # engine does not build, as a static library from the engine's HarfBuzz
 # commit. ROOT/boot/system holds only these.
@@ -2080,11 +2087,16 @@ mail_arm64_deps() {
 	local root=$1/boot/system name file header hb=$APPBUILD/.harfbuzz-subset commit
 	rm -rf "$1"
 	mkdir -p "$root/develop/headers" "$root/develop/lib" "$hb"
-	for header in libxml2 curl openssl sqlite3.h sqlite3ext.h; do
+	for header in libxml2 curl sqlite3.h sqlite3ext.h; do
 		[[ -e $SUMMIT_LIBS/include/$header ]] || die "no $header in $SUMMIT_LIBS/include (summit/build-deps.sh arm64)"
 		ln -s "$SUMMIT_LIBS/include/$header" "$root/develop/headers/"
 	done
-	for name in xml2 harfbuzz curl ssl crypto sqlite3; do
+	[[ -d $DEPS/develop/headers/openssl ]] || die "no OpenSSL in $DEPS (deps/build-deps.sh arm64 openssl)"
+	ln -s "$DEPS/develop/headers/openssl" "$root/develop/headers/"
+	for name in ssl crypto; do
+		ln -s "$DEPS/lib/lib$name.so.3" "$root/develop/lib/lib$name.so"
+	done
+	for name in xml2 harfbuzz curl sqlite3; do
 		file=$(compgen -G "$SUMMIT_ENGINE/lib/lib$name.so*" | sort | head -n 1 || true)
 		[[ -n $file ]] || die "no lib$name in $SUMMIT_ENGINE/lib (summit_webkit not staged)"
 		ln -s "$file" "$root/develop/lib/lib$name.so"

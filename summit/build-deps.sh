@@ -9,7 +9,7 @@
 # (summit: engine/arm64/build-deps.sh, tools/pi/build-gl-deps.sh and
 # tools/pi/build-deps-gnu-hash.sh):
 #
-#   zlib (the SDK's), OpenSSL, nghttp2, libpsl, curl, SQLite, libxml2,
+#   zlib (the SDK's), OpenSSL (the image's: pkg-config files only), nghttp2, libpsl, curl, SQLite, libxml2,
 #   libxslt, libjpeg-turbo, libpng, libwebp, Little-CMS, Brotli, WOFF2,
 #   libzip, ICU 78.3, for GL compositing FreeType, Expat, Fontconfig,
 #   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh),
@@ -128,14 +128,21 @@ r_zlib() { # the SDK's zlib, visible in the prefix for every consumer
 	printf 'prefix=%s\nlibdir=${prefix}/lib\nincludedir=${prefix}/include\nName: zlib\nDescription: zlib\nVersion: %s\nLibs: -L${libdir} -lz\nCflags: -I${includedir}\n' \
 		"$P" "$version" > "$P/lib/pkgconfig/zlib.pc"
 }
-r_openssl() {
-	local target
-	case $ARCH in arm64) target=haiku-aarch64 ;; x86_64) target=haiku-x86_64 ;; esac
-	CC=${CROSS}gcc CFLAGS="--sysroot=$SYSROOT -O2 -fPIC" LDFLAGS="--sysroot=$SYSROOT $LINK" \
-		./Configure "$target" shared no-tests no-docs --prefix="$P" --libdir=lib \
-		--openssldir=/boot/system/data/ssl
-	make -j"$JOBS"
-	make install_sw
+r_openssl() { # the image's OpenSSL (airos_openssl, deps/recipes/openssl.sh): its pkg-config files
+	# OpenSSL is the image's on every architecture, as on x86_64 (HaikuPorts'
+	# openssl3): the engine and curl link it, and summit_webkit requires
+	# lib:libssl and lib:libcrypto instead of carrying a copy. A private 3.3.2
+	# came before the image's 3.5.9 in the engine's library path, and the
+	# image's libngtcp2_crypto_ossl (WebTransport, #176) then missed
+	# SSL_set_quic_tls_transport_params: Summit did not start on arm64.
+	rm -rf "$P/include/openssl" "$P"/lib/libssl.* "$P"/lib/libcrypto.* "$P"/lib/engines-3 "$P"/lib/ossl-modules
+	local dir=$DEPS/develop/lib/pkgconfig name
+	for name in openssl libssl libcrypto; do
+		[[ -f $dir/$name.pc ]] || die "no $name.pc in $DEPS (deps/build-deps.sh $ARCH openssl)"
+		# The link names (libssl.so) are in develop/lib, the libraries in lib.
+		sed -e "s|^prefix=.*|prefix=$DEPS|" -e "s|/boot/system/|$DEPS/|g" \
+			-e 's|^libdir=.*|libdir=${prefix}/develop/lib|' "$dir/$name.pc" > "$P/lib/pkgconfig/$name.pc"
+	done
 }
 r_nghttp2() { cm -DENABLE_LIB_ONLY=ON -DBUILD_STATIC_LIBS=OFF -DENABLE_DOC=OFF; }
 r_libpsl() {
@@ -148,7 +155,7 @@ r_libpsl() {
 }
 r_curl() {
 	autoreconf -fi
-	ac --with-openssl="$P" --with-nghttp2="$P" --with-zlib="$P" --without-libpsl \
+	ac --with-openssl --with-nghttp2="$P" --with-zlib="$P" --without-libpsl \
 		--without-brotli --without-zstd --without-libidn2 --disable-ldap --disable-manual \
 		--disable-docs --with-ca-bundle=/boot/system/data/ssl/CARootCertificates.pem \
 		--without-ca-path LIBS=-lnetwork
@@ -362,6 +369,10 @@ for name in "${ORDER[@]}"; do
 	fn=r_${name//-/_}
 	if [[ $name == zlib ]]; then
 		FORK_COMMIT=sdk-$(sha256sum "$SYSROOT/boot/system/develop/headers/zlib.h" | cut -c1-16)
+	elif [[ $name == openssl ]]; then
+		# the image's OpenSSL, by content
+		FORK_COMMIT=deps-$(cat "$DEPS"/lib/libssl.so.3 "$DEPS"/lib/libcrypto.so.3 \
+			"$DEPS"/develop/lib/pkgconfig/openssl.pc | sha256sum | cut -c1-16)
 	elif [[ $name == system ]]; then
 		# in the same order whatever the locale (people and CI share the stamps)
 		FORK_COMMIT=sdk-$(cd "$SYSLIBS/develop/lib/pkgconfig" && ls | LC_ALL=C sort \
@@ -377,7 +388,7 @@ for name in "${ORDER[@]}"; do
 	fi
 	note "$name"
 	src=$W/src/$name
-	[[ $name == zlib || $name == system ]] || fork_checkout "$name" "$src"
+	[[ $name == zlib || $name == system || $name == openssl ]] || fork_checkout "$name" "$src"
 	mkdir -p "$src"
 	# Not "( ... ) || die": bash ignores set -e inside a subshell that is
 	# the left side of ||, and a failing step would go unnoticed.

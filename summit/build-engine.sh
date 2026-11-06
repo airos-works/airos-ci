@@ -184,6 +184,10 @@ options=(-DUSE_HAIKU_GL_COMPOSITING=ON -DUSE_SKIA=ON -DENABLE_WEBGL=ON -DENABLE_
 # the image's curl uses too. A Haiku release's sysroot has none: the engine
 # is then built without WebTransport.
 [[ $SDK_NAME != "$ARCH" ]] || options+=(-DHAIKU_QUIC_ROOT="$DEPS")
+# OpenSSL is found again at every configure: on arm64 it moved from Summit's
+# prefix to the image's (summit/build-deps.sh r_openssl), and a cached path
+# would point at the removed copy.
+options+=(-U "OPENSSL_*")
 mkdir -p "$B"
 cmake -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/arm64/rpi4-gl/init-cache-rtc.cmake" \
 	-DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release "${options[@]}" > "$B/configure.log" 2>&1 \
