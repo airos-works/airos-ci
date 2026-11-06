@@ -188,6 +188,36 @@ options=(-DUSE_HAIKU_GL_COMPOSITING=ON -DUSE_SKIA=ON -DENABLE_WEBGL=ON -DENABLE_
 # prefix to the image's (summit/build-deps.sh r_openssl), and a cached path
 # would point at the removed copy.
 options+=(-U "OPENSSL_*")
+# Profile-guided optimization: Summit's engine/pgo.json names, per SDK
+# (x86_64, arm64, x86_64-r1beta6), a tarball of GCC counter files trained
+# with an instrumented engine (SUMMIT_PROFILE_GENERATE) and its sha256. The
+# counters are named by object path relative to the build directory, so
+# they apply to this build; functions changed since the training are built
+# as without a profile. Kept in $AIROS_CACHE/summit-pgo by checksum.
+pgo=$(python3 - "$SUMMIT_DIR/engine/pgo.json" "$SDK_NAME" <<'PY'
+import json, os, sys
+path, sdk = sys.argv[1:3]
+if os.path.exists(path):
+    entry = json.load(open(path)).get(sdk)
+    if entry:
+        print(entry["url"], entry["sha256"])
+PY
+)
+if [[ -n $pgo ]]; then
+	read -r pgo_url pgo_sha <<< "$pgo"
+	pgo_dir=$AIROS_CACHE/summit-pgo/$pgo_sha
+	if [[ ! -f $pgo_dir/.complete ]]; then
+		rm -rf "$pgo_dir" && mkdir -p "$pgo_dir"
+		curl -fsSL "$pgo_url" -o "$pgo_dir.tar.zst" || die "cannot fetch the PGO profile $pgo_url"
+		echo "$pgo_sha  $pgo_dir.tar.zst" | sha256sum -c --quiet - || die "PGO profile $pgo_url: wrong sha256"
+		tar --zstd -xf "$pgo_dir.tar.zst" -C "$pgo_dir" && rm -f "$pgo_dir.tar.zst"
+		touch "$pgo_dir/.complete"
+	fi
+	note "PGO profile $(basename "$pgo_url") ($(find "$pgo_dir" -name '*.gcda' | wc -l) counter files)"
+	options+=(-DSUMMIT_PROFILE_USE="$pgo_dir")
+else
+	options+=(-DSUMMIT_PROFILE_USE=)
+fi
 # WebGPU (Summit #158): Dawn from summit/build-deps.sh, for the engines whose
 # init cache turns ENABLE_WEBGPU on.
 [[ ! -f $P/dawn/include/webgpu/webgpu_cpp.h ]] || options+=(-DDAWN_INSTALL_DIR="$P/dawn")
