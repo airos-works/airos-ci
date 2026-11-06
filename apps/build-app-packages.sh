@@ -8,7 +8,8 @@
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper msga burrow kiri lcdmonitor amp turbochook
 #               natter airtime airtop airpins airimager aircal snap wordcraft gridcraft deckcraft
-#               pdfcraft photocraft lightcraft aurora summit_webkit summit
+#               pdfcraft photocraft lightcraft vectorcraft effectcraft filmcraft aurora
+#               summit_webkit summit
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
 #               github_desktop pgadmin4
 #               docker compose docker_desktop (the Docker stack; their own CI
@@ -19,10 +20,12 @@
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper msga burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins airimager aircal snap wordcraft gridcraft deckcraft pdfcraft
-#               photocraft lightcraft aurora mail proton-bridge proton-vpn-airos-app
+#               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
+#               proton-bridge proton-vpn-airos-app
 #               vscode desktop docker compose docker-desktop
 #               (CI jobs link their checkout there),
-#               and craft-fonts (storytold/craft-fonts), which LightCraft embeds
+#               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
+#               VectorCraft and FilmCraft embed
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
 # compiler, sysroot, host rc/xres/resattr/mimeset/package, MIME DB) and the
@@ -2311,10 +2314,9 @@ build_craft() {
 			# without assuming optional AES/SHA instructions on every board.
 			export AWS_LC_SYS_CFLAGS_aarch64_unknown_haiku='-DOPENSSL_STATIC_ARMCAP -march=armv8-a'
 		fi
-		if [[ $app == lightcraft || $app == photocraft ]]; then
-			# LightCraft's and PhotoCraft's releases embed the craft-fonts
-			# collection (pinned beside them in media.lock.json), as their
-			# tools/haiku/build.sh do.
+		if [[ $app =~ ^(lightcraft|photocraft|vectorcraft|filmcraft)$ ]]; then
+			# These releases embed the craft-fonts collection (pinned beside
+			# them in media.lock.json), as their tools/haiku/build.sh do.
 			export CRAFT_FONTS_DIR=$CRAFT_FONTS CRAFT_FONTS_REQUIRED=1
 		fi
 		[[ -z $i18n ]] || export CRAFT_I18N_DIR=$i18n CRAFT_I18N_REQUIRED=1
@@ -2350,10 +2352,11 @@ build_craft() {
 		done < <(awk -F '\"' '/^licence_file = / { print $2 }' "$SRC/ATTRIBUTION.toml" | sort -u)
 		# hayro-cmap is vendored since PdfCraft 0.15: its licence is in the list above.
 		;;
-	photocraft|lightcraft)
+	photocraft|lightcraft|vectorcraft|effectcraft|filmcraft)
 		# The licences of the assets, fonts and vendored crates the editor
 		# embeds, as in the application's own tools/haiku/package.sh.
-		local dirs=(assets crates vendor "apps/$app-haiku" tools/haiku)
+		local dirs=(assets crates vendor licenses "apps/$app-haiku" tools/haiku) dir
+		for dir in "${!dirs[@]}"; do [[ -d $SRC/${dirs[$dir]} ]] || unset 'dirs[dir]'; done
 		[[ $app != lightcraft ]] || dirs+=(apps/lightcraft-haiku-host)
 		while IFS= read -r license; do
 			install_file 644 "$SRC/$license" "documentation/packages/$app/licenses/$license"
@@ -2365,7 +2368,8 @@ build_craft() {
 			install_file 644 "$SRC/apps/lightcraft-haiku/ATTRIBUTION.md" \
 				"documentation/packages/$app/NATIVE-ATTRIBUTION.md"
 		fi
-		while IFS= read -r license; do
+		# EffectCraft is the one without the craft-fonts collection.
+		[[ $app == effectcraft ]] || while IFS= read -r license; do
 			install_file 644 "$CRAFT_FONTS/$license" "documentation/packages/$app/licenses/craft-fonts/$license"
 		done < <(cd "$CRAFT_FONTS" && find . -name .git -prune -o -type f -regextype posix-extended \
 			-regex '(.*/)?(LICENSE|OFL|COPYING)[^/]*' -printf '%P\n' | sort)
@@ -2415,6 +2419,15 @@ build_photocraft() {
 build_lightcraft() {
 	[[ -f $CRAFT_FONTS/fonts/manifest.txt ]] || die "no craft-fonts checkout at $CRAFT_FONTS (CRAFT_FONTS)"
 	build_craft lightcraft LightCraft Media
+}
+build_vectorcraft() {
+	[[ -f $CRAFT_FONTS/fonts/manifest.txt ]] || die "no craft-fonts checkout at $CRAFT_FONTS (CRAFT_FONTS)"
+	build_craft vectorcraft VectorCraft Media
+}
+build_effectcraft() { build_craft effectcraft EffectCraft Media; }
+build_filmcraft() {
+	[[ -f $CRAFT_FONTS/fonts/manifest.txt ]] || die "no craft-fonts checkout at $CRAFT_FONTS (CRAFT_FONTS)"
+	build_craft filmcraft FilmCraft Media
 }
 
 # --- Docker: the CLI, the Engine, containerd, the buildx plugin ---------------
@@ -2640,7 +2653,8 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper msga burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
-			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft aurora summit_webkit \
+			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
+			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
 			pgadmin4 docker compose docker_desktop; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
