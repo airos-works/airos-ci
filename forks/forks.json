@@ -806,6 +806,21 @@
       "used_by": "Summit engine dependency (build-deps.sh): JPEG XL images (USE_JPEGXL), decoding with highway, Brotli and Little-CMS"
     },
     {
+      "name": "dawn",
+      "wave": 4,
+      "create": "fork",
+      "github": "google/dawn",
+      "base": "8674283f1e131f4beb9a9acebf1a82b72c0dc1a9",
+      "branch": "airos-8674283f",
+      "patches": [
+        {
+          "from": "ci:forks/patches/dawn-haiku.patch",
+          "message": "Haiku: POSIX platform (not Linux), libvulkan.so.1, executable/module paths, worker thread names; no DRM, dma-buf or RenderDoc"
+        }
+      ],
+      "used_by": "Summit engine dependency (build-deps.sh): WebGPU (#158), libwebgpu_dawn.so with the Vulkan backend; abseil gets forks/patches/abseil-cpp-dawn-haiku.patch in the recipe"
+    },
+    {
       "name": "open-gpu-kernel-modules",
       "repo": "open-gpu-kernel-modules",
       "wave": 5,

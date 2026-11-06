@@ -1,0 +1,26 @@
+diff --git a/absl/base/internal/sysinfo.cc b/absl/base/internal/sysinfo.cc
+index 19fef81..b36a11b 100644
+--- a/absl/base/internal/sysinfo.cc
++++ b/absl/base/internal/sysinfo.cc
+@@ -73,6 +73,10 @@
+ #include <task.h>
+ #endif
+ 
++#if defined(__HAIKU__)
++#include <OS.h>
++#endif
++
+ namespace absl {
+ ABSL_NAMESPACE_BEGIN
+ namespace base_internal {
+@@ -475,6 +479,10 @@ pid_t GetTID() {
+   return static_cast<pid_t>(zx_thread_self());
+ }
+ 
++#elif defined(__HAIKU__)
++
++pid_t GetTID() { return static_cast<pid_t>(find_thread(nullptr)); }
++
+ #elif defined(__FREERTOS__)
+ 
+ pid_t GetTID() {

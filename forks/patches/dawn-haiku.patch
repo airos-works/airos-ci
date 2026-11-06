@@ -1,0 +1,153 @@
+diff --git a/src/dawn/common/CMakeLists.txt b/src/dawn/common/CMakeLists.txt
+index f934a940ea..e40de5eada 100644
+--- a/src/dawn/common/CMakeLists.txt
++++ b/src/dawn/common/CMakeLists.txt
+@@ -161,7 +161,7 @@ if (DAWN_ENABLE_VULKAN)
+         Vulkan::Headers)
+ endif ()
+ 
+-if (DAWN_ENABLE_VULKAN AND UNIX AND NOT ANDROID AND NOT APPLE)
++if (DAWN_ENABLE_VULKAN AND UNIX AND NOT ANDROID AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+     list(APPEND private_headers
+         "DRMUtils.h"
+     )
+diff --git a/src/dawn/common/SystemUtils.cpp b/src/dawn/common/SystemUtils.cpp
+index 79b728d3df..9cd307f29d 100644
+--- a/src/dawn/common/SystemUtils.cpp
++++ b/src/dawn/common/SystemUtils.cpp
+@@ -47,6 +47,12 @@
+ #include <mach-o/dyld.h>
+ 
+ #include <vector>
++#elif DAWN_PLATFORM_IS(HAIKU)
++#include <FindDirectory.h>
++#include <dlfcn.h>
++#include <image.h>
++#include <limits.h>
++#include <stdlib.h>
+ #endif
+ 
+ #include <array>
+@@ -153,6 +159,15 @@ std::optional<std::string> GetExecutablePath() {
+ std::optional<std::string> GetExecutablePath() {
+     return {};
+ }
++#elif DAWN_PLATFORM_IS(HAIKU)
++std::optional<std::string> GetExecutablePath() {
++    std::array<char, PATH_MAX> path = {};
++    if (find_path(B_APP_IMAGE_SYMBOL, B_FIND_PATH_IMAGE_PATH, nullptr, path.data(), PATH_MAX) !=
++        B_OK) {
++        return {};
++    }
++    return path.data();
++}
+ #else
+ #error "Implement GetExecutablePath for your platform."
+ #endif
+@@ -169,7 +184,8 @@ std::optional<std::string> GetExecutableDirectory() {
+     return exePath->substr(0, lastPathSepLoc + 1);
+ }
+ 
+-#if DAWN_PLATFORM_IS(LINUX) || DAWN_PLATFORM_IS(MACOS) || DAWN_PLATFORM_IS(IOS)
++#if DAWN_PLATFORM_IS(LINUX) || DAWN_PLATFORM_IS(MACOS) || DAWN_PLATFORM_IS(IOS) || \
++    DAWN_PLATFORM_IS(HAIKU)
+ std::optional<std::string> GetModulePath() {
+     static int placeholderSymbol = 0;
+     Dl_info dlInfo;
+diff --git a/src/dawn/native/CMakeLists.txt b/src/dawn/native/CMakeLists.txt
+index e0cb67c3c0..3775d4e6f4 100644
+--- a/src/dawn/native/CMakeLists.txt
++++ b/src/dawn/native/CMakeLists.txt
+@@ -880,7 +880,7 @@ if (DAWN_ENABLE_VULKAN)
+             "vulkan/external_memory/MemoryServiceImplementationAHardwareBuffer.cpp"
+             "vulkan/external_semaphore/SemaphoreServiceImplementationFD.cpp"
+         )
+-    elseif (UNIX AND NOT APPLE)
++    elseif (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+         list(APPEND private_headers
+             "vulkan/external_memory/MemoryServiceImplementationDmaBuf.h"
+             "vulkan/external_memory/MemoryServiceImplementationOpaqueFD.h"
+diff --git a/src/dawn/native/vulkan/BackendVk.cpp b/src/dawn/native/vulkan/BackendVk.cpp
+index f55dc878f5..887903a7cd 100644
+--- a/src/dawn/native/vulkan/BackendVk.cpp
++++ b/src/dawn/native/vulkan/BackendVk.cpp
+@@ -69,6 +69,8 @@ constexpr char kVulkanLibName[] = "vulkan-1.dll";
+ constexpr char kVulkanLibName[] = "libvulkan.dylib";
+ #elif DAWN_PLATFORM_IS(FUCHSIA)
+ constexpr char kVulkanLibName[] = "libvulkan.so";
++#elif DAWN_PLATFORM_IS(HAIKU)
++constexpr char kVulkanLibName[] = "libvulkan.so.1";
+ #else
+ #error "Unimplemented Vulkan backend platform"
+ #endif
+diff --git a/src/dawn/platform/WorkerThread.cpp b/src/dawn/platform/WorkerThread.cpp
+index 95997fe882..ca426c82ef 100644
+--- a/src/dawn/platform/WorkerThread.cpp
++++ b/src/dawn/platform/WorkerThread.cpp
+@@ -36,6 +36,8 @@
+ 
+ #if DAWN_PLATFORM_IS(LINUX)
+ #include <pthread.h>
++#elif DAWN_PLATFORM_IS(HAIKU)
++#include <OS.h>
+ #endif
+ 
+ namespace dawn::platform {
+@@ -112,6 +114,8 @@ void AsyncJobHandleImpl::JobThreadLoop(PostWorkerJobCallback cb, void* userdata)
+     // Give the worker thread a dedicated name instead of inheriting the spawning thread's name.
+     // Linux and Android only: the pthread_setname_np() signature differs on other POSIX platforms.
+     pthread_setname_np(pthread_self(), "DawnWorker");
++#elif DAWN_PLATFORM_IS(HAIKU)
++    rename_thread(find_thread(nullptr), "DawnWorker");
+ #endif
+     JobStatus status = JobStatus::Continue;
+     while (!mCancelled && status == JobStatus::Continue) {
+diff --git a/src/utils/platform.h b/src/utils/platform.h
+index 4dd58a4878..7dae5e4308 100644
+--- a/src/utils/platform.h
++++ b/src/utils/platform.h
+@@ -49,6 +49,7 @@
+ //      - MACOS
+ //    - FUCHSIA
+ //    - EMSCRIPTEN
++//    - HAIKU
+ #if defined(_WIN32) || defined(_WIN64)
+ #include <winapifamily.h>
+ #define DAWN_PLATFORM_IS_WINDOWS 1
+@@ -95,6 +96,10 @@
+ #define DAWN_PLATFORM_IS_POSIX 1
+ #include <emscripten/emscripten.h>
+ 
++#elif defined(__HAIKU__)
++#define DAWN_PLATFORM_IS_HAIKU 1
++#define DAWN_PLATFORM_IS_POSIX 1
++
+ #else
+ #error "Unsupported platform."
+ #endif
+@@ -241,6 +246,9 @@ static_assert(sizeof(sizeof(char)) == 4, "Expect sizeof(size_t) == 4");
+ #if !defined(DAWN_PLATFORM_IS_EMSCRIPTEN)
+ #define DAWN_PLATFORM_IS_EMSCRIPTEN 0
+ #endif
++#if !defined(DAWN_PLATFORM_IS_HAIKU)
++#define DAWN_PLATFORM_IS_HAIKU 0
++#endif
+ 
+ #if !defined(DAWN_PLATFORM_IS_X86)
+ #define DAWN_PLATFORM_IS_X86 0
+diff --git a/third_party/CMakeLists.txt b/third_party/CMakeLists.txt
+index bba2b8a434..a922bb2da4 100644
+--- a/third_party/CMakeLists.txt
++++ b/third_party/CMakeLists.txt
+@@ -191,7 +191,10 @@ endif()
+ if (NOT TARGET renderdoc-api)
+     add_library(RenderDocApi INTERFACE)
+     target_include_directories(RenderDocApi INTERFACE "renderdoc")
+-    target_compile_definitions(RenderDocApi INTERFACE "DAWN_ENABLE_RENDERDOC")
++    # RenderDoc has no Haiku port (and its header rejects unknown platforms).
++    if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
++        target_compile_definitions(RenderDocApi INTERFACE "DAWN_ENABLE_RENDERDOC")
++    endif()
+ endif()
+ 
+ if (DAWN_ENABLE_DESKTOP_GL OR DAWN_ENABLE_OPENGLES)
