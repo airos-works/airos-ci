@@ -217,7 +217,10 @@ def make(c, sources, workdir, lock, force):
     # 1. the repository
     if c["create"] == "fork":
         if not repo_exists(full):
-            gh("repo", "fork", c["github"], "--clone=false", "--fork-name", repo_name)
+            # Into the organization: without --org gh forks into the
+            # logged-in user's account.
+            org = [] if OWNER == gh("api", "user", "--jq", ".login") else ["--org", OWNER]
+            gh("repo", "fork", c["github"], "--clone=false", "--fork-name", repo_name, *org)
             for _ in range(30):
                 if repo_exists(full):
                     break

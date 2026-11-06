@@ -786,6 +786,26 @@
       "used_by": "Summit engine dependency (arm64 build-deps.sh): AVIF images (USE_AVIF), decoding with dav1d"
     },
     {
+      "name": "highway",
+      "wave": 4,
+      "create": "fork",
+      "github": "google/highway",
+      "base": "1.2.0",
+      "branch": "airos-1.2.0",
+      "patches": [],
+      "used_by": "Summit engine dependency (build-deps.sh): the SIMD library of libjxl (JPEG XL images)"
+    },
+    {
+      "name": "libjxl",
+      "wave": 4,
+      "create": "fork",
+      "github": "libjxl/libjxl",
+      "base": "v0.12.0",
+      "branch": "airos-v0.12.0",
+      "patches": [],
+      "used_by": "Summit engine dependency (build-deps.sh): JPEG XL images (USE_JPEGXL), decoding with highway, Brotli and Little-CMS"
+    },
+    {
       "name": "open-gpu-kernel-modules",
       "repo": "open-gpu-kernel-modules",
       "wave": 5,

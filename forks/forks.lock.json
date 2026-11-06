@@ -556,5 +556,23 @@
     "repo": "linuxvm",
     "upstream": null,
     "url": "https://github.com/airos-works/linuxvm.git"
+  },
+  "highway": {
+    "base": "1.2.0",
+    "base_commit": "457c891775a7397bdb0376bb1031e6e027af1c48",
+    "branch": "airos-1.2.0",
+    "commit": "457c891775a7397bdb0376bb1031e6e027af1c48",
+    "repo": "highway",
+    "upstream": "https://github.com/google/highway.git",
+    "url": "https://github.com/airos-works/highway.git"
+  },
+  "libjxl": {
+    "base": "v0.12.0",
+    "base_commit": "a7a9c787341cf703dede03c2009fa460cae5e5df",
+    "branch": "airos-v0.12.0",
+    "commit": "a7a9c787341cf703dede03c2009fa460cae5e5df",
+    "repo": "libjxl",
+    "upstream": "https://github.com/libjxl/libjxl.git",
+    "url": "https://github.com/airos-works/libjxl.git"
   }
 }

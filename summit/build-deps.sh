@@ -13,10 +13,12 @@
 #   libxslt, libjpeg-turbo, libpng, libwebp, Little-CMS, Brotli, WOFF2,
 #   libzip, ICU 78.3, for GL compositing FreeType, Expat, Fontconfig,
 #   HarfBuzz (with ICU) and libepoxy (EGL from the GL stack, deps/build-gl.sh),
-#   and for AVIF images dav1d and libavif.
+#   for AVIF images dav1d and libavif, and for JPEG XL images highway and
+#   libjxl.
 #
 # For x86_64 (air/OS, and a Haiku release with AIROS_TARGET=r1beta6) only
-# ICU 78, libzip and libepoxy are built: the image has the others, and the
+# ICU 78, libzip, libepoxy, highway and libjxl are built (HaikuPorts' libjxl
+# is 0.6, older than WebKit takes): the image has the others, and the
 # engine links those (summit/lib.sh SYSLIBS) instead of carrying copies (a
 # system add-on in the same process, such as the Media Kit's FFmpeg reader
 # with libass and Fontconfig, would get the engine's older copy and fail to
@@ -326,12 +328,25 @@ r_libavif() { # AVIF images (WebKit's USE_AVIF): decoding only, with dav1d
 		-DAVIF_LIBXML2=OFF -DAVIF_JPEG=OFF -DAVIF_ZLIBPNG=OFF -DAVIF_BUILD_APPS=OFF \
 		-DAVIF_BUILD_TESTS=OFF -DAVIF_BUILD_EXAMPLES=OFF
 }
+r_highway() { # libjxl's SIMD library (runtime dispatch on x86_64, NEON on arm64)
+	cm -DHWY_ENABLE_TESTS=OFF -DHWY_ENABLE_EXAMPLES=OFF -DHWY_ENABLE_CONTRIB=OFF -DBUILD_TESTING=OFF
+}
+r_libjxl() { # JPEG XL images (WebKit's USE_JPEGXL, Summit #154): the decoder library
+	# with Brotli, Little-CMS (system or prefix) and highway; no tools, no
+	# bundled third-party code (the fork has no submodules checked out).
+	local off=(TOOLS DEVTOOLS DOXYGEN MANPAGES BENCHMARK EXAMPLES JNI SJPEG OPENEXR SKCMS VIEWERS
+		TCMALLOC PLUGINS JPEGLI AVX512) feature options=()
+	for feature in "${off[@]}"; do options+=(-DJPEGXL_ENABLE_$feature=OFF); done
+	cm -DBUILD_TESTING=OFF "${options[@]}" -DJPEGXL_FORCE_SYSTEM_LCMS2=ON \
+		-DJPEGXL_FORCE_SYSTEM_BROTLI=ON -DJPEGXL_FORCE_SYSTEM_HWY=ON -DJPEGXL_BUNDLE_LIBPNG=OFF
+}
 
 if [[ -z $SYSLIBS ]]; then
 	ORDER=(zlib openssl nghttp2 libpsl curl sqlite libxml2 libxslt libjpeg-turbo libpng libwebp
-		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy dav1d libavif)
+		lcms2 brotli woff2 libzip icu freetype expat fontconfig harfbuzz libepoxy dav1d libavif
+		highway libjxl)
 else
-	ORDER=(zlib system libzip icu libepoxy)
+	ORDER=(zlib system libzip icu libepoxy highway libjxl)
 fi
 # A prefix that still has the copies of the system's libraries the x86_64
 # engine carried until 12 October 2026 starts again: CMake would find them
