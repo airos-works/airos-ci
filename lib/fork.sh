@@ -35,7 +35,9 @@ fork_checkout() {
 	mkdir -p "$(dirname "$dest")"
 	git -C "$cache" worktree prune
 	with_lock "fork-$name" git -C "$cache" worktree add -q --detach --force "$dest" "$commit"
-	if [[ -f $dest/.gitmodules ]]; then
+	# FORK_SUBMODULES=0: a project that brings its dependencies itself (Dawn:
+	# its .gitmodules also name Chrome-internal repositories).
+	if [[ -f $dest/.gitmodules && ${FORK_SUBMODULES:-1} != 0 ]]; then
 		git -C "$dest" submodule -q update --init --recursive
 	fi
 	FORK_COMMIT=$commit

@@ -356,6 +356,9 @@ r_dawn() { # WebGPU (Summit #158): Dawn's Vulkan backend, libwebgpu_dawn.so
 	# goes into $P/lib too, where summit_webkit's packaging finds it. Dawn
 	# opens libvulkan.so.1 itself: a machine without Vulkan only has no
 	# WebGPU adapter.
+	# (A checkout whose submodules were cloned before FORK_SUBMODULES=0 has
+	# a half-cloned ANGLE: Dawn's DEPS fetch it again.)
+	rm -rf third_party/angle
 	python3 tools/fetch_dawn_dependencies.py --shallow
 	patch -d third_party/abseil-cpp -p1 < "$AIROS_CI/forks/patches/abseil-cpp-dawn-haiku.patch"
 	rm -rf _b "$P/dawn"
@@ -425,7 +428,12 @@ for name in "${ORDER[@]}"; do
 	fi
 	note "$name"
 	src=$W/src/$name
-	[[ $name == zlib || $name == system || $name == openssl ]] || fork_checkout "$name" "$src"
+	if [[ $name == dawn ]]; then
+		# Dawn's dependencies come from its DEPS (r_dawn), not its submodules
+		FORK_SUBMODULES=0 fork_checkout "$name" "$src"
+	elif [[ $name != zlib && $name != system && $name != openssl ]]; then
+		fork_checkout "$name" "$src"
+	fi
 	mkdir -p "$src"
 	# Not "( ... ) || die": bash ignores set -e inside a subshell that is
 	# the left side of ||, and a failing step would go unnoticed.
