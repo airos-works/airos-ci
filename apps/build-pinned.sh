@@ -3,7 +3,8 @@
 #
 # Build the packages of one Deskbar folder at the reviewed revisions in
 # apps/SET.lock.json: office (Clipper, MSGA, WordCraft, GridCraft, DeckCraft,
-# PdfCraft), media (PhotoCraft, LightCraft), bridge (Proton Mail Bridge) or
+# PdfCraft), media (PhotoCraft, LightCraft, VectorCraft, EffectCraft,
+# FilmCraft), bridge (Proton Mail Bridge) or
 # mail (Mail, which replaces Haiku's). An entry with a "binary" is an
 # application; one without is a source the applications build with
 # (craft-fonts). Called under the image's architecture lock, after its SDK has

@@ -9,7 +9,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 |---|---|---|---|
 | Images | `airos-works/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, MSGA, airShot, AirTop, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN, Proton Mail Bridge, Aurora and Code - OSS; every app builds from its `main` branch (Code - OSS from `haiku`, MSGA from `airos`); a rolling `latest` release and the "Latest builds" section of each README |
-| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, MSGA, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft and LightCraft (Media) Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
+| Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, MSGA, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft, LightCraft, VectorCraft, EffectCraft and FilmCraft (Media), Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
 | Summit | `airos-works/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine), `summit` (the browser) and `summit_webkitlegacy` (HaikuWebKit's BWebView API on the engine); with `haiku-releases`, the first two for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
 | SDKs and dependencies | this repository, [`sdk-deps.yml`](.github/workflows/sdk-deps.yml) | changes to `sdk/`, `deps/`, `lib/` or the fork pins, by hand | cross SDKs, third-party libraries, firmware, the GL stacks |
 
@@ -138,10 +138,14 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   build uses static ARMv8-A capabilities because AWS-LC has no Haiku
   runtime CPU probe.
 - **Media**, between Office and Utilities in Deskbar: PhotoCraft (layered
-  image editor) and LightCraft (photo library and RAW developer) on every
-  target, built the same way. LightCraft embeds the craft-fonts collection
-  pinned beside it. Both render with Vulkan where the machine has a hardware
-  driver and fall back to the CPU otherwise.
+  image editor), LightCraft (photo library and RAW developer), VectorCraft
+  (vector illustration), EffectCraft (motion graphics and effects) and
+  FilmCraft (video editor) on every target, built the same way. PhotoCraft,
+  LightCraft, VectorCraft and FilmCraft embed the craft-fonts collection
+  pinned beside them. All render with Vulkan where the machine has a hardware
+  driver and fall back to the CPU otherwise; EffectCraft and FilmCraft play
+  and record sound through the Media Kit and read other formats with its
+  codecs.
 - x86_64: Qt 6 (`qt6_base` and what it needs): HaikuPorts' package with the
   Haiku platform plugin from airos-works/qt6-haikuplugins `airos`, which draws at
   the desktop's density and reconnects existing tray icons after missed
