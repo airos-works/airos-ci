@@ -1,8 +1,8 @@
 {
-  "photocraft": {"repository": "https://github.com/airos-works/photocraft.git", "commit": "af28545d0398e37ab35c5e9ded2df29f132a1049", "binary": "PhotoCraft"},
-  "lightcraft": {"repository": "https://github.com/airos-works/lightcraft.git", "commit": "536632f5ff707251d4be5abfebdf47726eef576b", "binary": "LightCraft"},
+  "photocraft": {"repository": "https://github.com/airos-works/photocraft.git", "commit": "79e9d51788fbd204f6e3a1638b4696fa239ff48b", "binary": "PhotoCraft"},
+  "lightcraft": {"repository": "https://github.com/airos-works/lightcraft.git", "commit": "7f59aa18f25a077d0b206e0919b60795d804de98", "binary": "LightCraft"},
   "vectorcraft": {"repository": "https://github.com/airos-works/vectorcraft.git", "commit": "78b15e884d27d58cc7305f7ef8f6961134fad508", "binary": "VectorCraft"},
   "effectcraft": {"repository": "https://github.com/airos-works/effectcraft.git", "commit": "c7e54843a9e82c6ea1dfb25a2dd1d5d7b9e9c535", "binary": "EffectCraft"},
-  "filmcraft": {"repository": "https://github.com/airos-works/filmcraft.git", "commit": "763a2ca07098192c13bcd54c659be2d36920192d", "binary": "FilmCraft"},
+  "filmcraft": {"repository": "https://github.com/airos-works/filmcraft.git", "commit": "205ce309912ee47b3938e8048c5b062897e6bc5a", "binary": "FilmCraft"},
   "craft-fonts": {"repository": "https://github.com/storytold/craft-fonts.git", "commit": "b076417b5880bd4154bd22f00695b1d28c6bea83"}
 }
