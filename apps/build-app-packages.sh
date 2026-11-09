@@ -1032,6 +1032,18 @@ build_summit_webkit() {
 	# have, transitively, under its soname: libWebKit, JavaScriptCore, ICU 78
 	# and the third-party libraries of the engine.
 	local pending=("$engine/WebProcess" "$engine/NetworkProcess") item needed source
+	# Speech recognition (Summit #159, docs/speech-recognition.md): the engine
+	# does not link the Neural Kit; it opens libsummitspeech.so, which does,
+	# from beside libWebKit when a page asks for webkitSpeechRecognition. The
+	# engine build makes that library only where the SDK has the kit's
+	# recogniser (neural/SpeechRecognizer.h). libneural.so itself is the
+	# system's, as the loop below finds it in the sysroot.
+	if [[ -e $SUMMIT_ENGINE_BUILD/lib/libsummitspeech.so ]]; then
+		cp "$SUMMIT_ENGINE_BUILD/lib/libsummitspeech.so" "$STAGE/$engine/lib/libsummitspeech.so"
+		chmod 644 "$STAGE/$engine/lib/libsummitspeech.so"
+		"$STRIP" --strip-unneeded "$STAGE/$engine/lib/libsummitspeech.so"
+		pending+=("$engine/lib/libsummitspeech.so")
+	fi
 	local -A seen=()
 	local quic_requires=""
 	# The engine's libraries find each other, and on x86_64 the private EGL.
@@ -1118,6 +1130,8 @@ build_summit_webkit() {
 		mkdir -p "$STAGE/$engine/etc"
 		cp -RL "$SUMMIT_LIBS/etc/fonts" "$STAGE/$engine/etc/"
 	fi
+	[[ ! -e $STAGE/$engine/lib/libsummitspeech.so ]] \
+		|| set_rpath "$STAGE/$engine/lib/libsummitspeech.so" "$lib_rpath"
 	# libWebKit.so for programs that link the engine (Natter, Summit, Aurora)
 	ln -s libWebKit.so.1 "$STAGE/$engine/lib/libWebKit.so"
 	local header
