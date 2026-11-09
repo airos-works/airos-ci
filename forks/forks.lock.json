@@ -3,7 +3,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos",
-    "commit": "d015489326537b34c17d5c0f42c490592ce13c74",
+    "commit": "774aa2599f8ff2a1e52aaec055afca62260cc3c8",
     "repo": "airos-firmware",
     "upstream": null,
     "url": "https://github.com/airos-works/airos-firmware.git"
@@ -246,7 +246,7 @@
     "base": "v6.18.52",
     "base_commit": "v6.18.52",
     "branch": "airos-6.18.52",
-    "commit": "7087752c9e62314b5aa4ee97eef6d18f692a4530",
+    "commit": "eeb041739e7d3ae4bafabc4a7fe812e1b51ab812",
     "repo": "linux-drm",
     "upstream": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
     "url": "https://github.com/airos-works/linux-drm.git"

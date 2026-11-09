@@ -46,6 +46,9 @@ export AIROS_ARCH=x86_64
 # directory from (forks/forks.json), and the firmware package's revision.
 FIRMWARE_VERSION=20260916
 FIRMWARE_REVISION=1
+# the same for the amdnpu directory (the NPU's firmware, added later)
+NPU_FIRMWARE_VERSION=20261109
+NPU_FIRMWARE_REVISION=1
 
 W=$AIROS_WORK/amdgpu
 # (AMDGPU_INPUTS and AMDGPU_USERLAND_OUT: elsewhere, for trial runs)
@@ -84,6 +87,32 @@ for name in amdgpu_drm amdgpu_firmwares; do
 		|| die "package.sh made no single $name package"
 done
 
+# The NPU of Ryzen AI processors: amdxdna (Linux 7.4's driver on the same
+# compat layer, an add-on of its own, with the launch job that has it
+# loaded at boot) and its firmware, where the linux-drm pin has the
+# packaging and the firmware pin the files. The driver binds to AMD NPUs
+# only and leaves every other machine alone; the Neural Kit's amdxdna
+# back end (in haiku.hpkg) uses it.
+packageXdna=$W/linux-drm/haiku/tools/package-amdxdna.sh
+if [[ -x $packageXdna && -d $W/airos-firmware/amdnpu ]]; then
+	note "amdxdna"
+	XDNA_OUT=$W/linux-drm/out-xdna-release
+	rm -f "$XDNA_OUT/amdxdna"
+	make -C "$W/linux-drm" -f haiku/build/Makefile -j"$JOBS" amdxdna OUT="$XDNA_OUT" \
+		HAIKU_TOP="$HAIKU_SOURCE" HAIKU_BUILD="$HAIKU_BUILD" CROSS="$CROSS" > "$W/build-xdna.log" 2>&1 \
+		|| { grep -m5 -B2 -A8 -E "error|Error" "$W/build-xdna.log"; die "amdxdna build failed ($W/build-xdna.log)"; }
+	ls -l "$XDNA_OUT/amdxdna"
+	BIN=$XDNA_OUT/amdxdna HAIKU_BUILD=$HAIKU_BUILD FIRMWARE_VERSION=$NPU_FIRMWARE_VERSION \
+		FIRMWARE_REVISION=$NPU_FIRMWARE_REVISION \
+		"$packageXdna" "$W/stage/packages" "$W/airos-firmware" "$W/airos-firmware/LICENSES/LICENSE.amdnpu"
+	for name in amdxdna amdnpu_firmwares; do
+		[[ $(ls "$W/stage/packages/$name"-[0-9]*.hpkg 2>/dev/null | wc -l) == 1 ]] \
+			|| die "package-amdxdna.sh made no single $name package"
+	done
+else
+	echo "no amdxdna: linux-drm ${DRM_COMMIT:0:12} or airos-firmware ${FW_COMMIT:0:12} lacks it"
+fi
+
 note "GPU user land"
 "$AIROS_CI/deps/build-amdgpu-userland.sh"
 USERLAND=${AMDGPU_USERLAND_OUT:-$AIROS_ROOT/gl/x86_64-amdgpu}
@@ -115,8 +144,8 @@ mkdir -p "$W/stage/userland/add-ons/media/plugins"
 cp "$addon/amduvd" "$W/stage/userland/add-ons/media/plugins/"
 # what went in
 {
-	printf 'haiku %s\nlinux-drm %s\nairos-firmware %s\nlinux-firmware %s\n' "$HAIKU_REVISION" \
-		"$DRM_COMMIT" "$FW_COMMIT" "$FIRMWARE_VERSION"
+	printf 'haiku %s\nlinux-drm %s\nairos-firmware %s\nlinux-firmware %s\nlinux-firmware amdnpu %s\n' "$HAIKU_REVISION" \
+		"$DRM_COMMIT" "$FW_COMMIT" "$FIRMWARE_VERSION" "$NPU_FIRMWARE_VERSION"
 	cat "$USERLAND/sources.txt"
 } > "$W/stage/amdgpu-sources.txt"
 mkdir -p "$INPUTS/amdgpu"
