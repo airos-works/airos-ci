@@ -14,8 +14,9 @@
 #   4. package it as airos_<name>-<version>-ARCH.hpkg into the package pool
 #      ($AIROS_PACKAGES/ARCH), from which the images install it. Recipes that
 #      make a system package (wpa_supplicant, libpng, freetype, harfbuzz, OpenSSH
-#      and its libedit, git and nano, and libffi, python3.12 and postgresql18
-#      for pgAdmin 4, which x86_64 gets from HaikuPorts, and icu74 and
+#      and its libedit, git and nano, libffi, python3.12 and postgresql18
+#      for pgAdmin 4, and the translators' picture libraries (library_packages
+#      below), which x86_64 gets from HaikuPorts, and icu74 and
 #      ncurses6, which replace the arm64 repository's bootstrap builds) set
 #      NO_PACKAGE and package it under its own name themselves
 #      (system_package below).
@@ -41,10 +42,12 @@ if [[ $ARCH == arm64 ]]; then
 	# HaikuPorts and the arm64 repository does not have, under HaikuPorts' names;
 	# icu74 and ncurses6 in place of the repository's bootstrap builds (their
 	# private unwinders); libffi, python312 and postgresql18 (python3.12 and
-	# PostgreSQL's client) for pgAdmin 4.
+	# PostgreSQL's client) for pgAdmin 4; and the picture libraries of the
+	# translators x86_64 has (libjpeg_turbo, libwebp, tiff, jasper, libavif and
+	# libicns, with openjpeg, dav1d and libaom).
 	ORDER=(openssl nghttp2 nghttp3 ngtcp2 curl sqlite libiconv taglib pcre2 scintilla lexilla x264 x265 svt_av1 libvpx lame
-		rock5_ffmpeg wpa_supplicant fluidlite libpng freetype harfbuzz nodejs22 libedit openssh nano git icu74 ncurses6
-		libffi python312 postgresql18)
+		rock5_ffmpeg wpa_supplicant fluidlite libpng libjpeg_turbo libwebp tiff jasper openjpeg dav1d libaom libavif libicns
+		freetype harfbuzz nodejs22 libedit openssh nano git icu74 ncurses6 libffi python312 postgresql18)
 else
 	# and curl with HTTP/3 in place of HaikuPorts' (deps/recipes/curl.sh)
 	ORDER=(haikuports nghttp3 ngtcp2 curl)
@@ -94,21 +97,27 @@ configure_ac() {
 # in $AIROS_CACHE/tarballs and checked against SHA256), for the libraries that
 # have no fork: they are built from their release, as HaikuPorts builds them.
 # Their recipes set SOURCE_URL and SOURCE_SHA256, which the package names.
-# fetch_file URL SHA256: print the path of the cached, checked download.
+# fetch_file URL SHA256 [MIRROR...]: print the path of the cached, checked
+# download, from URL or else from the first mirror that has it.
 fetch_file() {
-	local url=$1 sha=$2 file
+	local url=$1 sha=$2 file source
+	shift 2
 	file=$AIROS_CACHE/tarballs/${sha:0:16}-$(basename "$url")
 	mkdir -p "$AIROS_CACHE/tarballs"
 	if [[ ! -f $file ]] || ! echo "$sha  $file" | sha256sum -c --quiet; then
-		curl -fsSL -o "$file.part" "$url" || die "cannot download $url"
-		echo "$sha  $file.part" | sha256sum -c --quiet || die "$url: checksum mismatch"
+		for source in "$url" "$@" ""; do
+			[[ -n $source ]] || die "cannot download $url"
+			curl -fsSL -o "$file.part" "$source" && break
+			echo "cannot download $source" >&2
+		done
+		echo "$sha  $file.part" | sha256sum -c --quiet || die "$source: checksum mismatch"
 		mv "$file.part" "$file"
 	fi
 	echo "$file"
 }
-fetch_tarball() {
+fetch_tarball() { # fetch_tarball URL SHA256 [MIRROR...]
 	local file
-	file=$(fetch_file "$1" "$2")
+	file=$(fetch_file "$@")
 	rm -rf "$SRC"
 	mkdir -p "$SRC"
 	tar xf "$file" -C "$SRC" --strip-components=1
@@ -247,6 +256,95 @@ system_package() {
 	echo "package: $file"
 }
 
+# library_packages NAME: the stage's shared libraries as HaikuPorts packages
+# NAME and NAME_devel, as haikuporter splits a library port: the libraries
+# (each with its soname link) and the licences into NAME, the headers, the
+# libX.so links and the pkg-config and CMake files into NAME_devel. Every
+# library gives a lib: provide (devel: in NAME_devel) with the version of its
+# file name, as HaikuPorts' recipes declare them, and the packages go into the
+# pool with system_package. The recipe sets VERSION, SUMMARY, COPYRIGHTS and
+# LICENSES (one per line), HOMEPAGE, SOURCE_URL, PACKAGE_REQUIRES (one
+# requirement per line, besides haiku) and LICENSE_FILES (one
+# "<licence>=<file in the source tree>" line for each licence Haiku does not
+# ship); run after normalize_stage.
+library_packages() {
+	local name=$1 root=$STAGE$PREFIX base=$WORKDIR/$1/package devel=$WORKDIR/$1/package_devel
+	local lib real soname libVersion provides="" develProvides="" entry dir
+	rm -rf "$base" "$devel"
+	mkdir -p "$base/lib" "$devel/develop/lib"
+	for lib in "$root"/lib/*.so.*; do
+		[[ -f $lib && ! -L $lib ]] || continue
+		real=$(basename "$lib")
+		soname=$(${CROSS}readelf -d "$lib" | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p')
+		[[ -n $soname ]] || die "$real has no soname"
+		libVersion=${real#*.so.}
+		# A file named after the release rather than the ABI
+		# (libopenjp2.so.2.5.4, soname libopenjp2.so.7) takes the soname's
+		# major version, as HaikuPorts declares it (7.5.4).
+		if [[ ${libVersion%%.*} != "${soname#*.so.}" && $soname == *.so.* ]]; then
+			libVersion=${soname#*.so.}.${libVersion#*.}
+		fi
+		cp "$lib" "$base/lib/"
+		${CROSS}strip --strip-unneeded "$base/lib/$real"
+		[[ $soname == "$real" ]] || ln -s "$real" "$base/lib/$soname"
+		ln -s "../../lib/$real" "$devel/develop/lib/${real%%.so.*}.so"
+		provides+="	lib:${real%%.so.*} = $libVersion compat >= ${libVersion%%.*}"$'\n'
+		develProvides+="	devel:${real%%.so.*} = $libVersion compat >= ${libVersion%%.*}"$'\n'
+	done
+	[[ -n $provides ]] || die "$name: no shared library in the stage"
+	cp -a "$root/develop/headers" "$devel/develop/"
+	# pkg-config's libdir is develop/lib, as HaikuPorts' fixPkgconfig makes it
+	sed -i 's|^libdir=.*|libdir=${prefix}/develop/lib|' "$root"/develop/lib/pkgconfig/*.pc 2>/dev/null || true
+	for dir in pkgconfig cmake; do
+		[[ ! -d $root/develop/lib/$dir ]] || cp -a "$root/develop/lib/$dir" "$devel/develop/lib/"
+	done
+	# The package tool wants every licence that Haiku does not ship inside
+	# the package that names it.
+	while IFS= read -r entry; do
+		[[ -n $entry ]] || continue
+		for dir in "$base" "$devel"; do
+			mkdir -p "$dir/data/licenses"
+			cp "$SRC/${entry#*=}" "$dir/data/licenses/${entry%%=*}"
+		done
+	done <<< "${LICENSE_FILES:-}"
+	local description="$SUMMARY $VERSION, built by air/OS CI from $SOURCE_URL (sha256 $SOURCE_SHA256) as HaikuPorts builds it."
+	package_info() { # package_info DIR NAME SUMMARY PROVIDES REQUIRES
+		cat > "$1/.PackageInfo" <<INFO
+name			$2
+version			$VERSION-1
+architecture	$ARCH
+summary			"$3"
+description		"$description"
+packager		"air/OS CI"
+vendor			"air/OS"
+copyrights {
+$(sed 's/.*/	"&"/' <<< "$COPYRIGHTS")
+}
+licenses {
+$(sed 's/.*/	"&"/' <<< "$LICENSES")
+}
+urls {
+	"$HOMEPAGE"
+}
+source-urls {
+	"$SOURCE_URL"
+}
+provides {
+	$2 = $VERSION
+$4}
+requires {
+$5
+}
+INFO
+	}
+	package_info "$base" "$name" "$SUMMARY" "$provides" \
+		"$(printf '\thaiku >= r1~beta6\n'; sed '/^$/d; s/^/\t/' <<< "${PACKAGE_REQUIRES:-}")"
+	package_info "$devel" "${name}_devel" "$SUMMARY (development files)" "$develProvides" \
+		"	$name == $VERSION base"
+	system_package "$base"
+	system_package "$devel"
+}
+
 # check_shared_unwinder FILE...: none of the ELF files carries its own copy
 # of libgcc's unwinder (a C++ exception that passes through such a library
 # terminates the program); UNWIND_SPECS links libgcc_s instead.
@@ -265,7 +363,7 @@ build_recipe() {
 	local recipe=$AIROS_CI/deps/recipes/$NAME.sh
 	[[ -f $recipe ]] || die "no recipe $recipe"
 	unset VERSION FORK SUMMARY COPYRIGHT LICENSE REQUIRES PKG_REVISION NO_PACKAGE STAMP_EXTRA \
-		SOURCE_URL SOURCE_SHA256
+		SOURCE_URL SOURCE_SHA256 COPYRIGHTS LICENSES LICENSE_FILES HOMEPAGE PACKAGE_REQUIRES
 	# The previous recipe's functions go too: an up-to-date recipe returns
 	# before the unset below, and its fetch_source would check out its own
 	# fork for the next recipe (rock5_ffmpeg's put FFmpeg in freetype's tree).

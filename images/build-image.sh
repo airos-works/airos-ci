@@ -156,6 +156,8 @@ if [[ $TARGET == x86_64 ]]; then
 	build_stage "Zink" "OpenGL on Vulkan for NVIDIA"
 	"$AIROS_CI/deps/build-zink.sh"
 fi
+# The recipes of the picture libraries arm64 images carry (below)
+IMAGE_LIBRARIES="libjpeg_turbo libwebp tiff jasper openjpeg dav1d libaom libavif libicns"
 # arm64: libpng and FreeType for the system, which Haiku's arm64 repository
 # has not (libpng) or only as the bootstrap FreeType 2.6.3, and HarfBuzz,
 # which FreeType loads at run time (deps/recipes/libpng.sh, freetype.sh,
@@ -164,6 +166,12 @@ fi
 if [[ $ARCH == arm64 ]]; then
 	build_stage "libpng, FreeType and HarfBuzz" "deps/recipes/libpng.sh, freetype.sh, harfbuzz.sh"
 	"$AIROS_CI/deps/build-deps.sh" arm64 libpng freetype harfbuzz
+	# and the libraries of the picture translators x86_64 has from HaikuPorts
+	# (JPEG, WebP, TIFF, JPEG 2000, AVIF and ICNS), under HaikuPorts' names
+	# (deps/recipes/libjpeg_turbo.sh, libwebp.sh, tiff.sh, jasper.sh,
+	# openjpeg.sh, dav1d.sh, libaom.sh, libavif.sh, libicns.sh)
+	build_stage "picture libraries" "libjpeg-turbo, libwebp, libtiff, JasPer, OpenJPEG, dav1d, libaom, libavif, libicns"
+	"$AIROS_CI/deps/build-deps.sh" arm64 $IMAGE_LIBRARIES
 	# and OpenSSH (ssh, sshd) with its libedit, and git with nano (its
 	# editor; GitHub Desktop and Code - OSS need git), which x86_64 has from
 	# HaikuPorts; under HaikuPorts' names (deps/recipes/libedit.sh,
@@ -197,7 +205,7 @@ fi
 
 WORK=$AIROS_WORK/image-$TARGET
 rm -rf "$WORK"
-mkdir -p "$WORK"/{packages,fonts,freetype,libpng,ffmpeg,mupdf,libs,egl,demos,apps,firmware,add-ons}
+mkdir -p "$WORK"/{packages,fonts,freetype,libpng,imagelibs,ffmpeg,mupdf,libs,egl,demos,apps,firmware,add-ons}
 
 # 2. The inputs.
 note "inputs"
@@ -345,6 +353,21 @@ else
 		[[ -n $file ]] || die "no $name package in $pool (deps/recipes/libpng.sh)"
 		cp "$file" "$WORK/libpng/"
 	done
+	# The picture libraries (above) as HAIKU_ARM64_IMAGE_LIBRARIES_DIR, for a
+	# tree whose BuildFeatures takes them: Haiku's jpeg, libwebp, tiff,
+	# jasper, libavif and libicns build features (the translators), and every
+	# base package in the image (dav1d, libaom and openjpeg for libavif and
+	# libicns).
+	if grep -qF HAIKU_ARM64_IMAGE_LIBRARIES_DIR "$HAIKU_SOURCE/build/jam/BuildFeatures"; then
+		for name in libjpeg_turbo libwebp tiff jasper openjpeg dav1d libaom libavif1.0 libicns; do
+			for package in "$name" "${name}_devel"; do
+				file=$(ls "$pool/$package"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+				[[ -n $file ]] || die "no $package package in $pool (deps/recipes: $IMAGE_LIBRARIES)"
+				cp "$file" "$WORK/imagelibs/"
+				[[ $package == *_devel ]] || cp "$file" "$WORK/packages/"
+			done
+		done
+	fi
 	# FFmpeg as HAIKU_ARM64_FFMPEG_PACKAGES_DIR: Haiku's ffmpeg build feature,
 	# for MediaConverter (rock5_ffmpeg itself goes in with the pool's rock5_*
 	# packages; its devel package is kept apart, deps/recipes/rock5_ffmpeg.sh).
@@ -617,6 +640,7 @@ fi
 	[[ -z $(ls "$WORK/fonts") ]] || echo "AIROS_CI_FONTS = $WORK/fonts ;"
 	[[ -z $(ls "$WORK/freetype") ]] || echo "HAIKU_ARM64_FREETYPE_PACKAGES_DIR = $WORK/freetype ;"
 	[[ -z $(ls "$WORK/libpng") ]] || echo "HAIKU_ARM64_LIBPNG_PACKAGES_DIR = $WORK/libpng ;"
+	[[ -z $(ls "$WORK/imagelibs") ]] || echo "HAIKU_ARM64_IMAGE_LIBRARIES_DIR = $WORK/imagelibs ;"
 	# arm64: libbnetapi's HTTPS from CI's OpenSSL (Haiku's BuildFeatures)
 	if [[ $ARCH == arm64 ]] && grep -qF HAIKU_ARM64_OPENSSL_PACKAGE "$HAIKU_SOURCE/build/jam/BuildFeatures"; then
 		openssl=$(ls "$WORK/packages"/airos_openssl-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
