@@ -166,7 +166,12 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   built with it), FreeType 2.14.3 as `freetype` (app_server's font engine,
   built as HaikuPorts builds it for x86_64, with PNG; only bzip2 is left out;
   in place of the arm64 repository's bootstrap 2.6.3; Haiku is compiled
-  against it), and the GL stack:
+  against it), the picture libraries of the JPEG, WebP, TIFF, JPEG 2000,
+  AVIF and ICNS translators x86_64 has, under HaikuPorts' names
+  (`libjpeg_turbo`, `libwebp`, `tiff`, `jasper`, `openjpeg`, `dav1d`,
+  `libavif1.0`, `libicns`, with `libaom` as libavif's encoder; Haiku builds
+  the translators against them through `HAIKU_ARM64_IMAGE_LIBRARIES_DIR`),
+  and the GL stack:
   - ROCK 5: Mesa Panfrost with the Mali CSF firmware;
   - Pi 4: Mesa V3D and V3DV;
   - Cubie A7S: Mesa PowerVR Vulkan, Zink OpenGL and its firmware, built by
@@ -316,7 +321,7 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `lib/` | `env.sh` (server layout, locks), `sdk.sh` (cross SDK environment), `fork.sh` (check out a fork at its pinned commit) |
 | `sdk/build-sdk.sh ARCH [REF]` | builds Haiku at REF: `haiku.hpkg`, `haiku_devel.hpkg`, the host tools, a sysroot. Writes `/data1/airos/sdk/ARCH` |
 | `sdk/build-release-sdk.sh ARCH RELEASE` | the SDK of a stock Haiku release (`x86_64 r1beta6`) from the release's own packages. Writes `/data1/airos/sdk/ARCH-RELEASE` |
-| `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages, and libpng and FreeType as HaikuPorts' `libpng16`, `freetype` and their `_devel` packages (also run by each arm64 image build). x86_64: HaikuPorts packages (`deps/haikuports.py`) |
+| `deps/build-deps.sh ARCH` | arm64: the app libraries from the forks (`deps/recipes/`) as `airos_*` packages, and libpng, FreeType and the translators' picture libraries as HaikuPorts' `libpng16`, `freetype`, `libjpeg_turbo`, ... and their `_devel` packages (also run by each arm64 image build). x86_64: HaikuPorts packages (`deps/haikuports.py`) |
 | `deps/build-firmware.sh` | firmware packages and image inputs, checked against pinned hashes |
 | `deps/build-gl.sh` | arm64 GL: Mesa Panfrost (ROCK 5), V3D and V3DV (Pi), libglvnd, GLU, GLTeapot, GLInfo and Terminal's OpenGL renderer (`system/non-packaged/add-ons/Terminal`; Haiku builds it only with its mesa build feature, which arm64 lacks); run by every ROCK 5 and Pi image build |
 | `deps/build-gl-x86_64.sh` | x86_64 GL for Summit's engine: libglvnd and Mesa (llvmpipe, softpipe, zink); with `AIROS_TARGET=r1beta6`, against that release |
