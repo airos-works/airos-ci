@@ -1,6 +1,6 @@
 {
   "clipper": {"repository": "https://github.com/airos-works/clipper.git", "commit": "56f3b9d57f0ce9c3f64bb70c1e55a259af0a392e", "binary": "Clipper"},
-  "msga": {"repository": "https://github.com/airos-works/msga.git", "commit": "c7e23d09abd759195e5c6ae0f20b03b3b502ee2a", "branch": "airos", "binary": "MSGA"},
+  "msga": {"repository": "https://github.com/airos-works/msga.git", "commit": "5d7094db79f71a214f1e78972ae8c0bc0eec1acc", "branch": "airos", "binary": "MSGA"},
   "wordcraft": {"repository": "https://github.com/airos-works/wordcraft.git", "commit": "5a4f1963eb3a5a1c55f27b11dbf5f6d130f85900", "binary": "WordCraft"},
   "gridcraft": {"repository": "https://github.com/airos-works/gridcraft.git", "commit": "4027a5ee5750e32785c4e9eed0c1784dbe4615d8", "binary": "GridCraft"},
   "deckcraft": {"repository": "https://github.com/airos-works/deckcraft.git", "commit": "7bc0a01d92ec7f41e83c85083b8a393db44114f0", "binary": "DeckCraft"},
