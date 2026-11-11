@@ -101,6 +101,7 @@ esac
 CXX_T="${CROSS}g++ --sysroot=$SYSROOT -specs=$UNWIND_SPECS -L$FARM/lib -Wl,-rpath-link,$FARM/lib"
 CC_T="${CROSS}gcc --sysroot=$SYSROOT -specs=$UNWIND_SPECS -L$FARM/lib -Wl,-rpath-link,$FARM/lib"
 STRIP=${CROSS}strip
+OBJCOPY=${CROSS}objcopy
 
 die() { echo "error: $*" >&2; exit 1; }
 note() { printf '\n== %s\n' "$*"; }
@@ -189,12 +190,48 @@ stage_end() {
 	"$TOOLS/rm_attrs" -rf "$STAGE"
 }
 
+# Symbol tables of stripped binaries, for crash reports that name only an
+# image and an offset (Summit's). A package's build calls symbols_begin after
+# stage_begin; every binary it strips is saved by keep_symbols first (the
+# staged copy, still unstripped), and finish_package files them in
+# $AIROS_SYMBOLS by build ID (apps/store-symbols.py). Packages without
+# symbols_begin keep none, and AIROS_SYMBOLS= (empty) keeps none at all.
+SYMBOLS_STAGE="" SYMBOLS_REPO=""
+# symbols_begin <package> <its repository in $APPS (for the commit)>
+symbols_begin() {
+	SYMBOLS_STAGE="" SYMBOLS_REPO=$2
+	[[ -n $AIROS_SYMBOLS ]] || return 0
+	SYMBOLS_STAGE=$APPBUILD/symbols-$1
+	rm -rf "$SYMBOLS_STAGE"
+	mkdir -p "$SYMBOLS_STAGE"
+}
+
+# keep_symbols <unstripped binary> <its path in the package>
+keep_symbols() {
+	[[ -n $SYMBOLS_STAGE ]] || return 0
+	mkdir -p "$SYMBOLS_STAGE/$(dirname "$2")"
+	"$OBJCOPY" --only-keep-debug "$1" "$SYMBOLS_STAGE/$2"
+}
+
+# store_symbols <package> <version>, from finish_package, with the stage
+# complete: a failure is reported and leaves the package alone.
+store_symbols() {
+	[[ -n $SYMBOLS_STAGE ]] || return 0
+	python3 "$AIROS_CI/apps/store-symbols.py" --stage "$STAGE" --symbols "$SYMBOLS_STAGE" \
+		--store "$AIROS_SYMBOLS" --package "$1" --version "$2" --arch "$ARCH" --sdk "$SDK_NAME" \
+		--commit "$(git -C "$APPS/$SYMBOLS_REPO" rev-parse HEAD 2>/dev/null || true)" \
+		|| echo "::warning title=Symbols of $1::not stored (apps/store-symbols.py failed); the package is unaffected"
+	rm -rf "$SYMBOLS_STAGE"
+	SYMBOLS_STAGE=""
+}
+
 # install_binary <built binary> <rsrc or -> <path in package>
 install_binary() {
 	local dest=$STAGE/$3
 	mkdir -p "$(dirname "$dest")"
 	cp "$1" "$dest"
 	chmod 755 "$dest"
+	keep_symbols "$dest" "$3"
 	"$STRIP" --strip-debug "$dest"
 	# GNU strip drops the appended Haiku resources; put them back.
 	[[ $2 == - ]] || "$TOOLS/xres" -o "$dest" "$2"
@@ -373,6 +410,7 @@ finish_package() {
 	[[ ! -e $STAGE.began ]] || purge_stale_attributes "$STAGE.began"
 	"$TOOLS/package/package" create -q -C "$STAGE" "$file"
 	verify_package "$file"
+	store_symbols "$name" "$version"
 	echo "package:  $file"
 	echo "version:  $version"
 	echo "dropped:  $DROPPED"
@@ -1000,6 +1038,7 @@ build_summit_webkit() {
 	mkdir -p "$work"
 	STAGE=$work/stage
 	stage_begin
+	symbols_begin summit_webkit summit
 	local engine=lib/summit-webkit
 	mkdir -p "$STAGE/$engine/lib"
 	local name
@@ -1009,6 +1048,7 @@ build_summit_webkit() {
 	for name in WebProcess NetworkProcess; do
 		cp "$SUMMIT_ENGINE_BUILD/bin/$name" "$STAGE/$engine/$name"
 		chmod 755 "$STAGE/$engine/$name"
+		keep_symbols "$STAGE/$engine/$name" "$engine/$name"
 		"$STRIP" --strip-debug "$STAGE/$engine/$name"
 		set_rpath "$STAGE/$engine/$name" "$process_rpath"
 	done
@@ -1018,6 +1058,7 @@ build_summit_webkit() {
 	if [[ -x $SUMMIT_ENGINE_BUILD/bin/WebKitWebDriver ]]; then
 		cp "$SUMMIT_ENGINE_BUILD/bin/WebKitWebDriver" "$STAGE/$engine/WebKitWebDriver"
 		chmod 755 "$STAGE/$engine/WebKitWebDriver"
+		keep_symbols "$STAGE/$engine/WebKitWebDriver" "$engine/WebKitWebDriver"
 		"$STRIP" --strip-debug "$STAGE/$engine/WebKitWebDriver"
 		set_rpath "$STAGE/$engine/WebKitWebDriver" '$ORIGIN/lib'
 		mkdir -p "$STAGE/bin"
@@ -1041,6 +1082,7 @@ build_summit_webkit() {
 	if [[ -e $SUMMIT_ENGINE_BUILD/lib/libsummitspeech.so ]]; then
 		cp "$SUMMIT_ENGINE_BUILD/lib/libsummitspeech.so" "$STAGE/$engine/lib/libsummitspeech.so"
 		chmod 644 "$STAGE/$engine/lib/libsummitspeech.so"
+		keep_symbols "$STAGE/$engine/lib/libsummitspeech.so" "$engine/lib/libsummitspeech.so"
 		"$STRIP" --strip-unneeded "$STAGE/$engine/lib/libsummitspeech.so"
 		pending+=("$engine/lib/libsummitspeech.so")
 	fi
@@ -1090,6 +1132,7 @@ build_summit_webkit() {
 			fi
 			cp "$(readlink -f "$source")" "$STAGE/$engine/lib/$needed"
 			chmod 644 "$STAGE/$engine/lib/$needed"
+			keep_symbols "$STAGE/$engine/lib/$needed" "$engine/lib/$needed"
 			"$STRIP" --strip-unneeded "$STAGE/$engine/lib/$needed"
 			set_rpath "$STAGE/$engine/lib/$needed" "$lib_rpath"
 			pending+=("$engine/lib/$needed")
@@ -1265,10 +1308,11 @@ PY
 		-Wl,-rpath-link,"$SYSROOT/boot/system/lib" -Wl,-rpath,"$ENGINE_DIR/lib" \
 		-lWebKit -lJavaScriptCore -lbe -lstdc++ -lroot -lnetwork -lcrypto -lbnetapi \
 		-ltranslation -ltracker -lgame -lscintilla -llexilla -lcurl -lcolumnlistview \
-		-Wl,--hash-style=both -o "$BUILDDIR/Summit"
+		-Wl,--hash-style=both -Wl,--build-id=sha1 -o "$BUILDDIR/Summit"
 	"$TOOLS/rc/rc" -I "$SRC/resources" -o "$BUILDDIR/Summit.rsrc" "$SRC/resources/Summit.rdef"
 
 	stage_begin
+	symbols_begin summit summit
 	install_binary "$BUILDDIR/Summit" "$BUILDDIR/Summit.rsrc" apps/Summit
 	install_file 644 "$SRC/resources/start.html" data/Summit/start.html
 	deskbar_link apps/Summit Summit
@@ -1366,7 +1410,7 @@ build_summit_webkitlegacy() {
 	local link="-Wl,-rpath-link,$SUMMIT_ENGINE_BUILD/lib -Wl,-rpath-link,$SUMMIT_LIBS/lib"
 	link+=" -Wl,-rpath-link,$TLS_DEPS/lib -Wl,-rpath-link,$GL_SYSTEM/lib"
 	[[ -z $SUMMIT_SYSLIBS ]] || link+=" -Wl,-rpath-link,$SUMMIT_SYSLIBS/lib"
-	link+=" -Wl,-rpath-link,$SYSROOT/boot/system/lib"
+	link+=" -Wl,-rpath-link,$SYSROOT/boot/system/lib -Wl,--build-id=sha1"
 	make -C "$SRC/legacy" -s -j"$JOBS" OUT="$BUILDDIR" CXX="$CXX_T" CXXFLAGS=-O2 \
 		LDFLAGS="$link" VERSION="$SUMMIT_WEBKITLEGACY_API" \
 		ENGINE_HEADERS="$work/engine/include" ENGINE_LIB="$SUMMIT_ENGINE_BUILD/lib" \
@@ -1377,6 +1421,7 @@ build_summit_webkitlegacy() {
 	[[ -f $BUILDDIR/$library ]] || die "summit_webkitlegacy: make left no $library"
 
 	stage_begin
+	symbols_begin summit_webkitlegacy summit
 	install_binary "$BUILDDIR/$library" - "lib/$library"
 	ln -s "$library" "$STAGE/lib/libWebKitLegacy.so.1"
 	mkdir -p "$STAGE/develop/lib" "$STAGE/develop/headers"

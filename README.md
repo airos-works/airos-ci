@@ -368,6 +368,7 @@ forks/make-forks.py --only mesa --force   # remake one fork after changing its p
 | `/data2/airos/packages` | the package pool |
 | `/data2/airos/packages-RELEASE` | packages for a stock Haiku release (not in any image) |
 | `/data2/airos/artifacts/images` | images (the last five per target), served over HTTP |
+| `/data2/airos/artifacts/symbols` | symbol tables of Summit's stripped binaries, every build, served over HTTP at `/symbols/` ([below](#symbols-of-summits-packages)) |
 | `/data2/airos/cache`, `/data2/airos/work`, `/data2/airos/locks` | downloads and git caches, scratch space, `flock` locks |
 | `/data1/runner/REPO` | the GitHub runners (user `ghrunner`) |
 
@@ -384,6 +385,33 @@ through locks:
 - `summit-ARCH`: the Summit pipeline (`summit-ARCH-RELEASE` for a release).
 - `webkit-build`: one engine compile at a time.
 - `packages-ARCH`: updates to the pool.
+
+## Symbols of Summit's packages
+
+Summit's packages ship stripped (the engine's libraries `--strip-unneeded`),
+and its crash reports name frames by image and offset. Before stripping,
+`build-app-packages.sh` saves each binary's symbol table (`objcopy
+--only-keep-debug`) for `summit_webkit`, `summit` and `summit_webkitlegacy`,
+and [`apps/store-symbols.py`](apps/store-symbols.py) files them in
+`$AIROS_SYMBOLS` (`/data2/airos/artifacts/symbols`, on /data3), served at
+`http://airos-build/symbols/`:
+
+- `build-id/ab/cdef….debug.xz`: by GNU build ID. The engine, Summit and
+  libWebKitLegacy are linked with `--build-id`, and the crash reports print
+  each image's ID.
+- `sha256/….debug.xz`: binaries without one (the engine's third-party
+  libraries), by the SHA-256 of the shipped file.
+- `builds/PACKAGE-VERSION-ARCH.json`: each build of that version (target SDK,
+  commit, time, every binary with its ID, SHA-256 and object).
+
+An object is written once, so an unchanged rebuild (the nightly pool refresh)
+adds nothing but its entry. The engine has no debug information (Release
+build), so these are function names, no files or lines: about 8 MB per
+target per build, roughly 100 GB a year at the current build rate. Nothing
+is pruned yet. A failure to store them is a warning and leaves the package
+alone. `AIROS_SYMBOLS=` (empty) keeps none, for test builds. Summit's
+`tools/symbolize-crash-report.py REPORT` names a report's frames from this
+store.
 
 ## Adding a repository
 
