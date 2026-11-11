@@ -368,14 +368,16 @@ forks/make-forks.py --only mesa --force   # remake one fork after changing its p
 | `/data2/airos/packages` | the package pool |
 | `/data2/airos/packages-RELEASE` | packages for a stock Haiku release (not in any image) |
 | `/data2/airos/artifacts/images` | images (the last five per target), served over HTTP |
-| `/data2/airos/artifacts/symbols` | symbol tables of Summit's stripped binaries, every build, served over HTTP at `/symbols/` ([below](#symbols-of-summits-packages)) |
+| `/data4/airos/symbols` | symbol tables of Summit's stripped binaries, every build, served over HTTP at `/symbols/` ([below](#symbols-of-summits-packages)); in `/data2/airos/artifacts/symbols` until `/data4` exists |
 | `/data2/airos/cache`, `/data2/airos/work`, `/data2/airos/locks` | downloads and git caches, scratch space, `flock` locks |
 | `/data1/runner/REPO` | the GitHub runners (user `ghrunner`) |
 
 `/data2/airos/artifacts` and `/data2/airos/cache` are bind mounts of
 `/data3/airos/artifacts` and `/data3/airos/cache`. /data3 is a RAID10 of six
 1.2 TB SAS disks (`server/setup-data3.sh`). /data1 and /data2 are SSDs and
-keep the build trees and job scratch.
+keep the build trees and job scratch. /data4 is a RAID10 of four more 1.2 TB SAS disks
+(`server/setup-data4.sh`, added 11 November 2026) for symbols and debug
+information only.
 
 Jobs from different repositories run at the same time. They coordinate
 through locks:
@@ -393,8 +395,8 @@ and its crash reports name frames by image and offset. Before stripping,
 `build-app-packages.sh` saves each binary's symbol table (`objcopy
 --only-keep-debug`) for `summit_webkit`, `summit` and `summit_webkitlegacy`,
 and [`apps/store-symbols.py`](apps/store-symbols.py) files them in
-`$AIROS_SYMBOLS` (`/data2/airos/artifacts/symbols`, on /data3), served at
-`http://airos-build/symbols/`:
+`$AIROS_SYMBOLS` (`/data4/airos/symbols`, a disk array of its own), served
+at `http://airos-build/symbols/`:
 
 - `build-id/ab/cdef….debug.xz`: by GNU build ID. The engine, Summit and
   libWebKitLegacy are linked with `--build-id`, and the crash reports print

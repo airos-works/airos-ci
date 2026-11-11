@@ -6,8 +6,13 @@ set -euo pipefail
 conf=$AIROS_DATA/www/default.conf
 mkdir -p "$AIROS_DATA/www" "$AIROS_ARTIFACTS/images"
 cp "$AIROS_CI/images/nginx-artifacts.conf" "$conf"
+# The symbol store at /symbols/ when it is on a disk of its own
+# (server/setup-data4.sh; its mount point in the artifacts tree is an empty
+# directory that setup-data4.sh made).
+volumes=(-v "$AIROS_ARTIFACTS:/usr/share/nginx/html:ro" -v "$conf:/etc/nginx/conf.d/default.conf:ro")
+[[ $AIROS_SYMBOLS == "$AIROS_ARTIFACTS/symbols" || -z $AIROS_SYMBOLS ]] \
+	|| volumes+=(-v "$AIROS_SYMBOLS:/usr/share/nginx/html/symbols:ro")
 docker rm -f airos-artifacts >/dev/null 2>&1 || true
 docker run -d --name airos-artifacts --restart unless-stopped --network host \
-	-v "$AIROS_ARTIFACTS:/usr/share/nginx/html:ro" -v "$conf:/etc/nginx/conf.d/default.conf:ro" \
-	nginx:alpine >/dev/null
+	"${volumes[@]}" nginx:alpine >/dev/null
 echo "serving $AIROS_ARTIFACTS at http://$(hostname).local/"

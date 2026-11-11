@@ -14,10 +14,16 @@ AIROS_SDK=${AIROS_SDK:-$AIROS_ROOT/sdk}           # <arch>/{env.sh,sysroot}: cro
 AIROS_TOOLCHAIN=${AIROS_TOOLCHAIN:-$AIROS_ROOT/toolchain}  # jam and other host tools
 AIROS_PACKAGES=${AIROS_PACKAGES:-$AIROS_DATA/packages}     # <arch>/*.hpkg: the air/OS package pool
 AIROS_ARTIFACTS=${AIROS_ARTIFACTS:-$AIROS_DATA/artifacts}  # images, published over HTTP
-AIROS_SYMBOLS=${AIROS_SYMBOLS-$AIROS_ARTIFACTS/symbols}     # symbol tables of stripped packages (apps/store-symbols.py); empty: none kept
 AIROS_CACHE=${AIROS_CACHE:-$AIROS_DATA/cache}              # downloads, ccache
 AIROS_LOCKS=${AIROS_LOCKS:-$AIROS_DATA/locks}
 AIROS_WORK=${AIROS_WORK:-$AIROS_DATA/work}                 # per-job scratch space
+# Symbol tables and debug information of stripped packages (apps/store-symbols.py):
+# on /data4 once server/setup-data4.sh made it; AIROS_SYMBOLS= keeps none.
+if [[ -d /data4/airos/symbols ]]; then
+	AIROS_SYMBOLS=${AIROS_SYMBOLS-/data4/airos/symbols}
+else
+	AIROS_SYMBOLS=${AIROS_SYMBOLS-$AIROS_ARTIFACTS/symbols}
+fi
 
 GITHUB_OWNER=${GITHUB_OWNER:-airos-works}
 HAIKU_REPO=${HAIKU_REPO:-https://github.com/$GITHUB_OWNER/haiku.git}
