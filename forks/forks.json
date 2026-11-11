@@ -11,7 +11,7 @@
     },
     "burrow": {
       "repo": "airos-works/burrow",
-      "ref": "a3fafd3"
+      "ref": "740d1ac"
     },
     "haikuports": {
       "repo": "haikuports/haikuports",
@@ -212,6 +212,10 @@
         {
           "from": "burrow:openvpn/patches/0004-burrow-haiku-tunnel-routes.patch",
           "message": "Burrow: Haiku tunnel routes"
+        },
+        {
+          "from": "burrow:openvpn/patches/0005-burrow-aws-wire-format-option.patch",
+          "message": "Burrow: AWS wire format option"
         }
       ],
       "used_by": "Burrow (burrow-openvpn, both architectures)"

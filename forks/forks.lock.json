@@ -372,7 +372,7 @@
     "base": "v2.6.13",
     "base_commit": "5662b3a8eb9e5744602a6da8cf3847455a0ba74f",
     "branch": "burrow-2.6.13",
-    "commit": "3f8bc49741508ef5439cce3756564fa579870cdc",
+    "commit": "8d2584f3e340a01089ef9f29f95b317f8c46c2f5",
     "repo": "openvpn",
     "upstream": "https://github.com/OpenVPN/openvpn.git",
     "url": "https://github.com/airos-works/openvpn.git"
