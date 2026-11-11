@@ -65,9 +65,10 @@ fi
 
 # The applications every image carries (Summit is the default browser; Snap
 # is in the Deskbar menu's Demos folder, airImager, the image writer, in its
-# Utilities folder), and the ones built here at the pins in
-# apps/office.lock.json and media.lock.json for the Office and Media folders.
-IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap airimager)
+# Utilities folder; airCal, calendars and to-dos, in Applications), and the
+# ones built here at the pins in apps/office.lock.json and media.lock.json for
+# the Office and Media folders.
+IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap airimager aircal)
 PINNED_SETS=(office media)
 # HaikuWebKit's BWebView API on Summit's engine (Summit's legacy/, built by
 # the Summit pipeline), in place of HaikuPorts' haikuwebkit: it provides and
