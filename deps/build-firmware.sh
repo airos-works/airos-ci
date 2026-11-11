@@ -18,7 +18,7 @@
 #                             from HaikuPorts
 #   $AIROS_ROOT/image-inputs/arm64/firmware/mali/arch10.8/mali_csffw.bin
 #   $AIROS_ROOT/image-inputs/rpi4/rpi-firmware/   the Pi 4 boot firmware
-#   $AIROS_ROOT/image-inputs/rpi4/firmware/       CYW43455 Wi-Fi and Bluetooth
+#   $AIROS_ROOT/image-inputs/rpi4/firmware/       CYW43455/43456 Wi-Fi and Bluetooth
 #
 # Every file from the Raspberry Pi repositories is checked against
 # deps/rpi4-firmware.sha256 (the files the current Pi images were made with).
@@ -156,6 +156,11 @@ fetch_raw rpi-firmware-nonfree "$nonfree/cypress/cyfmac43455-sdio.clm_blob" \
 	"$rpi/firmware/broadcomfmac/brcmfmac43455-sdio.clm_blob"
 fetch_raw rpi-firmware-nonfree "$nonfree/brcm/brcmfmac43455-sdio.txt" \
 	"$rpi/firmware/broadcomfmac/brcmfmac43455-sdio.txt"
+# The Pi 400's chip (CYW43456: chip ID 0x4345 at revision 9) wants its own.
+for suffix in bin clm_blob txt; do
+	fetch_raw rpi-firmware-nonfree "$nonfree/brcm/brcmfmac43456-sdio.$suffix" \
+		"$rpi/firmware/broadcomfmac/brcmfmac43456-sdio.$suffix"
+done
 fetch_raw rpi-bluez-firmware debian/firmware/broadcom/BCM4345C0.hcd "$rpi/firmware/h4bcm/BCM4345C0.hcd"
 (cd "$rpi" && sha256sum -c --quiet "$AIROS_CI/deps/rpi4-firmware.sha256") \
 	|| die "Raspberry Pi firmware does not match deps/rpi4-firmware.sha256"

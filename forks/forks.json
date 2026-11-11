@@ -256,7 +256,7 @@
       "base": "c91cd2804cf7463aab913e7247c176049f16bbd6",
       "branch": "airos-bookworm",
       "patches": [],
-      "used_by": "Pi 4 image: CYW43455 Wi-Fi firmware (brcmfmac43455-sdio.*), from the bookworm branch"
+      "used_by": "Pi 4 image: CYW43455 and CYW43456 (Pi 400) Wi-Fi firmware (brcmfmac4345[56]-sdio.*), from the bookworm branch"
     },
     {
       "name": "rpi-bluez-firmware",
