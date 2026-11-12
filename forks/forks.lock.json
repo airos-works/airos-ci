@@ -246,7 +246,7 @@
     "base": "v6.18.52",
     "base_commit": "v6.18.52",
     "branch": "airos-6.18.52",
-    "commit": "d75a11342c04caba85756943fa09888974ecb95d",
+    "commit": "3de9cd58f57a2fe0d2e5d13060dce70dfcea9eaf",
     "repo": "linux-drm",
     "upstream": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
     "url": "https://github.com/airos-works/linux-drm.git"
