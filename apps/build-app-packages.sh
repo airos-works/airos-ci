@@ -12,6 +12,7 @@
 #               summit_webkit summit
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
 #               github_desktop pgadmin4
+#               telegram (Telegram Desktop, x86_64; its own CI job)
 #               docker compose docker_desktop (the Docker stack; their own CI
 #               jobs, docker also builds the engine, containerd and buildx
 #               from the pinned forks)
@@ -22,7 +23,7 @@
 #               airTime AirTop airpins airimager aircal snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
 #               proton-bridge proton-vpn-airos-app
-#               vscode desktop docker compose docker-desktop
+#               vscode desktop docker compose docker-desktop tdesktop
 #               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
 #               VectorCraft and FilmCraft embed
@@ -2715,6 +2716,37 @@ build_docker_desktop() {
 	finish_package dockerdesktop apps/DockerDesktop
 }
 
+# --- Telegram -----------------------------------------------------------------
+# Telegram Desktop for air/OS (airos-works/tdesktop, branch airos): an air/OS
+# platform layer on the Be API in place of the freedesktop one. The fork's
+# airos/build.sh cross-builds it: a sysroot of the SDK and HaikuPorts' packages
+# (Qt 6, FFmpeg 8, tg_owt, tde2e), the code generators and Qt tools for the
+# build machine, a snapshot of the cross compiler. x86_64 only: HaikuPorts has
+# no arm64 packages to build it against.
+build_telegram() {
+	note Telegram
+	[[ $ARCH == x86_64 ]] || { echo "Telegram: x86_64 only, skipped for $ARCH"; return 0; }
+	# Its build tree (sysroot, objects: ~8 GB) goes on /data3 where there
+	# is one: /data2, which holds $APPBUILD, is nearly full.
+	local repo=$APPS/tdesktop work=${TELEGRAM_WORK:-$APPBUILD/telegram}
+	[[ -n ${TELEGRAM_WORK:-} || ! -d /data3/airos ]] || work=/data3/airos/work/telegram-$SDK_NAME
+	mkdir -p "$work"
+	[[ -x $repo/airos/build.sh ]] || die "no Telegram repository at $repo"
+	SRC=$repo BUILDDIR=$work/build-$ARCH STAGE=$work/stage
+	# The repository is built in place (objects go to $BUILDDIR); its
+	# submodules make a snapshot of it large and slow.
+	TDESKTOP_WORK=$work TDESKTOP_BUILD=$BUILDDIR JOBS=$JOBS AIROS_CI=$AIROS_CI \
+		"$repo/airos/build.sh" "$ARCH" Telegram
+	stage_begin
+	"$STRIP" -o "$BUILDDIR/Telegram.stripped" "$BUILDDIR/bin/Telegram"
+	install_binary "$BUILDDIR/Telegram.stripped" "$BUILDDIR/Telegram.rsrc" apps/Telegram
+	install_file 644 "$repo/LICENSE" data/licenses/telegram_airos
+	deskbar_link apps/Telegram Telegram
+	retarget_package_info "$repo/airos/resources/telegram_airos.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/Telegram.rsrc" apps/Telegram
+	finish_package telegram_airos apps/Telegram
+}
+
 main() {
 	check_prerequisites
 	mkdir -p "$APPBUILD" "$OUT" "$TMPDIR"
@@ -2726,13 +2758,13 @@ main() {
 			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
 			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
-			pgadmin4 docker compose docker_desktop; do
+			pgadmin4 docker compose docker_desktop telegram; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
 		# (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library) and the
 		# Docker stack (their own CI jobs; build_docker also checks out forks)
-		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|docker|compose|docker_desktop)$ && ${#SELECTED[@]} -eq 0 ]] \
+		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|docker|compose|docker_desktop|telegram)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done

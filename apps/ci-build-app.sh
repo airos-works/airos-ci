@@ -14,6 +14,7 @@
 #             effectcraft filmcraft aurora
 #             proton_bridge proton_vpn airtop airimager aircal
 #             code_oss github_desktop pgadmin4 (from the aurora repository),
+#             telegram (x86_64; REPO_DIR tdesktop),
 #             docker compose docker_desktop (the Docker stack: docker also
 #             builds the engine, containerd and buildx from the pinned forks),
 #             or several
