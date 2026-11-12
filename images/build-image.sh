@@ -597,6 +597,13 @@ else
 fi
 if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildConfig"; then
 	release=$WORK/release-inputs
+	# arm64: the airos_release package moves an older install's HaikuPorts
+	# entry to the repository air/OS serves (images/package-repo.py,
+	# airos-works/haiku#118), where the Haiku tree has the script
+	post_install=()
+	if [[ $ARCH == arm64 && -f $HAIKU_SOURCE/tools/airos/ci/post-install/airos_haikuports_arm64.sh ]]; then
+		post_install=(--post-install boot/post-install/airos_haikuports_arm64.sh)
+	fi
 	python3 "$AIROS_CI/images/release-inputs.py" "$release" --id "$stamp" \
 		--target "$TARGET" --arch "$ARCH" \
 		--feed "${AIROS_UPDATE_FEED:-https://github.com/airos-works/haiku/releases/download/updates-$TARGET/}" \
@@ -608,7 +615,8 @@ if grep -q "^rule AirosMoveToPayload" "$HAIKU_SOURCE/tools/airos/ci/UserBuildCon
 		--tree "system non-packaged add-ons=$WORK/add-ons" \
 		--tree "system non-packaged data firmware=$WORK/firmware" \
 		--tree "system non-packaged amdgpu=$WORK/amdgpu" \
-		--tree "system non-packaged adreno=$WORK/adreno"
+		--tree "system non-packaged adreno=$WORK/adreno" \
+		"${post_install[@]}"
 fi
 
 # 3. + 4. The image.

@@ -5,7 +5,7 @@ docs/airos/SYSTEM-UPDATER.md).
 
     release-inputs.py OUT --id ID --target TARGET --arch ARCH --feed URL
         --haiku-revision REV --haiku-commit SHA --recipe-commit SHA
-        [--tree TOKENS=DIR ...]
+        [--tree TOKENS=DIR ...] [--post-install SCRIPT ...]
 
 writes into OUT:
   release         the release file the airos_release package installs as
@@ -33,7 +33,10 @@ def jam_quote(token):
     return token
 
 
-def package_info(name, version, arch, summary, description, provides):
+def package_info(name, version, arch, summary, description, provides,
+        post_install=()):
+    scripts = "".join(f'post-install-scripts {{\n\t"{script}"\n}}\n'
+        for script in post_install)
     return f'''name			{name}
 version			{version}-1
 architecture	{arch}
@@ -50,7 +53,7 @@ licenses {{
 provides {{
 	{provides} = {version}
 }}
-'''
+''' + scripts
 
 
 def main():
@@ -64,6 +67,9 @@ def main():
     parser.add_argument("--haiku-commit", required=True)
     parser.add_argument("--recipe-commit", default="unknown")
     parser.add_argument("--tree", action="append", default=[])
+    # a script the airos_release package carries (relative to the system
+    # directory, boot/post-install/...), to run after each update
+    parser.add_argument("--post-install", action="append", default=[])
     args = parser.parse_args()
 
     match = re.match(r"^(\d{8})-(\d{4})-", args.id)
@@ -95,7 +101,7 @@ def main():
             f"air/OS release of {when} for {args.target}",
             "Names the air/OS release this system runs, for System Updater "
             "and the boot loader's list of versions.",
-            "airos_release"))
+            "airos_release", args.post_install))
     with open(os.path.join(args.out, "airos_payload"), "w") as f:
         f.write(package_info("airos_payload", version, args.arch,
             f"air/OS system files outside packages, {when}",
