@@ -201,7 +201,9 @@ SYMBOLS_STAGE="" SYMBOLS_REPO=""
 symbols_begin() {
 	SYMBOLS_STAGE="" SYMBOLS_REPO=$2
 	[[ -n $AIROS_SYMBOLS ]] || return 0
-	SYMBOLS_STAGE=$APPBUILD/symbols-$1
+	# Beside the store, not in $APPBUILD: with line tables the engine's are
+	# over a gigabyte, and /data2 is nearly full.
+	SYMBOLS_STAGE=$AIROS_SYMBOLS/.incoming/$SDK_NAME-$1
 	rm -rf "$SYMBOLS_STAGE"
 	mkdir -p "$SYMBOLS_STAGE"
 }
@@ -220,6 +222,7 @@ store_symbols() {
 	python3 "$AIROS_CI/apps/store-symbols.py" --stage "$STAGE" --symbols "$SYMBOLS_STAGE" \
 		--store "$AIROS_SYMBOLS" --package "$1" --version "$2" --arch "$ARCH" --sdk "$SDK_NAME" \
 		--commit "$(git -C "$APPS/$SYMBOLS_REPO" rev-parse HEAD 2>/dev/null || true)" \
+		--objcopy "$OBJCOPY" --prune-lines-days "${SYMBOLS_LINES_DAYS:-180}" \
 		|| echo "::warning title=Symbols of $1::not stored (apps/store-symbols.py failed); the package is unaffected"
 	rm -rf "$SYMBOLS_STAGE"
 	SYMBOLS_STAGE=""
@@ -1268,13 +1271,21 @@ PY
 )
 	[[ -n $sources ]] || die "no source list in Summit's tools/build-modern-browser.py"
 	local private=$SYSROOT/boot/system/develop/headers/private
-	local flags=(-std=c++23 -O2 -Wall -Wextra -Wno-multichar -DBUILDING_HAIKU__=1
+	# -g1: line tables for crash reports (kept by keep_symbols; the package
+	# is stripped).
+	local flags=(-std=c++23 -O2 -g1 -Wall -Wextra -Wno-multichar -DBUILDING_HAIKU__=1
 		-I"$work/engine/include" -DSUMMIT_MODERN_WEBKIT=1 -I"$SRC/src" -I"$SRC/vendor"
 		-I"$private/netservices" -I"$private" -I"$FARM/include"
 		-I"$FARM/include/scintilla" -I"$FARM/include/lexilla")
 	# src/core/BuildTarget.h
 	[[ $SDK_NAME == "$ARCH" ]] || flags+=(-DSUMMIT_AIROS=0 "-DSUMMIT_TARGET_NAME=\"$SUMMIT_FOR\"")
 	local source objects=() object
+	# Objects are kept between builds by their sources' times
+	# (object_is_current); other flags than they were built with start over.
+	if [[ $(cat "$BUILDDIR/obj/.flags" 2>/dev/null) != "${flags[*]}" ]]; then
+		rm -f "$BUILDDIR"/obj/*.o "$BUILDDIR"/obj/*.o.d
+		printf '%s' "${flags[*]}" > "$BUILDDIR/obj/.flags"
+	fi
 	# One compile per 2 GB available, at most JOBS: some of Summit's sources
 	# (BrowserWindow.cpp, main.cpp) take 2-3 GB each, and one per core (48)
 	# next to an engine build ran the host out of memory; an OOM-killed
@@ -1411,7 +1422,7 @@ build_summit_webkitlegacy() {
 	link+=" -Wl,-rpath-link,$TLS_DEPS/lib -Wl,-rpath-link,$GL_SYSTEM/lib"
 	[[ -z $SUMMIT_SYSLIBS ]] || link+=" -Wl,-rpath-link,$SUMMIT_SYSLIBS/lib"
 	link+=" -Wl,-rpath-link,$SYSROOT/boot/system/lib -Wl,--build-id=sha1"
-	make -C "$SRC/legacy" -s -j"$JOBS" OUT="$BUILDDIR" CXX="$CXX_T" CXXFLAGS=-O2 \
+	make -C "$SRC/legacy" -s -j"$JOBS" OUT="$BUILDDIR" CXX="$CXX_T" CXXFLAGS="-O2 -g1" \
 		LDFLAGS="$link" VERSION="$SUMMIT_WEBKITLEGACY_API" \
 		ENGINE_HEADERS="$work/engine/include" ENGINE_LIB="$SUMMIT_ENGINE_BUILD/lib" \
 		ENGINE_RUNPATH="$ENGINE_DIR/lib" PRIVATE_HEADERS="$develop/headers/private" \

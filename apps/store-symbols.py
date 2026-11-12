@@ -7,21 +7,28 @@ stripping, apps/build-app-packages.sh saves each binary's symbols
 (`objcopy --only-keep-debug`) under SYMBOLS/<path in the package>; this files
 them in the store (AIROS_SYMBOLS, served at http://airos-build/symbols/):
 
-  build-id/ab/cdef….debug.xz   by the binary's GNU build ID (the engine,
-                               Summit), the ID Summit's crash reports print
-  sha256/<sha256>.debug.xz     binaries without one (the engine's third-party
-                               libraries), by the SHA-256 of the shipped file
+  build-id/ab/cdef….debug.xz   the symbol table, by the binary's GNU build ID
+                               (the engine, Summit), the ID Summit's crash
+                               reports print
+  build-id/ab/cdef….lines.xz   its line tables (DWARF), when it was built with
+                               them (-g1: the engine, Summit)
+  sha256/<sha256>.debug.xz     binaries without a build ID (the engine's
+                               third-party libraries), by the SHA-256 of the
+                               shipped file
   builds/<package>-<version>-<arch>.json
                                the builds of that package version: target
                                SDK, commit, time and every binary (path in
-                               the package, build ID, SHA-256, object)
+                               the package, build ID, SHA-256, objects)
 
 An object is written once: a rebuild that comes out the same (the nightly
 pool refresh of an unchanged commit) adds only its entry to the build list.
-Summit's tools/symbolize-crash-report.py reads the store.
+Symbol tables are kept; line tables, about 180 MB per engine build, are
+removed --prune-lines-days after the last build that has them (checked once a
+day). Summit's tools/symbolize-crash-report.py reads the store.
 
   store-symbols.py --stage STAGE --symbols SYMBOLS --store STORE
-      --package NAME --version VERSION --arch ARCH --sdk SDK_NAME [--commit SHA]
+      --package NAME --version VERSION --arch ARCH --sdk SDK_NAME
+      [--commit SHA] [--objcopy OBJCOPY] [--prune-lines-days DAYS]
 """
 import argparse
 import datetime
@@ -77,6 +84,50 @@ def build_id(data):
     return None
 
 
+def has_lines(sections):
+    return any(name in sections and sections[name][1] for name in ('.debug_line', '.debug_info'))
+
+
+def prune_lines(store, days):
+    """Drops line tables no build of the last DAYS days has, once a day."""
+    stamp = store / 'builds' / '.pruned'
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if stamp.exists() and now.timestamp() - stamp.stat().st_mtime < 86400:
+        return
+    cutoff = (now - datetime.timedelta(days=days)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    newest, documents = {}, {}
+    for path in (store / 'builds').glob('*.json'):
+        document = json.loads(path.read_text())
+        documents[path] = document
+        for build in document['builds']:
+            for entry in build['files']:
+                if entry.get('lines'):
+                    newest[entry['lines']] = max(newest.get(entry['lines'], ''), build['built'])
+    old = {lines for lines, built in newest.items() if built < cutoff}
+    freed = 0
+    for lines in old:
+        target = store / lines
+        if target.exists():
+            freed += target.stat().st_size
+            target.unlink()
+    for path, document in documents.items():
+        changed = False
+        for build in document['builds']:
+            for entry in build['files']:
+                if entry.get('lines') in old:
+                    entry['lines'] = None
+                    changed = True
+        if changed:
+            temporary = path.with_name('.tmp-' + path.name)
+            temporary.write_text(json.dumps(document, indent=1) + '\n')
+            os.chmod(temporary, 0o664)
+            os.replace(temporary, path)
+    stamp.touch()
+    if old:
+        print(f'symbols: removed the line tables of {len(old)} binaries older than {days} days '
+              f'({freed / 1073741824:.1f} GiB)')
+
+
 def compress(source, target):
     """source -> target.xz, written under a temporary name and renamed."""
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -100,6 +151,8 @@ def main():
     for option in ('stage', 'symbols', 'store', 'package', 'version', 'arch', 'sdk'):
         parser.add_argument('--' + option, required=True)
     parser.add_argument('--commit', default='')
+    parser.add_argument('--objcopy', default='objcopy')
+    parser.add_argument('--prune-lines-days', type=int, default=0)
     args = parser.parse_args()
     stage, symbols, store = (pathlib.Path(p) for p in (args.stage, args.symbols, args.store))
 
@@ -124,14 +177,25 @@ def main():
             continue
         identity = build_id(shipped_data)
         digest = hashlib.sha256(shipped_data).hexdigest()
-        if identity:
-            object_path = f'build-id/{identity[:2]}/{identity[2:]}.debug.xz'
-        else:
-            object_path = f'sha256/{digest}.debug.xz'
-        target = store / object_path
-        if not target.exists():
-            compress(debug, target)
-        files.append({'path': relative, 'buildId': identity, 'sha256': digest, 'symbols': object_path})
+        base = f'build-id/{identity[:2]}/{identity[2:]}' if identity else f'sha256/{digest}'
+        object_path, lines_path = base + '.debug.xz', None
+        lines = has_lines(debug_sections)
+        del shipped_data, debug_data
+        if lines:
+            lines_path = base + '.lines.xz'
+            if not (store / lines_path).exists():
+                compress(debug, store / lines_path)
+        if not (store / object_path).exists():
+            if lines:
+                # The symbol table alone, which is kept when the line tables go.
+                table = debug.with_name(debug.name + '.symtab')
+                subprocess.run([args.objcopy, '--strip-debug', str(debug), str(table)], check=True)
+                compress(table, store / object_path)
+                table.unlink()
+            else:
+                compress(debug, store / object_path)
+        files.append({'path': relative, 'buildId': identity, 'sha256': digest, 'symbols': object_path,
+                      'lines': lines_path})
 
     builds = store / 'builds' / f'{args.package}-{args.version}-{args.arch}.json'
     builds.parent.mkdir(parents=True, exist_ok=True)
@@ -160,8 +224,13 @@ def main():
         os.replace(temporary, builds)
 
     size = sum((store / f['symbols']).stat().st_size for f in files)
+    lines = sum((store / f['lines']).stat().st_size for f in files if f['lines'])
     print(f'symbols: {len(files)} binaries of {args.package} {args.version} ({args.sdk}), '
-          f'{size / 1048576:.1f} MiB compressed, in {store}')
+          f'{size / 1048576:.1f} MiB compressed'
+          + (f', line tables of {sum(1 for f in files if f["lines"])} {lines / 1048576:.0f} MiB' if lines else '')
+          + f', in {store}')
+    if args.prune_lines_days:
+        prune_lines(store, args.prune_lines_days)
     for problem in problems:
         print(f'::warning title=Symbols of {args.package}::{problem}')
     return 0

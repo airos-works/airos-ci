@@ -395,28 +395,38 @@ through locks:
 
 Summit's packages ship stripped (the engine's libraries `--strip-unneeded`),
 and its crash reports name frames by image and offset. Before stripping,
-`build-app-packages.sh` saves each binary's symbol table (`objcopy
+`build-app-packages.sh` saves each binary's symbols and line tables (`objcopy
 --only-keep-debug`) for `summit_webkit`, `summit` and `summit_webkitlegacy`,
 and [`apps/store-symbols.py`](apps/store-symbols.py) files them in
 `$AIROS_SYMBOLS` (`/data4/airos/symbols`, a disk array of its own), served
 at `http://airos-build/symbols/`:
 
-- `build-id/ab/cdef….debug.xz`: by GNU build ID. The engine, Summit and
-  libWebKitLegacy are linked with `--build-id`, and the crash reports print
-  each image's ID.
-- `sha256/….debug.xz`: binaries without one (the engine's third-party
+- `build-id/ab/cdef….debug.xz`: the symbol table, by GNU build ID. The
+  engine, Summit and libWebKitLegacy are linked with `--build-id`, and the
+  crash reports print each image's ID. Kept.
+- `build-id/ab/cdef….lines.xz`: the line tables, for binaries built with
+  `-g1` (files, lines and inlined calls, no variables; the code is the same):
+  Summit and libWebKitLegacy, and the engine once `summit/build-engine.sh`
+  sets the init cache's `SUMMIT_DEBUG_LINES`. Removed 180 days after the last build that
+  has them (`SYMBOLS_LINES_DAYS`).
+- `sha256/….debug.xz`: binaries without a build ID (the engine's third-party
   libraries), by the SHA-256 of the shipped file.
 - `builds/PACKAGE-VERSION-ARCH.json`: each build of that version (target SDK,
-  commit, time, every binary with its ID, SHA-256 and object).
+  commit, time, every binary with its ID, SHA-256 and objects).
 
 An object is written once, so an unchanged rebuild (the nightly pool refresh)
-adds nothing but its entry. The engine has no debug information (Release
-build), so these are function names, no files or lines: about 8 MB per
-target per build, roughly 100 GB a year at the current build rate. Nothing
-is pruned yet. A failure to store them is a warning and leaves the package
-alone. `AIROS_SYMBOLS=` (empty) keeps none, for test builds. Summit's
+adds nothing but its entry. Per target and build: about 8 MB of symbol tables
+and 180 MB of line tables, so about 1.5 TB of line tables a year at the
+current build rate, which pruning holds at about 0.8 TB. They are staged in
+`$AIROS_SYMBOLS/.incoming` (about 1.5 GB per engine), not on /data2. A
+failure to store them is a warning and leaves the package alone.
+`AIROS_SYMBOLS=` (empty) keeps none, for test builds. Summit's
 `tools/symbolize-crash-report.py REPORT` names a report's frames from this
-store.
+store, with files and lines where it has line tables.
+
+Measured on 11 November 2026 (x86_64, `-g1`): compiles peak at 0.3 GB
+(median) to 5.2 GB, JavaScriptCore's LTO link at 22 GB, libWebKit's link at
+4 GB; libWebKit carries 1.2 GB of DWARF before stripping.
 
 ## Adding a repository
 
