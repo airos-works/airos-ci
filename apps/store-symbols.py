@@ -85,7 +85,10 @@ def build_id(data):
 
 
 def has_lines(sections):
-    return any(name in sections and sections[name][1] for name in ('.debug_line', '.debug_info'))
+    """Built with line tables: more than the few stray kilobytes of debug
+    information a release build picks up from an object or two (libWebKit
+    without -g has 3 KB of .debug_line; with -g1, 96 MB)."""
+    return sections.get('.debug_line', (0, 0))[1] >= 65536
 
 
 def prune_lines(store, days):
