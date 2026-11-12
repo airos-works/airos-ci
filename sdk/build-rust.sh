@@ -5,7 +5,7 @@
 # (NVK's shader compiler, deps/build-nvk.sh). x86_64-unknown-haiku is a tier 3
 # Rust target with no prebuilt standard library, so:
 #
-#   1. rustup installs a pinned nightly with rust-src into
+#   1. rustup installs a pinned nightly with rust-src and rustfmt into
 #      $AIROS_TOOLCHAIN/rust (RUSTUP_HOME, CARGO_HOME);
 #   2. cargo -Zbuild-std builds std and panic_abort for the target, linking
 #      with the air/OS SDK's cross GCC;
@@ -46,10 +46,14 @@ flock 9
 if [[ ! -x $CARGO_HOME/bin/rustup ]]; then
 	curl -sSf https://sh.rustup.rs -o "$R/rustup-init.sh"
 	sh "$R/rustup-init.sh" -y --no-modify-path --profile minimal --default-toolchain "$TOOLCHAIN" \
-		-c rust-src > "$R/rustup-init.log" 2>&1
+		-c rust-src -c rustfmt > "$R/rustup-init.log" 2>&1
 fi
 rustup toolchain list | grep -q "^$TOOLCHAIN" \
-	|| rustup toolchain install -q --profile minimal -c rust-src "$TOOLCHAIN"
+	|| rustup toolchain install -q --profile minimal -c rust-src -c rustfmt "$TOOLCHAIN"
+# rustfmt: Mesa's NVK formats the Rust it generates (its class headers, since
+# mesa-nvk 8a7dc4b); toolchains installed before that lack it.
+rustup component list --toolchain "$TOOLCHAIN" --installed | grep -q '^rustfmt' \
+	|| rustup component add --toolchain "$TOOLCHAIN" rustfmt
 rustc=$(rustup which --toolchain "$TOOLCHAIN" rustc)
 # bindgen for NAK's C bindings (Mesa needs 0.71.1 or newer; it uses the host's
 # libclang)
