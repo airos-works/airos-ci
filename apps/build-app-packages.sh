@@ -11,19 +11,19 @@
 #               pdfcraft photocraft lightcraft vectorcraft effectcraft filmcraft aurora
 #               summit_webkit summit
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
-#               github_desktop pgadmin4
+#               github_desktop pgadmin4 signal_desktop
 #               telegram (Telegram Desktop, x86_64; its own CI job)
 #               docker compose docker_desktop (the Docker stack; their own CI
 #               jobs, docker also builds the engine, containerd and buildx
 #               from the pinned forks)
 #               (default: all but airpins, airos_mail, code_oss, github_desktop,
-#               pgadmin4, the Docker stack and Summit's three)
+#               pgadmin4, signal_desktop, the Docker stack and Summit's three)
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper msga burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins airimager aircal snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
 #               proton-bridge proton-vpn-airos-app
-#               vscode desktop docker compose docker-desktop tdesktop
+#               vscode desktop signal docker compose docker-desktop tdesktop
 #               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
 #               VectorCraft and FilmCraft embed
@@ -1878,6 +1878,136 @@ build_pgadmin4() {
 	flock -u "$pgadmin_lock"
 }
 
+# --- Signal Desktop -----------------------------------------------------------
+# Signal Desktop on Aurora (airos-works/Signal-Desktop, branch airos, on
+# upstream's release tags; scripts/haiku/README.md). Its rolldown build makes
+# the app's JavaScript, the same on every architecture: built once per commit
+# of the repository with the Node.js and pnpm its package.json names, into a
+# stage kept in $SIGNAL_WORK (pnpm install only when pnpm-lock.yaml changes).
+# The native modules are Rust and C for each ARCH, from upstream's sources at
+# the versions package.json names: scripts/haiku/native.sh cross-builds
+# libsignal (with BoringSSL) and SQLCipher with sdk/build-rust.sh's nightly
+# Rust; RingRTC (WebRTC) has a stand-in, so calls are not available.
+# scripts/haiku/cross.sh then makes the package around the pool's aurora-host
+# for ARCH: build Aurora first.
+# Its Rust build trees take about 12 GB for both architectures: on
+# AIROS_ROOT's volume, which has the room ($AIROS_WORK's is nearly full).
+SIGNAL_WORK=${SIGNAL_WORK:-$AIROS_ROOT/work/signal_desktop}
+SIGNAL_BUILD_NODE=24.22.1
+SIGNAL_BUILD_NODE_SHA256=6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6
+# protoc for libsignal's build (its protobufs), the release of protobuf 31.1
+SIGNAL_PROTOC_URL=https://github.com/protocolbuffers/protobuf/releases/download/v31.1/protoc-31.1-linux-x86_64.zip
+SIGNAL_PROTOC_SHA256=96553041f1a91ea0efee963cb16f462f5985b4d65365f3907414c360044d8065
+# bindgen (BoringSSL's bindings) loads the host's libclang
+SIGNAL_LIBCLANG=${SIGNAL_LIBCLANG:-/usr/lib/llvm-18/lib}
+
+# The stage for the repository's commit: scripts/haiku/build.sh, once.
+signal_desktop_stage() {
+	local repo=$1 src=$SIGNAL_WORK/Signal-Desktop stage=$SIGNAL_WORK/stage
+	local node commit epoch locks engine pnpm_version
+	node=$(linux_node "$SIGNAL_BUILD_NODE" "$SIGNAL_BUILD_NODE_SHA256")
+	engine=$("$node/bin/node" -p "require('$repo/package.json').engines.node")
+	[[ $engine == "$SIGNAL_BUILD_NODE" ]] \
+		|| die "Signal Desktop builds with Node.js $engine: pin it in SIGNAL_BUILD_NODE"
+	commit=$(git -C "$repo" rev-parse HEAD)
+	[[ -z $(git --no-optional-locks -C "$repo" status --porcelain) ]] || commit+=-dirty
+	if [[ $commit != *-dirty && -f $stage/VERSION && $(cat "$SIGNAL_WORK/stage.commit" 2>/dev/null) == "$commit" ]]; then
+		echo "stage of $commit is current"
+		return
+	fi
+	# Builds expire 90 days after their commit (scripts/get-expire-time.mjs).
+	epoch=$(git -C "$repo" show -s --format=%ct HEAD)
+	# The checkout without .git; node_modules (here and in the workspace's
+	# packages) stays for the next build.
+	mkdir -p "$src"
+	rsync -a --delete --exclude=/.git --exclude=node_modules/ --exclude=/release/ "$repo/" "$src/"
+	locks=$(sha256sum "$src/pnpm-lock.yaml" | cut -c1-64)
+	pnpm_version=$("$node/bin/node" -p "require('$src/package.json').devEngines.packageManager.version")
+	(
+		export PATH=$SIGNAL_WORK/pnpm/bin:$node/bin:$PATH
+		if [[ $(pnpm --version 2>/dev/null) != "$pnpm_version" ]]; then
+			npm install -g --silent --prefix "$SIGNAL_WORK/pnpm" "pnpm@$pnpm_version"
+		fi
+		cd "$src"
+		if [[ ! -d node_modules || $(cat "$SIGNAL_WORK/pnpm.locks" 2>/dev/null) != "$locks" ]]; then
+			note "Signal Desktop: pnpm install (Node.js $(node --version))"
+			# Without install scripts: they download Electron and the Linux
+			# builds of the native modules, which a Haiku build replaces
+			# (scripts/haiku/native.sh); build.sh builds what the workspace's
+			# own packages need.
+			export ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+			npm_config_store_dir=$SIGNAL_WORK/pnpm-store pnpm install --frozen-lockfile --ignore-scripts
+			echo "$locks" > "$SIGNAL_WORK/pnpm.locks"
+		fi
+		note "Signal Desktop: rolldown, styles, locales (scripts/haiku/build.sh)"
+		SOURCE_DATE_EPOCH=$epoch scripts/haiku/build.sh "$stage"
+	)
+	echo "$commit" > "$SIGNAL_WORK/stage.commit"
+}
+
+build_signal_desktop() {
+	note "Signal Desktop"
+	local repo=$APPS/signal
+	[[ -d $repo ]] || die "no repository $repo"
+	mkdir -p "$SIGNAL_WORK"
+	exec {signal_lock}>"$AIROS_LOCKS/signal_desktop.lock"
+	flock "$signal_lock"
+	signal_desktop_stage "$repo"
+	# The tools of the native build: protoc, Node.js 22's headers (N-API),
+	# the target's Rust.
+	local protoc=$SIGNAL_WORK/protoc-31.1 tarball
+	if [[ ! -x $protoc/bin/protoc ]]; then
+		tarball=$AIROS_CACHE/tarballs/${SIGNAL_PROTOC_SHA256:0:16}-$(basename "$SIGNAL_PROTOC_URL")
+		mkdir -p "$AIROS_CACHE/tarballs"
+		if [[ ! -f $tarball ]] || ! echo "$SIGNAL_PROTOC_SHA256  $tarball" | sha256sum -c --quiet; then
+			curl -fsSL --retry 3 -o "$tarball.part" "$SIGNAL_PROTOC_URL"
+			echo "$SIGNAL_PROTOC_SHA256  $tarball.part" | sha256sum -c --quiet \
+				|| die "$SIGNAL_PROTOC_URL: wrong SHA-256"
+			mv "$tarball.part" "$tarball"
+		fi
+		rm -rf "$protoc"
+		mkdir -p "$protoc"
+		unzip -q "$tarball" -d "$protoc"
+	fi
+	local headers=$SIGNAL_WORK/node-v$CODE_OSS_HEADERS
+	if [[ ! -f $headers/include/node/node_api.h ]]; then
+		tarball=$(fetch_node "node-v$CODE_OSS_HEADERS-headers.tar.gz" "$CODE_OSS_HEADERS" "$CODE_OSS_HEADERS_SHA256")
+		rm -rf "$headers"
+		mkdir -p "$headers"
+		tar xzf "$tarball" -C "$headers" --strip-components=1
+	fi
+	[[ -e $SIGNAL_LIBCLANG/libclang.so || -n $(compgen -G "$SIGNAL_LIBCLANG/libclang.so.*") ]] \
+		|| die "no libclang in $SIGNAL_LIBCLANG (SIGNAL_LIBCLANG)"
+	"$AIROS_CI/sdk/build-rust.sh" "$ARCH"
+	local native=$SIGNAL_WORK/native-$ARCH log=$SIGNAL_WORK/native-$ARCH.log
+	note "Signal Desktop: libsignal and SQLCipher for $ARCH (scripts/haiku/native.sh)"
+	PATH=$AIROS_CACHE/node-v$SIGNAL_BUILD_NODE-linux-x64/bin:$PATH \
+		AIROS_SDK=$AIROS_SDK/$SDK_NAME/env.sh RUST_ENV=$AIROS_TOOLCHAIN/rust/env-$ARCH.sh \
+		RUST_TARGET_PATH=$AIROS_CI/sdk/targets NODE_HEADERS=$headers PROTOC=$protoc/bin/protoc \
+		LIBCLANG_PATH=$SIGNAL_LIBCLANG SIGNAL_NATIVE_WORK=$SIGNAL_WORK/native CARGO_HOME=$SIGNAL_WORK/cargo \
+		"$SIGNAL_WORK/Signal-Desktop/scripts/haiku/native.sh" "$ARCH" "$native" \
+		> "$log" 2>&1 || { tail -40 "$log"; die "Signal Desktop's native modules for $ARCH failed"; }
+	local host=$SIGNAL_WORK/aurora-$ARCH
+	aurora_launcher "$host"
+	log=$SIGNAL_WORK/cross-$ARCH.log
+	AIROS_SDK=$AIROS_SDK/$SDK_NAME/env.sh HAIKU_HOST_TOOLS=$TOOLS HAIKU_MIME_DB=$MIMEDB \
+		AURORA_HOST_BINARY=$host/data/aurora/aurora-host SIGNAL_NATIVE=$native TMPDIR=$SIGNAL_WORK \
+		"$SIGNAL_WORK/Signal-Desktop/scripts/haiku/cross.sh" "$ARCH" "$SIGNAL_WORK/stage" \
+		"$SIGNAL_WORK/out-$ARCH" > "$log" 2>&1 || { tail -40 "$log"; die "Signal Desktop for $ARCH failed"; }
+	"$TOOLS/rm_attrs" -rf "$host"
+	local file version
+	file=$(tail -1 "$log")
+	[[ -f $file ]] || die "cross.sh made no package"
+	verify_package "$file"
+	rm -f "$OUT"/signal_desktop-[0-9]*-"$ARCH".hpkg
+	mv "$file" "$OUT/"
+	file=$OUT/$(basename "$file")
+	version=$(basename "$file" | sed "s/^signal_desktop-\(.*\)-$ARCH.hpkg\$/\1/")
+	echo "package:  $file"
+	printf '%s\t%s\t%s\t%s\n' signal_desktop "$file" "$version" "(none)" >> "$APPBUILD/.summary"
+	flock -u "$signal_lock"
+}
+
 # --- Proton Mail Bridge ------------------------------------------------------
 # Qt desktop + Go engine. All source changes and toolchain pins live in the app
 # fork. x86_64 links HaikuPorts' Qt, gRPC and protobuf packages. arm64, which
@@ -2758,13 +2888,13 @@ main() {
 			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
 			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
-			pgadmin4 docker compose docker_desktop telegram; do
-		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop and pgAdmin 4 (their
+			pgadmin4 signal_desktop docker compose docker_desktop telegram; do
+		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop, pgAdmin 4 and Signal (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
 		# (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library) and the
 		# Docker stack (their own CI jobs; build_docker also checks out forks)
-		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|docker|compose|docker_desktop|telegram)$ && ${#SELECTED[@]} -eq 0 ]] \
+		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done
