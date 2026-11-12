@@ -165,7 +165,7 @@
     "base": "v1.7.0",
     "base_commit": "faa23f21fc677af5792825dc30cb1ccef4bf33a6",
     "branch": "airos-1.7.0",
-    "commit": "3c953cf59b08cfb11b5a70b60005bd319180707d",
+    "commit": "c9362cc124bf61550a8f5facd0d282a38274c997",
     "repo": "libglvnd",
     "upstream": "https://github.com/NVIDIA/libglvnd.git",
     "url": "https://github.com/airos-works/libglvnd.git"
@@ -264,7 +264,7 @@
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
     "branch": "airos-amdgpu",
-    "commit": "1a02b91f9006af8b032b4f4b6ce49ff6b4c15e58",
+    "commit": "75bfea6622bf13eb239c192ad48a13c800a1067b",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
@@ -273,7 +273,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos-22.0.5-hgl",
-    "commit": "58b8ca8f0161a3447b2dae0400af0e650c50283f",
+    "commit": "9b0bc4a551d1903b24471f18e7e0b5e6e362289a",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
