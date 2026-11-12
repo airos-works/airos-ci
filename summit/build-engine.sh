@@ -222,7 +222,10 @@ fi
 # init cache turns ENABLE_WEBGPU on.
 [[ ! -f $P/dawn/include/webgpu/webgpu_cpp.h ]] || options+=(-DDAWN_INSTALL_DIR="$P/dawn")
 mkdir -p "$B"
-cmake -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/arm64/rpi4-gl/init-cache-rtc.cmake" \
+# Line tables (-g1) for crash reports: the packages are stripped, and
+# apps/store-symbols.py keeps them per build. The init cache reads
+# SUMMIT_DEBUG_LINES, so it goes before -C.
+cmake -DSUMMIT_DEBUG_LINES=ON -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/arm64/rpi4-gl/init-cache-rtc.cmake" \
 	-DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release "${options[@]}" > "$B/configure.log" 2>&1 \
 	|| { tail -40 "$B/configure.log"; die "WebKit configure failed (log: $B/configure.log)"; }
 grep -E "^-- (Enabled|  ENABLE_WEB_RTC|  USE_SKIA|  ENABLE_WEBGL )" "$B/configure.log" | head -10 || true

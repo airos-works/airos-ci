@@ -406,8 +406,8 @@ at `http://airos-build/symbols/`:
   crash reports print each image's ID. Kept.
 - `build-id/ab/cdef….lines.xz`: the line tables, for binaries built with
   `-g1` (files, lines and inlined calls, no variables; the code is the same):
-  Summit and libWebKitLegacy, and the engine once `summit/build-engine.sh`
-  sets the init cache's `SUMMIT_DEBUG_LINES`. Removed 180 days after the last build that
+  the engine (`summit/build-engine.sh` sets the init cache's
+  `SUMMIT_DEBUG_LINES`, since 12 November 2026), Summit and libWebKitLegacy. Removed 180 days after the last build that
   has them (`SYMBOLS_LINES_DAYS`).
 - `sha256/….debug.xz`: binaries without a build ID (the engine's third-party
   libraries), by the SHA-256 of the shipped file.
