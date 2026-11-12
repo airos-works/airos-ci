@@ -31,6 +31,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 BASE = os.environ.get("HAIKUPORTS_URL", "https://eu.hpkg.haiku-os.org/haikuports/master")
@@ -56,7 +57,11 @@ def tool(arch, name):
     return os.path.join(t, name, name) if os.path.isdir(os.path.join(t, name)) else os.path.join(t, name)
 
 
-def download(url, path):
+class Gone(Exception):
+    """A package the cached index lists is no longer in the repository."""
+
+
+def download(url, path, gone_ok=False):
     req = urllib.request.Request(url, headers={"User-Agent": "airos-ci"})
     for attempt in range(4):
         try:
@@ -68,6 +73,11 @@ def download(url, path):
                     f.write(chunk)
             os.rename(path + ".part", path)
             return
+        except urllib.error.HTTPError as e:
+            if e.code == 404 and gone_ok:
+                raise Gone(url) from e
+            print(f"warning: {url}: {e}", file=sys.stderr)
+            time.sleep(5 * (attempt + 1))
         except Exception as e:  # noqa: BLE001 - retry any transfer error
             print(f"warning: {url}: {e}", file=sys.stderr)
             time.sleep(5 * (attempt + 1))
@@ -92,11 +102,11 @@ def parse_listing(text):
     return pkgs
 
 
-def repository(arch):
+def repository(arch, refresh=False):
     d = os.path.join(CACHE, "haikuports", arch)
     os.makedirs(d, exist_ok=True)
     repo, listing = os.path.join(d, "repo"), os.path.join(d, "repo.txt")
-    if not os.path.exists(listing) or time.time() - os.path.getmtime(listing) > 86400:
+    if refresh or not os.path.exists(listing) or time.time() - os.path.getmtime(listing) > 86400:
         download(f"{BASE}/{arch}/current/repo", repo)
         text = subprocess.run([tool(arch, "package_repo"), "list", "-v", repo], check=True,
                               stdout=subprocess.PIPE, text=True, errors="replace").stdout
@@ -228,15 +238,23 @@ def resolve(arch, requirements, deps=True, have=()):
 def fetch(arch, requirements, deps=True, have=()):
     d = os.path.join(CACHE, "haikuports", arch, "packages")
     os.makedirs(d, exist_ok=True)
-    files = []
-    for p in sorted(resolve(arch, requirements, deps, have), key=lambda p: p["name"]):
-        fname = f"{p['name']}-{p['version']}-{p['architecture']}.hpkg"
-        path = os.path.join(d, fname)
-        if not os.path.exists(path):
-            print(f"  download {fname}", file=sys.stderr)
-            download(f"{BASE}/{arch}/current/packages/{fname}", path)
-        files.append(path)
-    return files
+    # The index is cached for a day, and HaikuPorts removes a package's old
+    # build when it publishes a new one: a listed file that is gone (404)
+    # means the index is out of date, so it is read again once.
+    for last in (False, True):
+        files = []
+        try:
+            for p in sorted(resolve(arch, requirements, deps, have), key=lambda p: p["name"]):
+                fname = f"{p['name']}-{p['version']}-{p['architecture']}.hpkg"
+                path = os.path.join(d, fname)
+                if not os.path.exists(path):
+                    print(f"  download {fname}", file=sys.stderr)
+                    download(f"{BASE}/{arch}/current/packages/{fname}", path, gone_ok=not last)
+                files.append(path)
+            return files
+        except Gone as gone:
+            print(f"warning: {gone} is gone from HaikuPorts: reading its index again", file=sys.stderr)
+            repository(arch, refresh=True)
 
 
 def main():

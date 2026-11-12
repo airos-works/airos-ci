@@ -57,8 +57,9 @@ esac
 HAIKU_REPO_URL=https://eu.hpkg.haiku-os.org/haiku/$RELEASE/$ARCH/$VERSION
 UPSTREAM=${HAIKU_UPSTREAM:-https://github.com/haiku/haiku.git}
 # Devel packages for libraries the image has (the ones Summit's engine and
-# browser use), and two libraries it lacks.
-HAIKUPORTS=(gcc_syslibs_devel zlib_devel curl_devel openssl3_devel nghttp2_devel libpsl_devel
+# browser use), and two libraries it lacks. gcc_syslibs_devel is added below,
+# at the image's own gcc_syslibs version.
+HAIKUPORTS=(zlib_devel curl_devel openssl3_devel nghttp2_devel libpsl_devel
 	sqlite_devel libxml2_devel libxslt_devel libjpeg_turbo_devel libpng16_devel libwebp_devel
 	lcms_devel brotli_devel woff2_devel freetype_devel expat_devel fontconfig_devel harfbuzz_devel
 	libavif1.0_devel libexecinfo_devel scintilla scintilla_devel lexilla lexilla_devel)
@@ -168,6 +169,44 @@ done
 for tool in "$new"/host-tools/bin/*; do
 	patchelf --set-rpath '$ORIGIN/../lib' "$tool"
 done
+note "HaikuPorts devel packages"
+# Into the new sysroot, before it replaces the SDK in use: a failure here
+# (a package HaikuPorts no longer has) leaves the last good SDK alone. They
+# came after the replacement until 12 November 2026, and a failed fetch left
+# an SDK without zlib.h that broke Summit's Haiku build.
+#
+# gcc_syslibs_devel at the image's gcc_syslibs version exactly: its headers
+# and static libraries go with the release's GCC (13.3, the SDK's compiler),
+# and HaikuPorts has moved on (GCC 15 on master and r1beta6 since November
+# 2026) and deleted the old builds. Kept in $CACHE once found.
+syslibs=$(cd "$images" && ls gcc_syslibs-[0-9]*-"$ARCH".hpkg)
+gcc_devel=${syslibs/#gcc_syslibs-/gcc_syslibs_devel-}
+if [[ ! -f $CACHE/$gcc_devel ]]; then
+	known=$AIROS_CACHE/haikuports/$ARCH/packages/$gcc_devel
+	[[ ! -f $known ]] || { cp "$known" "$CACHE/$gcc_devel.part" && mv "$CACHE/$gcc_devel.part" "$CACHE/$gcc_devel"; }
+	for repo in "haikuports/$RELEASE" haikuports/master; do
+		[[ -f $CACHE/$gcc_devel ]] && break
+		curl -fsSL --retry 3 -o "$CACHE/$gcc_devel.part" \
+			"https://eu.hpkg.haiku-os.org/$repo/$ARCH/current/packages/$gcc_devel" \
+			&& mv "$CACHE/$gcc_devel.part" "$CACHE/$gcc_devel"
+	done
+	rm -f "$CACHE/$gcc_devel.part"
+fi
+[[ -f $CACHE/$gcc_devel ]] || die "no $gcc_devel, the devel package of the image's $syslibs (HaikuPorts has deleted it; put a copy in $CACHE)"
+# haikuports.py reads the package tools from the air/OS SDK of ARCH (the same
+# as this one's), since this one is not in place yet.
+"$AIROS_CI/deps/haikuports.py" fetch --no-deps "$ARCH" "${HAIKUPORTS[@]}" > "$CACHE/haikuports.txt"
+echo "$CACHE/$gcc_devel" >> "$CACHE/haikuports.txt"
+while read -r file; do
+	cp "$file" "$new/packages/"
+	"$package" extract -C "$root" "$file" > /dev/null
+done < "$CACHE/haikuports.txt"
+rm -f "$root/.PackageInfo"
+# Links that name /boot/system point into the sysroot; the link names of a
+# devel package of a newer HaikuPorts build lead to the image's libraries.
+python3 "$AIROS_CI/lib/fix-devel-links.py" "$root"
+[[ -f $root/develop/headers/zlib.h ]] || die "the sysroot has no zlib.h after the devel packages"
+
 cat > "$new/env.sh" <<EOF
 # Haiku $RELEASE $ARCH cross SDK (stock Haiku, not air/OS): the image of
 # $VERSION ($COMMIT), made by airos-ci sdk/build-release-sdk.sh.
@@ -195,16 +234,6 @@ rm -rf "$SDK.old"
 mv "$new" "$SDK"
 rm -rf "$SDK.old"
 
-note "HaikuPorts devel packages"
-AIROS_SDK_NAME=$NAME "$AIROS_CI/deps/haikuports.py" fetch --no-deps "$ARCH" "${HAIKUPORTS[@]}" > "$CACHE/haikuports.txt"
-while read -r file; do
-	cp "$file" "$SDK/packages/"
-	"$package" extract -C "$SDK/sysroot/boot/system" "$file" > /dev/null
-done < "$CACHE/haikuports.txt"
-rm -f "$SDK/sysroot/boot/system/.PackageInfo"
-# Links that name /boot/system point into the sysroot; the link names of a
-# devel package of a newer HaikuPorts build lead to the image's libraries.
-python3 "$AIROS_CI/lib/fix-devel-links.py" "$SDK/sysroot/boot/system"
 # The server's trees belong to the group (CI and people replace each
 # other's), but packages carry 0755 directories and 0700 ones, and the
 # package tool gives what it extracts the user's own group.
