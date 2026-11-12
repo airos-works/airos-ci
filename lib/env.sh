@@ -101,6 +101,12 @@ build_stage() {
 	python3 "$AIROS_CI/lib/status.py" stage "$BUILD_ID" "$@" || true
 }
 
+# The arm64 picture libraries (deps/recipes) that Haiku's jpeg, libwebp, tiff,
+# jasper, libavif and libicns build features take from
+# HAIKU_ARM64_IMAGE_LIBRARIES_DIR, each with its _devel package: the
+# translators and usb_webcam's Motion-JPEG decoder.
+ARM64_IMAGE_LIBRARY_PACKAGES="libjpeg_turbo libwebp tiff jasper openjpeg dav1d libaom libavif1.0 libicns"
+
 # zstd_build_feature ARCH BUILD SOURCE: before a jam run in the Haiku build
 # directory BUILD (tree SOURCE). arm64 builds get the zstd build feature from
 # CI's zstd packages (deps/recipes/zstd.sh): packagefs, the boot loader and

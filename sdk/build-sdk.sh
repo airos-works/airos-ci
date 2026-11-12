@@ -142,6 +142,33 @@ build_haiku() {
 		[[ -n $HAIKU_ARM64_OPENSSL_PACKAGE ]] || die "no airos_openssl package for arm64 (deps/recipes/openssl.sh)"
 		export HAIKU_ARM64_OPENSSL_PACKAGE
 	fi
+	# arm64: the picture libraries (HAIKU_ARM64_IMAGE_LIBRARIES_DIR) from the
+	# pool, as images/build-image.sh has them, for the same reason: the image
+	# builds compile usb_webcam with HAVE_LIBJPEG, and an SDK build that had to
+	# link the add-on again (haiku e776682436 changed libroot) linked it
+	# without libjpeg and failed. Without the packages (a first build) the
+	# feature stays off, and the image build stops for them anyway.
+	unset HAIKU_ARM64_IMAGE_LIBRARIES_DIR
+	if [[ $ARCH == arm64 ]] && grep -qF HAIKU_ARM64_IMAGE_LIBRARIES_DIR "$WT/build/jam/BuildFeatures"; then
+		local imagelibs=$AIROS_ROOT/image-inputs/arm64/imagelibs name package file missing=
+		rm -rf "$imagelibs"
+		mkdir -p "$imagelibs"
+		for name in $ARM64_IMAGE_LIBRARY_PACKAGES; do
+			for package in "$name" "${name}_devel"; do
+				file=$(ls "$AIROS_PACKAGES/arm64/$package"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
+				if [[ -n $file ]]; then
+					cp "$file" "$imagelibs/"
+				else
+					missing+=" $package"
+				fi
+			done
+		done
+		if [[ -z $missing ]]; then
+			export HAIKU_ARM64_IMAGE_LIBRARIES_DIR=$imagelibs
+		else
+			note "no picture library packages in the pool:$missing (deps/recipes); their build features stay off"
+		fi
+	fi
 	prune_attributes "$BUILD"
 	note "jam: haiku packages and host tools ($ARCH)"
 	build_stage "Haiku packages" "jam haiku.hpkg haiku_devel.hpkg"

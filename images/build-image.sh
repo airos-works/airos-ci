@@ -360,7 +360,7 @@ else
 	# base package in the image (dav1d, libaom and openjpeg for libavif and
 	# libicns).
 	if grep -qF HAIKU_ARM64_IMAGE_LIBRARIES_DIR "$HAIKU_SOURCE/build/jam/BuildFeatures"; then
-		for name in libjpeg_turbo libwebp tiff jasper openjpeg dav1d libaom libavif1.0 libicns; do
+		for name in $ARM64_IMAGE_LIBRARY_PACKAGES; do
 			for package in "$name" "${name}_devel"; do
 				file=$(ls "$pool/$package"-[0-9]*-arm64.hpkg 2>/dev/null | head -n 1 || true)
 				[[ -n $file ]] || die "no $package package in $pool (deps/recipes: $IMAGE_LIBRARIES)"
