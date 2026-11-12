@@ -138,7 +138,7 @@
     "base": "libdrm-2.4.134",
     "base_commit": "libdrm-2.4.134",
     "branch": "airos-2.4.134",
-    "commit": "eec11b92d6d3b4115f58c5cc9d82b71f450e9952",
+    "commit": "208d69cfedcd89d99af2288c70bd01fb73bbaa04",
     "repo": "libdrm",
     "upstream": "https://gitlab.freedesktop.org/mesa/drm.git",
     "url": "https://github.com/airos-works/libdrm.git"
@@ -264,7 +264,7 @@
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
     "branch": "airos-amdgpu",
-    "commit": "75bfea6622bf13eb239c192ad48a13c800a1067b",
+    "commit": "c8824931c57b5d38c3f5139d87076325d87fd1e9",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
@@ -282,7 +282,7 @@
     "base": "b28d7c6866821b2a70abc0fa0e67b70461bd9da4",
     "base_commit": "b28d7c6866821b2a70abc0fa0e67b70461bd9da4",
     "branch": "airos-nvk-r2",
-    "commit": "8a7dc4b6bbe496775fb302706315ed982d44266c",
+    "commit": "5574d8d2c0c1180c0bab1d87b9d71a1722a06b62",
     "repo": "mesa-nvk",
     "upstream": "https://github.com/X547/mesa.git",
     "url": "https://github.com/airos-works/mesa-nvk.git"
@@ -471,7 +471,7 @@
     "base": "0364da32d1bf9917ce48d42025682d49e8bfd204",
     "base_commit": "0364da32d1bf9917ce48d42025682d49e8bfd204",
     "branch": "airos",
-    "commit": "e9f70a0e75cffc5fc13ce114c5eb7c861b1e6b2e",
+    "commit": "4300d246262da2bea5e1257eac3bec271c50a5da",
     "repo": "wayland-server",
     "upstream": "https://github.com/X547/wayland-server.git",
     "url": "https://github.com/airos-works/wayland-server.git"
