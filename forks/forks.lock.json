@@ -282,7 +282,7 @@
     "base": "b28d7c6866821b2a70abc0fa0e67b70461bd9da4",
     "base_commit": "b28d7c6866821b2a70abc0fa0e67b70461bd9da4",
     "branch": "airos-nvk-r2",
-    "commit": "5574d8d2c0c1180c0bab1d87b9d71a1722a06b62",
+    "commit": "4d07fac8a5167f3b538cf2a7497cc848c5bea192",
     "repo": "mesa-nvk",
     "upstream": "https://github.com/X547/mesa.git",
     "url": "https://github.com/airos-works/mesa-nvk.git"
