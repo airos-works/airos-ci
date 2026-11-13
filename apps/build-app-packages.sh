@@ -2905,9 +2905,11 @@ build_bambustudio() {
 	stage_begin
 	install_binary "$build/src/bambu-studio" "$build/src/BambuStudio.rsrc" apps/BambuStudio/BambuStudio
 	# The resources (profiles, images, fonts, shaders, web pages): found by the
-	# application in the data directory of its installation location.
+	# application in the data directory of its installation location. Staged
+	# without the printer error database and with oversized pictures scaled
+	# down (the script says why).
 	mkdir -p "$STAGE/data/BambuStudio"
-	cp -RL "$SRC/resources" "$STAGE/data/BambuStudio/resources"
+	python3 -I "$SRC/tools/haiku/stage-resources.py" "$SRC/resources" "$STAGE/data/BambuStudio/resources"
 	docs bambustudio README.md LICENSE
 	install_file 644 "$SRC/LICENSE" "data/licenses/GNU AGPL v3"
 	deskbar_link apps/BambuStudio/BambuStudio "Bambu Studio"
