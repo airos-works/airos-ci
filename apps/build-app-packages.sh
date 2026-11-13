@@ -2915,6 +2915,9 @@ build_bambustudio() {
 	deskbar_link apps/BambuStudio/BambuStudio "Bambu Studio"
 	retarget_package_info "$SRC/tools/haiku/BambuStudio.PackageInfo" "$STAGE/.PackageInfo" '^summit_webkit'
 	add_attributes "$build/src/BambuStudio.rsrc" apps/BambuStudio/BambuStudio
+	# The document types it opens (model/3mf, model/stl, ...), after
+	# add_attributes, whose purge would drop their attributes.
+	"$SRC/tools/haiku/stage-mime-db.sh" "$STAGE/data/mime_db" "$TOOLS"
 	finish_package bambustudio apps/BambuStudio/BambuStudio
 }
 
