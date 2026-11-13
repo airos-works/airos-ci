@@ -52,6 +52,11 @@ on:
         required: false
         type: string
         default: main
+      timeout-minutes:
+        description: time limit of the build job (Bambu Studio's first build compiles its whole dependency set)
+        required: false
+        type: number
+        default: 180
 
 permissions:
   contents: write
@@ -63,7 +68,7 @@ concurrency:
 jobs:
   build:
     runs-on: [self-hosted, airos-build]
-    timeout-minutes: 180
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - name: Check out ${{ github.repository }}
         uses: actions/checkout@v7
