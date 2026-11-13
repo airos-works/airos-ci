@@ -2870,11 +2870,14 @@ build_telegram() {
 	stage_begin
 	"$STRIP" -o "$BUILDDIR/Telegram.stripped" "$BUILDDIR/bin/Telegram"
 	install_binary "$BUILDDIR/Telegram.stripped" "$BUILDDIR/Telegram.rsrc" apps/Telegram
+	# The tray icon, a Deskbar add-on Telegram finds at <prefix>/add-ons/
+	# Telegram beside <prefix>/apps (platform/haiku/tray_haiku.cpp).
+	install_binary "$BUILDDIR/bin/Telegram Deskbar item" - "add-ons/Telegram/Telegram Deskbar item"
 	install_file 644 "$repo/LICENSE" data/licenses/telegram_airos
 	deskbar_link apps/Telegram Telegram
 	retarget_package_info "$repo/airos/resources/telegram_airos.PackageInfo" "$STAGE/.PackageInfo"
 	add_attributes "$BUILDDIR/Telegram.rsrc" apps/Telegram
-	finish_package telegram_airos apps/Telegram
+	finish_package telegram_airos apps/Telegram "add-ons/Telegram/Telegram Deskbar item"
 }
 
 main() {
