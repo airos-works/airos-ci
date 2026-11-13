@@ -253,10 +253,23 @@ with its SHA-256, the Haiku commit and the airos-ci commit that built it
 x86_64 and arm64 must reach the graphical session; for the Pi, the SD card
 layout is checked. Cubie validates the GPT, boot-chain sectors and ESP files,
 then boots the image through UEFI on QEMU’s ARM64 virt machine. These checks
-do not emulate the boards’ GPUs or qualify their physical hardware. x86_64 boots twice, with a legacy BIOS from a CD and with UEFI
-(OVMF) from a USB stick through the EFI system partition, as a PC does; the
-UEFI boot's log and screenshot are `serial-uefi-usb.log` and
-`screen-uefi-usb.png`. Every boot also runs regression checks: the test
+do not emulate the boards’ GPUs or qualify their physical hardware. x86_64 boots three times, with a legacy BIOS from a CD and with UEFI
+(OVMF) from a USB stick and from an NVMe drive through the EFI system
+partition, as a PC does; the UEFI boots' logs and screenshots are
+`serial-uefi-usb.log`, `screen-uefi-usb.png`, `serial-uefi-nvme.log` and
+`screen-uefi-nvme.png`. The arm64 and Cubie boots have an empty NVMe drive
+beside the stick; on every boot with a drive, `nvme_disk` must attach to it
+during the boot device scan. The nightly (and manually started) x86_64
+builds also build the `haiku` package with the kernel's debug checks at
+level 2 (`DEBUG_KERNEL=1`, its own build directory `haiku-x86_64-kdebug2`,
+published in the image's `debug-kernel/` folder; a build that fails is named
+in the smoke log but does not stop the image), and the smoke test boots the image once more from
+NVMe with it in place of the image's own (`uefi-nvme-kdebug2`): lock and
+interrupt-state assertions, and new kernel memory filled with `0xcc`, where
+QEMU's memory starts out zero. Both only cover what QEMU makes happen: the
+`nvme_disk` boot panic fixed in haiku 2bc5e42fb7 (an admin-queue interrupt
+during start-up, which QEMU's NVMe controller never sends) passes them.
+Every boot also runs regression checks: the test
 programs the Haiku tree lists in `tools/airos/ci/guest-tests` (built with the
 image, published in its `guest-tests/` folder) are copied into the smoke
 test's copy of the image and run once at boot by `images/guest-tests.py`, with

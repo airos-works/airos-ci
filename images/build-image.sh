@@ -737,6 +737,60 @@ if [[ ${#guest_tests[@]} -gt 0 ]]; then
 	build_stage "image" "guest tests: ${guest_tests[*]}"
 	jam -q -j"$JOBS" "${guest_tests[@]}"
 fi
+# The debug kernel (DEBUG_KERNEL=1; by default for the nightly, scheduled
+# runs): the haiku package once more, from the same tree and UserBuildConfig
+# with the kernel's debug checks at level 2, in a build directory of its own
+# (jam does not build objects again when only their flags change). Every
+# kernel-mode object of the package is built for it (Haiku's level marker).
+# smoke-test.sh boots the image with it in place of the image's own
+# (debug-kernel/haiku.hpkg next to the image): lock and interrupt-state
+# assertions, and new kernel memory filled with 0xcc (QEMU's starts out zero).
+# x86_64 only so far: arm64's (QEMU without KVM, slower again at level 2) is
+# still to be tried. Scheduled and manually started runs build it. A build
+# that fails is reported (debug-kernel/build-failed.txt, which the smoke test
+# names) but does not stop the image.
+case ${GITHUB_EVENT_NAME:-} in
+	schedule|workflow_dispatch) DEBUG_KERNEL=${DEBUG_KERNEL:-1} ;;
+	*) DEBUG_KERNEL=${DEBUG_KERNEL:-0} ;;
+esac
+debug_package= debug_failed=
+if [[ $DEBUG_KERNEL == 1 && $TARGET == x86_64 ]]; then
+	DEBUG_BUILD=$AIROS_BUILD/haiku-$TARGET-kdebug2
+	note "debug kernel: haiku.hpkg at KDEBUG_LEVEL 2 ($DEBUG_BUILD)"
+	build_stage "image" "debug kernel: the haiku package at KDEBUG_LEVEL 2"
+	mkdir -p "$DEBUG_BUILD"
+	# (an if condition: set -e is off in there, so each step checks itself)
+	if ! (
+		cd "$DEBUG_BUILD" || exit 1
+		if ! grep -q "^#c $HAIKU_SOURCE/configure" build/BuildConfig 2>/dev/null \
+				|| ! grep -qF -- "--cross-tools-prefix $CROSS" build/BuildConfig; then
+			"$HAIKU_SOURCE/configure" --distro-compatibility compatible --no-full-xattr \
+				--cross-tools-prefix "$CROSS" || exit 1
+		fi
+		# HaikuPorts' build packages, as the main build has them
+		[[ -e download || ! -d $BUILD/download ]] || cp -al "$BUILD/download" download
+		{
+			cat "$BUILD/UserBuildConfig"
+			echo "TARGET_KERNEL_DEFINES += KDEBUG_LEVEL=2 ;"
+		} > UserBuildConfig || exit 1
+		zstd_build_feature "$ARCH" "$DEBUG_BUILD" "$HAIKU_SOURCE"
+		if [[ -d attributes ]]; then
+			find "$WORK" -type l -printf '%i\n' | while read -r inode; do
+				rm -rf "attributes/symlink-$inode"
+			done
+		fi
+		prune_attributes "$DEBUG_BUILD"
+		rm -f objects/haiku/$ARCH/packaging/packages/haiku.hpkg
+		jam -q -j"$JOBS" "@$PROFILE" haiku.hpkg 2>&1 | tee jam.log
+		[[ ${PIPESTATUS[0]} == 0 ]]
+	) || [[ ! -f $DEBUG_BUILD/objects/haiku/$ARCH/packaging/packages/haiku.hpkg ]]; then
+		debug_failed=1
+		echo "warning: the debug kernel build failed; the image goes on without it"
+	else
+		debug_package=$DEBUG_BUILD/objects/haiku/$ARCH/packaging/packages/haiku.hpkg
+	fi
+	rm -f "$DEBUG_BUILD/UserBuildConfig"
+fi
 # The SDK's build directory must not keep this UserBuildConfig.
 [[ $TARGET == rpi4 || $TARGET == cubie ]] || rm -f "$BUILD/UserBuildConfig"
 
@@ -754,6 +808,14 @@ for test in "${guest_tests[@]}"; do
 	mkdir -p "$dest/guest-tests"
 	cp "$program" "$dest/guest-tests/"
 done
+if [[ -n $debug_package ]]; then
+	mkdir -p "$dest/debug-kernel"
+	cp "$debug_package" "$dest/debug-kernel/haiku.hpkg"
+elif [[ -n $debug_failed ]]; then
+	mkdir -p "$dest/debug-kernel"
+	tail -n 60 "$DEBUG_BUILD/jam.log" > "$dest/debug-kernel/build-failed.txt" 2>/dev/null \
+		|| echo "no jam log" > "$dest/debug-kernel/build-failed.txt"
+fi
 ( cd "$dest" && sha256sum "$IMAGE.xz" > "$IMAGE.xz.sha256" )
 image_sha=$(sha256sum "$BUILD/$IMAGE" | cut -d' ' -f1)
 # The airos-ci revision that made the image: its fork pins, Office and Media

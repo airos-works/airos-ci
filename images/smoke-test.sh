@@ -5,13 +5,25 @@
 # desktop: the serial log must show input_server loading its add-ons (it
 # starts with the graphical session, after app_server), no kernel debugger
 # entry, and a screenshot of the screen 30 seconds later must not be blank.
-#   x86_64  qemu-system-x86_64 with KVM, booted twice: legacy BIOS with the
-#           ISO as a CD (bios-cd), then UEFI firmware (OVMF) with the ISO
+#   x86_64  qemu-system-x86_64 with KVM, booted three times: legacy BIOS with
+#           the ISO as a CD (bios-cd), then UEFI firmware (OVMF) with the ISO
 #           written to a USB stick, booting from its MBR's EFI system
-#           partition as on a PC (uefi-usb)
-#   arm64   qemu-system-aarch64 (virt, UEFI firmware), the ISO as a USB disk
+#           partition as on a PC (uefi-usb), then the same from an NVMe drive
+#           (uefi-nvme), as the X399 and most PCs start
+#   arm64   qemu-system-aarch64 (virt, UEFI firmware), the ISO as a USB disk,
+#           with an empty NVMe drive the boot device scan must get through
+#           (the ROCK 5 starts from NVMe)
 #   rpi4    not booted (QEMU's raspi4b cannot run Haiku's Pi loader); the SD
 #           image's partition table and boot files are checked instead
+# Debug kernel (2026-11-13): when build-image.sh left a haiku package built
+# with the kernel's debug checks at level 2 in IMAGE_DIR/debug-kernel (the
+# nightly x86_64 builds), the image is booted once more from NVMe with that
+# package in place of its own (NAME-kdebug2): lock and interrupt-state
+# assertions, and new kernel memory filled with 0xcc, where QEMU's memory
+# starts out zero and hides reads of fields nobody set. It only covers what
+# QEMU makes happen: the nvme_disk boot panic fixed in haiku 2bc5e42fb7 (an
+# admin-queue interrupt during start-up) passes here at level 2 as well,
+# because QEMU's NVMe controller sends no interrupt for those commands.
 # Regression checks on every boot (2026-11-01):
 #   guest tests  the Haiku tree's tools/airos/ci/guest-tests, which
 #                build-image.sh published in IMAGE_DIR/guest-tests, are copied
@@ -99,6 +111,32 @@ if [[ -d $DIR/guest-tests && -n $(ls -A "$DIR/guest-tests") ]]; then
 	guest_tests=$DIR/guest-tests
 fi
 
+# The debug kernel's copy of the image (with the guest tests too): its haiku
+# package replaced by the level-2 build of the same tree
+# (images/image-package.py checks that its kernel is level 2).
+kdebug=
+if [[ -f $DIR/debug-kernel/haiku.hpkg ]]; then
+	tools=$AIROS_BUILD/haiku-$TARGET/objects/linux/x86_64/release/tools
+	cp --sparse=always "$work/image" "$work/image-kdebug2"
+	python3 "$AIROS_CI/images/image-package.py" replace "$work/image-kdebug2" "$tools" \
+		"$DIR/debug-kernel/haiku.hpkg" --kernel-debug-level 2
+	kdebug=1
+fi
+
+# overlay NAME BASE: a copy-on-write disk ($work/NAME.qcow2) of the image BASE,
+# as a PC's firmware sees a stick or drive the ISO was written to: it boots
+# from the EFI system partition in the MBR. OVMF would take the ISO's El
+# Torito EFI image instead, so the overlay's El Torito boot record (sector 17)
+# has its identifier spoilt, which OVMF then ignores.
+overlay() {
+	local name=$1 base=$2
+	rm -f "$work/$name.qcow2"
+	qemu-img create -q -f qcow2 -b "$base" -F raw "$work/$name.qcow2"
+	if [[ $(head -c 34846 "$base" | tail -c 23) == "EL TORITO SPECIFICATION" ]]; then
+		qemu-io -f qcow2 -c "write -P 0x58 34823 1" "$work/$name.qcow2" >/dev/null
+	fi
+}
+
 # The UEFI boots' xHCI: 15 USB 3 ports (1-15) and 15 USB 2 ports (16-30), more
 # than the 16 a SuperSpeed hub descriptor allows an external hub. The stick is
 # a USB 3 device on port 1; the full-speed keyboard and tablet sit on USB 2
@@ -113,23 +151,39 @@ xhci=(-device qemu-xhci,id=xhci,p2=15,p3=15
 xhci_stick=bus=xhci.0,port=1
 
 # qemu_for BOOT: the QEMU command line of one way to boot the image, in qemu,
-# and the root hub ports (Haiku's numbering) whose devices must enumerate, in
-# usb_ports.
+# the root hub ports (Haiku's numbering) whose devices must enumerate, in
+# usb_ports, and the serial log lines the boot must have, in must_log
+# ("<extended regex>|<what failed>"). BOOT-kdebug2 boots the debug kernel's
+# copy of the image the same way.
 qemu_for() {
 	usb_ports=()
-	case $TARGET/$1 in
+	must_log=()
+	local image=$work/image
+	[[ $1 != *-kdebug2 ]] || image=$work/image-kdebug2
+	# The NVMe drive's controller must come up: its driver starts during the
+	# boot device scan, before the boot volume is mounted, where a panic
+	# leaves a machine that cannot start at all.
+	local nvme_attached='nvme_disk: attached to NVMe device|the NVMe drive was not found'
+	case $TARGET/${1%-kdebug2} in
 		x86_64/bios-cd)
 			qemu=(qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 4
-				-cdrom "$work/image" -boot d -vga std) ;;
+				-cdrom "$image" -boot d -vga std) ;;
+		x86_64/uefi-nvme)
+			# The drive is the only disk, so OVMF boots it by itself. Four
+			# CPUs: the driver gives each its I/O queue and interrupt.
+			overlay nvme "$image"
+			cp /usr/share/OVMF/OVMF_VARS_4M.fd "$work/vars.fd"
+			qemu=(qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 4
+				-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd
+				-drive if=pflash,format=raw,file="$work/vars.fd"
+				"${xhci[@]}"
+				-drive if=none,id=nvme,format=qcow2,file="$work/nvme.qcow2"
+				-device nvme,serial=airos-smoke,drive=nvme
+				-vga std)
+			usb_ports=(24 25 26)
+			must_log=("$nvme_attached") ;;
 		x86_64/uefi-usb)
-			# PC firmware boots a USB stick from the EFI system partition in
-			# its MBR. OVMF would take the ISO's El Torito EFI image instead,
-			# so the stick is an overlay whose El Torito boot record (sector
-			# 17) has its identifier spoilt, which OVMF then ignores.
-			qemu-img create -q -f qcow2 -b "$work/image" -F raw "$work/stick.qcow2"
-			if [[ $(head -c 34846 "$work/image" | tail -c 23) == "EL TORITO SPECIFICATION" ]]; then
-				qemu-io -f qcow2 -c "write -P 0x58 34823 1" "$work/stick.qcow2" >/dev/null
-			fi
+			overlay stick "$image"
 			# The stick is the only disk, so OVMF boots it by itself.
 			cp /usr/share/OVMF/OVMF_VARS_4M.fd "$work/vars.fd"
 			qemu=(qemu-system-x86_64 -enable-kvm -cpu host -m 4096 -smp 4
@@ -144,14 +198,21 @@ qemu_for() {
 			fw=/usr/share/AAVMF/AAVMF_CODE.fd
 			[[ -f $fw ]] || fw=/usr/share/qemu-efi-aarch64/QEMU_EFI.fd
 			cp /usr/share/AAVMF/AAVMF_VARS.fd "$work/vars.fd" 2>/dev/null || truncate -s 64M "$work/vars.fd"
+			# An empty NVMe drive beside the stick (the firmware still
+			# boots the stick, the only disk with a system).
+			rm -f "$work/nvme-empty.raw"
+			truncate -s 64M "$work/nvme-empty.raw"
 			qemu=(qemu-system-aarch64 -M virt -cpu cortex-a72 -m 4096 -smp 4
 				-drive if=pflash,format=raw,readonly=on,file="$fw"
 				-drive if=pflash,format=raw,file="$work/vars.fd"
 				"${xhci[@]}"
-				-drive if=none,id=stick,format=raw,file="$work/image"
+				-drive if=none,id=stick,format=raw,file="$image"
 				-device usb-storage,$xhci_stick,drive=stick
+				-drive if=none,id=nvme,format=raw,file="$work/nvme-empty.raw"
+				-device nvme,serial=airos-smoke,drive=nvme
 				-device ramfb)
-			usb_ports=(24 25 26) ;;
+			usb_ports=(24 25 26)
+			must_log=("$nvme_attached") ;;
 		*) die "no QEMU set-up for $TARGET/$1" ;;
 	esac
 }
@@ -210,6 +271,13 @@ boot() {
 			details+=$'\n'"the USB device on xHCI port $((port + 1)) did not enumerate"
 		fi
 	done
+	local check
+	for check in "${must_log[@]}"; do
+		if ! grep -aqE "${check%|*}" "$serial"; then
+			result=FAIL
+			details+=$'\n'"${check##*|}"
+		fi
+	done
 	if [[ -n $guest_tests ]]; then
 		local tests_report
 		if tests_report=$(python3 "$AIROS_CI/images/guest-tests.py" check "$serial" "$guest_tests"); then
@@ -233,10 +301,19 @@ boot() {
 }
 
 case $TARGET in
-	x86_64) boots=(bios-cd uefi-usb) ;;
+	x86_64) boots=(bios-cd uefi-usb uefi-nvme) ;;
 	arm64|cubie) boots=(uefi-usb) ;;
 	*) die "unknown target $TARGET" ;;
 esac
+# The debug kernel starts the way the machines it is for start: from NVMe on
+# PCs, from the stick (beside an NVMe drive) on arm64 (build-image.sh builds
+# it for x86_64 only so far).
+if [[ -n $kdebug ]]; then
+	case $TARGET in
+		x86_64) boots+=(uefi-nvme-kdebug2) ;;
+		*) boots+=(uefi-usb-kdebug2) ;;
+	esac
+fi
 overall=PASS
 summary=()
 : > "$work/report"
@@ -247,6 +324,12 @@ for n in "${!boots[@]}"; do
 	boot "${boots[n]}" "$suffix"
 	[[ $result == PASS ]] || overall=FAIL
 done
+# A nightly whose debug kernel did not build says so (build-image.sh goes on
+# without it).
+if [[ -f $DIR/debug-kernel/build-failed.txt ]]; then
+	echo "debug kernel: its build failed, so it was not booted (debug-kernel/build-failed.txt)" \
+		| tee -a "$work/report"
+fi
 printf -v summary_text '%s, ' "${summary[@]}"
 {
 	echo "SMOKE $overall: $TARGET $(basename "$image") (${summary_text%, })"
