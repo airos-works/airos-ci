@@ -13,6 +13,7 @@
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
 #               github_desktop pgadmin4 signal_desktop
 #               telegram (Telegram Desktop, x86_64; its own CI job)
+#               bambustudio (Bambu Studio; its own CI job)
 #               docker compose docker_desktop (the Docker stack; their own CI
 #               jobs, docker also builds the engine, containerd and buildx
 #               from the pinned forks)
@@ -23,7 +24,7 @@
 #               airTime AirTop airpins airimager aircal snap wordcraft gridcraft deckcraft pdfcraft
 #               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
 #               proton-bridge proton-vpn-airos-app
-#               vscode desktop signal docker compose docker-desktop tdesktop
+#               vscode desktop signal docker compose docker-desktop tdesktop bambustudio
 #               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
 #               VectorCraft and FilmCraft embed
@@ -2880,6 +2881,41 @@ build_telegram() {
 	finish_package telegram_airos apps/Telegram "add-ons/Telegram/Telegram Deskbar item"
 }
 
+# --- Bambu Studio -------------------------------------------------------------
+# The slicer (airos-works/BambuStudio, branch airos), built by the repository's
+# own tools/haiku scripts: the static dependency set (build-deps.sh: Boost, TBB,
+# OCCT, CGAL, ...), the pinned wxWidgets with the native Haiku port
+# (build-wx.sh, tools/haiku/wx.lock) and the application (build.sh --gui).
+# Their sources and build trees live in BAMBUSTUDIO_SCRATCH (default
+# $APPBUILD/bambustudio-scratch), which is kept between builds: the first
+# build takes about an hour, later ones only rebuild what changed. Only when
+# asked for (its own CI job).
+build_bambustudio() {
+	note "Bambu Studio"
+	snapshot bambustudio bambustudio
+	local scratch=${BAMBUSTUDIO_SCRATCH:-$APPBUILD/bambustudio-scratch}
+	local deps_root=${DEPS%/boot/system}
+	local build=$scratch/package-build/$ARCH
+	mkdir -p "$scratch"
+	local -a env=(BS_SCRATCH="$scratch" HAIKU_SDK="$AIROS_SDK/$SDK_NAME" AIROS_DEPS="$deps_root"
+		BS_JOBS="$JOBS" BS_BUILD="$build" WX_PREFIX="$scratch/wx-pinned/$ARCH")
+	env "${env[@]}" "$SRC/tools/haiku/build-deps.sh" "$ARCH"
+	env "${env[@]}" "$SRC/tools/haiku/build-wx.sh" "$ARCH"
+	env "${env[@]}" "$SRC/tools/haiku/build.sh" "$ARCH" --gui
+	stage_begin
+	install_binary "$build/src/bambu-studio" "$build/src/BambuStudio.rsrc" apps/BambuStudio/BambuStudio
+	# The resources (profiles, images, fonts, shaders, web pages): found by the
+	# application in the data directory of its installation location.
+	mkdir -p "$STAGE/data/BambuStudio"
+	cp -RL "$SRC/resources" "$STAGE/data/BambuStudio/resources"
+	docs bambustudio README.md LICENSE
+	install_file 644 "$SRC/LICENSE" data/licenses/BambuStudio
+	deskbar_link apps/BambuStudio/BambuStudio "Bambu Studio"
+	retarget_package_info "$SRC/tools/haiku/BambuStudio.PackageInfo" "$STAGE/.PackageInfo" '^summit_webkit'
+	add_attributes "$build/src/BambuStudio.rsrc" apps/BambuStudio/BambuStudio
+	finish_package bambustudio apps/BambuStudio/BambuStudio
+}
+
 main() {
 	check_prerequisites
 	mkdir -p "$APPBUILD" "$OUT" "$TMPDIR"
@@ -2891,13 +2927,13 @@ main() {
 			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
 			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
-			pgadmin4 signal_desktop docker compose docker_desktop telegram; do
+			pgadmin4 signal_desktop docker compose docker_desktop telegram bambustudio; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop, pgAdmin 4 and Signal (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
 		# (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library) and the
 		# Docker stack (their own CI jobs; build_docker also checks out forks)
-		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram)$ && ${#SELECTED[@]} -eq 0 ]] \
+		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram|bambustudio)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done
