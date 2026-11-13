@@ -2909,7 +2909,7 @@ build_bambustudio() {
 	mkdir -p "$STAGE/data/BambuStudio"
 	cp -RL "$SRC/resources" "$STAGE/data/BambuStudio/resources"
 	docs bambustudio README.md LICENSE
-	install_file 644 "$SRC/LICENSE" data/licenses/BambuStudio
+	install_file 644 "$SRC/LICENSE" "data/licenses/GNU AGPL v3"
 	deskbar_link apps/BambuStudio/BambuStudio "Bambu Studio"
 	retarget_package_info "$SRC/tools/haiku/BambuStudio.PackageInfo" "$STAGE/.PackageInfo" '^summit_webkit'
 	add_attributes "$build/src/BambuStudio.rsrc" apps/BambuStudio/BambuStudio
