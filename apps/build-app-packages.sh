@@ -2886,14 +2886,15 @@ build_telegram() {
 # own tools/haiku scripts: the static dependency set (build-deps.sh: Boost, TBB,
 # OCCT, CGAL, ...), the pinned wxWidgets with the native Haiku port
 # (build-wx.sh, tools/haiku/wx.lock) and the application (build.sh --gui).
-# Their sources and build trees live in BAMBUSTUDIO_SCRATCH (default
-# $APPBUILD/bambustudio-scratch), which is kept between builds: the first
-# build takes about an hour, later ones only rebuild what changed. Only when
-# asked for (its own CI job).
+# Their sources and build trees live in BAMBUSTUDIO_SCRATCH, kept between
+# builds: the first build takes about an hour, later ones only rebuild what
+# changed. They need about 40 GB, so the default is on the big data volume
+# (/data1/airos/bambustudio-ci), not in $APPBUILD on /data2, which they once
+# filled. Only when asked for (its own CI job).
 build_bambustudio() {
 	note "Bambu Studio"
 	snapshot bambustudio bambustudio
-	local scratch=${BAMBUSTUDIO_SCRATCH:-$APPBUILD/bambustudio-scratch}
+	local scratch=${BAMBUSTUDIO_SCRATCH:-/data1/airos/bambustudio-ci}
 	local deps_root=${DEPS%/boot/system}
 	local build=$scratch/package-build/$ARCH
 	mkdir -p "$scratch"
