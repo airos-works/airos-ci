@@ -94,6 +94,10 @@ IMAGE_APPS+=(airtop code_oss github_desktop)
 # HaikuPorts' python3.12 and PostgreSQL client (the requires below), arm64
 # images get them from deps/recipes (below).
 IMAGE_APPS+=(pgadmin4)
+# Signal Desktop on Aurora, in the Deskbar's Applications folder (its
+# package's own link): libsignal and SQLCipher are in its package; calls are
+# not available (RingRTC is WebRTC).
+IMAGE_APPS+=(signal_desktop)
 # The Docker stack (the docker, compose and docker_desktop app jobs): the CLI,
 # the Engine with containerd and the buildx plugin, Compose, and Docker
 # Desktop, which joins the three above in the Deskbar's Developer folder.

@@ -115,6 +115,13 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   take HaikuPorts' python3.12 and PostgreSQL client through its requires;
   arm64 images carry `libffi`, `python3.12` and `postgresql18` (the client)
   from `deps/recipes/`.
+- **Signal Desktop** (airos-works/Signal-Desktop, branch `airos`), on Aurora
+  (`build_signal_desktop`): its JavaScript is built with rolldown on Linux,
+  once per commit, and its native modules, libsignal (Rust with BoringSSL)
+  and SQLCipher, are cross-built for each architecture from upstream's
+  sources at the versions it names (`scripts/haiku/native.sh`). In the
+  Deskbar's **Applications** folder; voice and video calls are not
+  available (RingRTC is WebRTC).
 - **Docker** (the `docker`, `compose` and `docker_desktop` app jobs): the CLI
   (`docker_cli`), the Engine (`docker_engine`) with `containerd` and the
   buildx plugin (`docker_buildx`), Compose (`docker_compose`) and Docker
