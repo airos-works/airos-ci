@@ -864,7 +864,7 @@
       "wave": 5,
       "create": "existing",
       "branch": "airos-22.0.5-hgl",
-      "origin": "Mesa 22.0.5 (mesa-22.0.5.tar.xz) with HaikuPorts' six Haiku patches (sys-libs/mesa/patches/mesa-22.0.5.patchset) and haiku docs/x399-workstation/patches/mesa-hgl/0001-0014 (git am), pushed from the X399 build tree; then the private headers taken from the cross file's sys_root",
+      "origin": "Mesa 22.0.5 (mesa-22.0.5.tar.xz) with HaikuPorts' six Haiku patches (sys-libs/mesa/patches/mesa-22.0.5.patchset) and haiku docs/x399-workstation/patches/mesa-hgl/0001-0014 (git am), pushed from the X399 build tree; then the private headers taken from the cross file's sys_root; then zink's failed screen creation takes down its flush queue (2e046a9: no Vulkan device left a zfq thread on freed memory, every GL program aborted at exit and BambuStudio when a web view went away)",
       "used_by": "x86_64: the Zink renderer add-on of Haiku's OpenGL kit (BGLView programs on Vulkan)"
     },
     {
