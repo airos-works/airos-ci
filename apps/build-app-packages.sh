@@ -2885,7 +2885,10 @@ build_telegram() {
 # The slicer (airos-works/BambuStudio, branch airos), built by the repository's
 # own tools/haiku scripts: the static dependency set (build-deps.sh: Boost, TBB,
 # OCCT, CGAL, ...), the pinned wxWidgets with the native Haiku port
-# (build-wx.sh, tools/haiku/wx.lock) and the application (build.sh --gui).
+# (build-wx.sh, tools/haiku/wx.lock), the application (build.sh --gui) and its
+# network plug-in, Open Bamboo Networking (build-plugin.sh, tools/haiku/obn.lock:
+# the open-source replacement for Bambu's proprietary libbambu_networking,
+# for printing to Bambu Lab printers on the local network).
 # Their sources and build trees live in BAMBUSTUDIO_SCRATCH, kept between
 # builds: the first build takes about an hour, later ones only rebuild what
 # changed. They need about 40 GB, so the default is on the big data volume
@@ -2903,8 +2906,16 @@ build_bambustudio() {
 	env "${env[@]}" "$SRC/tools/haiku/build-deps.sh" "$ARCH"
 	env "${env[@]}" "$SRC/tools/haiku/build-wx.sh" "$ARCH"
 	env "${env[@]}" "$SRC/tools/haiku/build.sh" "$ARCH" --gui
+	env "${env[@]}" OBN_PREFIX="$scratch/obn-install/$ARCH" "$SRC/tools/haiku/build-plugin.sh" "$ARCH"
 	stage_begin
 	install_binary "$build/src/bambu-studio" "$build/src/BambuStudio.rsrc" apps/BambuStudio/BambuStudio
+	# The network plug-in, loaded from plugins/ beside the executable (stripped
+	# by build-plugin.sh), with its README and licence (AGPL v3, like the app).
+	install_file 755 "$scratch/obn-install/$ARCH/plugins" apps/BambuStudio/plugins
+	install_file 644 "$scratch/obn-install/$ARCH/README.md" \
+		documentation/packages/bambustudio/open-bamboo-networking/README.md
+	install_file 644 "$scratch/obn-install/$ARCH/LICENSE" \
+		documentation/packages/bambustudio/open-bamboo-networking/LICENSE
 	# The resources (profiles, images, fonts, shaders, web pages): found by the
 	# application in the data directory of its installation location. Staged
 	# without the printer error database and with oversized pictures scaled
