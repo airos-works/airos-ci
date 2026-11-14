@@ -152,7 +152,7 @@ for file in start4.elf fixup4.dat LICENCE.broadcom bcm2711-rpi-4-b.dtb bcm2711-r
 		overlays/miniuart-bt.dtbo overlays/vc4-kms-v3d-pi4.dtbo \
 		bcm2712-rpi-5-b.dtb bcm2712d0-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb bcm2712-rpi-500.dtb \
 		bcm2712-rpi-cm5-cm5io.dtb bcm2712-rpi-cm5l-cm5io.dtb bcm2712-rpi-cm5-cm4io.dtb \
-		bcm2712-rpi-cm5l-cm4io.dtb; do
+		bcm2712-rpi-cm5l-cm4io.dtb overlays/bcm2712d0.dtbo; do
 	fetch_raw rpi-firmware "boot/$file" "$rpi/rpi-firmware/$file"
 done
 nonfree=debian/config/brcm80211
