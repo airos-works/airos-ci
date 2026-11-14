@@ -134,7 +134,7 @@ mkdir -p "$INPUTS/arm64/firmware/mali/arch10.8"
 cp "$fw/arm/mali/arch10.8/mali_csffw.bin" "$INPUTS/arm64/firmware/mali/arch10.8/"
 sha256sum "$INPUTS/arm64/firmware/mali/arch10.8/mali_csffw.bin"
 
-note "Raspberry Pi 4 firmware"
+note "Raspberry Pi 4 and 5 firmware"
 # raw file from a fork at its pinned commit
 fetch_raw() { # fetch_raw LOCK_NAME PATH DEST
 	local url
@@ -144,9 +144,15 @@ fetch_raw() { # fetch_raw LOCK_NAME PATH DEST
 }
 rpi=$INPUTS/rpi4
 rm -rf "$rpi/rpi-firmware" "$rpi/firmware"
+# The same image boots the Pi 5 (and 500, CM5): its EEPROM bootloader reads
+# config.txt and starts the loader itself, and only needs the BCM2712's
+# device trees (haiku docs/rpi5/BOOT.md).
 for file in start4.elf fixup4.dat LICENCE.broadcom bcm2711-rpi-4-b.dtb bcm2711-rpi-400.dtb \
 		bcm2711-rpi-cm4.dtb overlays/overlay_map.dtb overlays/disable-bt.dtbo \
-		overlays/miniuart-bt.dtbo overlays/vc4-kms-v3d-pi4.dtbo; do
+		overlays/miniuart-bt.dtbo overlays/vc4-kms-v3d-pi4.dtbo \
+		bcm2712-rpi-5-b.dtb bcm2712d0-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb bcm2712-rpi-500.dtb \
+		bcm2712-rpi-cm5-cm5io.dtb bcm2712-rpi-cm5l-cm5io.dtb bcm2712-rpi-cm5-cm4io.dtb \
+		bcm2712-rpi-cm5l-cm4io.dtb; do
 	fetch_raw rpi-firmware "boot/$file" "$rpi/rpi-firmware/$file"
 done
 nonfree=debian/config/brcm80211
