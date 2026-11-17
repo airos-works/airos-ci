@@ -7,7 +7,7 @@ self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
 
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
-| Images | `airos-works/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 SD card for Balena Etcher; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
+| Images | `airos-works/haiku` `.github/workflows/airos-images.yml` | pushes to `master`, nightly, by hand | `airos-x86_64.iso` (X399 and other PCs; EFI and BIOS), `airos-arm64.iso` (ROCK 5 ITX and other UEFI arm64 boards), `airos-rpi4.img` (Raspberry Pi 4 and 5 SD card for Balena Etcher, one image for both; boots with no install), `airos-cubie.img` (Radxa Cubie A7S SD card) |
 | Applications | each app repository's `.github/workflows/airos.yml` → [`app.yml`](.github/workflows/app.yml) | pushes to `main` | x86_64 and arm64 packages of Amp, airTime, Kiri, Clipper, MSGA, airShot, AirTop, Burrow, Natter, Turbo Chook, Snap, WordCraft, Proton VPN, Proton Mail Bridge, Aurora and Code - OSS; every app builds from its `main` branch (Code - OSS from `haiku`, MSGA from `airos`); a rolling `latest` release and the "Latest builds" section of each README |
 | Office, Media, Bridge and Mail | each image build → [`build-pinned.sh`](apps/build-pinned.sh) | source pins and image SDK | Clipper, MSGA, WordCraft, GridCraft, DeckCraft and PdfCraft (Office), PhotoCraft, LightCraft, VectorCraft, EffectCraft and FilmCraft (Media), Proton Mail Bridge and Mail for x86_64 and ARM64; with verified Deskbar menu links |
 | Summit | `airos-works/summit` `.github/workflows/airos.yml` → [`summit.yml`](.github/workflows/summit.yml) | pushes to `main`, nightly at 13:17 UTC (two hours before the images) | `summit_webkit` (the WebKit engine), `summit` (the browser) and `summit_webkitlegacy` (HaikuWebKit's BWebView API on the engine); with `haiku-releases`, the first two for stock Haiku R1/beta6 ([below](#builds-for-stock-haiku)) |
@@ -183,7 +183,7 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
   the translators against them through `HAIKU_ARM64_IMAGE_LIBRARIES_DIR`),
   and the GL stack:
   - ROCK 5: Mesa Panfrost with the Mali CSF firmware;
-  - Pi 4: Mesa V3D and V3DV;
+  - Pi 4 and 5: Mesa V3D and V3DV (V3D 4.2 and 7.1);
   - Cubie A7S: Mesa PowerVR Vulkan, Zink OpenGL and its firmware, built by
     `deps/build-cubie.sh` from the Haiku tree’s pinned Mesa source and patches.
     The same recipe builds U-Boot and stages the pinned Radxa boot chain and

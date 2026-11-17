@@ -48,7 +48,7 @@ TARGETS = {
               "arch": "arm64"},
     "cubie": {"label": "Cubie A7S", "for": "SD card with Radxa boot chain and U-Boot",
               "arch": "arm64"},
-    "rpi4": {"label": "Raspberry Pi 4", "for": "SD card for Balena Etcher; boots with no install",
+    "rpi4": {"label": "Raspberry Pi 4 and 5", "for": "SD card for Balena Etcher (Pi 4, 400, 5, 500); boots with no install",
              "arch": "arm64"},
 }
 # Until there is history: rough active build times in seconds.

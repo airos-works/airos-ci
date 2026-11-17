@@ -11,6 +11,13 @@
         built at that level: it defines kernel_debug_level_N (Haiku's
         headers/private/kernel/debug.h).
 
+    image-package.py require IMAGE TOOLS NAME ENTRY...
+        Copies the package NAME out of the image's system/packages and checks
+        that it has every ENTRY (a path inside the package, as `package list
+        -p` prints it). smoke-test.sh checks the Pi image this way for the
+        drivers and firmware the Pi 4 and the Pi 5 need, since no CI machine
+        boots it.
+
 TOOLS is the build's objects/linux/<arch>/release/tools (package, bfs_shell).
 The image is a copy (the smoke test's), never a published one.
 """
@@ -18,6 +25,7 @@ The image is a copy (the smoke test's), never a published one.
 import argparse
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -75,6 +83,30 @@ def command_replace(args):
     print(f"{name} in {os.path.basename(args.image)} is now {args.package}")
 
 
+def command_require(args):
+    listing = release_feed.bfs_shell(args.tools, args.image,
+        [f"ls {PACKAGES}"])
+    names = [name for name in re.findall(r"\s(\S+\.hpkg)\s*$", listing, re.M)
+        if name.startswith(args.name + "-")]
+    if len(names) != 1:
+        sys.exit(f"{args.image}: {len(names)} packages named {args.name} in "
+            f"system/packages:\n{listing[-3000:]}")
+    with tempfile.TemporaryDirectory(prefix="image-package-") as directory:
+        path = os.path.join(directory, names[0])
+        release_feed.bfs_shell(args.tools, args.image,
+            [f"cp {PACKAGES}/{names[0]} :{path}"])
+        if not os.path.isfile(path):
+            sys.exit(f"could not copy {names[0]} out of {args.image}")
+        entries = set(subprocess.run([os.path.join(args.tools, "package",
+            "package"), "list", "-p", path], check=True,
+            stdout=subprocess.PIPE, text=True).stdout.split())
+    missing = [entry for entry in args.entries if entry not in entries]
+    if missing:
+        sys.exit(f"{names[0]} in {os.path.basename(args.image)} lacks "
+            + ", ".join(missing))
+    print(f"{names[0]}: all {len(args.entries)} entries")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -84,8 +116,13 @@ def main():
     replace.add_argument("tools")
     replace.add_argument("package")
     replace.add_argument("--kernel-debug-level", type=int)
+    require = commands.add_parser("require")
+    require.add_argument("image")
+    require.add_argument("tools")
+    require.add_argument("name")
+    require.add_argument("entries", nargs="+")
     args = parser.parse_args()
-    {"replace": command_replace}[args.command](args)
+    {"replace": command_replace, "require": command_require}[args.command](args)
 
 
 if __name__ == "__main__":

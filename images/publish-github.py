@@ -51,6 +51,10 @@ def validate(directory, target):
         raise ValueError('A successful smoke test is required')
     if target != 'rpi4' and f'SMOKE PASS: {target} {image.name}' not in smoke:
         raise ValueError('Smoke test is for a different target')
+    # The one Pi image starts the Pi 4 and the Pi 5: the smoke test checked
+    # both boards' boot files, config.txt sections, drivers and firmware.
+    if target == 'rpi4' and 'of the Pi 4 and Pi 5' not in smoke:
+        raise ValueError('The Pi smoke test must check the Pi 4 and the Pi 5')
     return manifest, [image, checksum, directory / 'manifest.json'], digest
 
 
@@ -69,12 +73,15 @@ def main():
         print(f'Validated {tag}: {digest}')
         return
     test = ('Booted to the desktop in QEMU. This is not a test on every physical device.'
-            if args.target != 'rpi4' else 'SD card boot files and partition layout checked. This CI check does not boot a physical Pi.')
+            if args.target != 'rpi4' else 'SD card partition layout, and the boot files, config.txt settings, drivers and '
+            'Wi-Fi/Bluetooth firmware of both the Raspberry Pi 4 and the Raspberry Pi 5, checked. '
+            'This CI check does not boot a physical Pi.')
+    boards = ' (one SD card image for the Raspberry Pi 4, 400, CM4, 5, 500 and CM5)' if args.target == 'rpi4' else ''
     recipe = manifest.get('recipe', {}).get('commit', '')
     recipe_line = (f'Build recipe: [airos-ci {recipe[:10]}](https://github.com/airos-works/airos-ci/commit/{recipe})'
                    f'{" with local changes" if manifest["recipe"].get("modified") else ""}.\n\n'
                    if re.fullmatch(r'[0-9a-f]{40}', recipe) else '')
-    notes = (f'airOS development image for **{args.target}**, built {manifest["built"]}.\n\n'
+    notes = (f'airOS development image for **{args.target}**{boards}, built {manifest["built"]}.\n\n'
              f'Haiku source: [{commit[:10]}](https://github.com/airos-works/haiku/commit/{commit}).\n\n'
              f'{recipe_line}'
              f'Validation: {test}\n\n'

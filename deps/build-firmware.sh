@@ -17,7 +17,8 @@
 #                             since 27 October 2026); x86_64 images get them
 #                             from HaikuPorts
 #   $AIROS_ROOT/image-inputs/arm64/firmware/mali/arch10.8/mali_csffw.bin
-#   $AIROS_ROOT/image-inputs/rpi4/rpi-firmware/   the Pi 4 boot firmware
+#   $AIROS_ROOT/image-inputs/rpi4/rpi-firmware/   the Pi 4 boot firmware and the
+#                             Pi 4's and Pi 5's device trees and overlays
 #   $AIROS_ROOT/image-inputs/rpi4/firmware/       CYW43455/43456 Wi-Fi and Bluetooth
 #
 # Every file from the Raspberry Pi repositories is checked against

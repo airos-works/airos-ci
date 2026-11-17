@@ -8,7 +8,8 @@
 #   x86_64  airos-x86_64.iso   hybrid ISO (USB stick or CD), EFI and BIOS
 #   arm64   airos-arm64.iso    hybrid ISO with an EFI system partition
 #                              (ROCK 5 ITX and other UEFI arm64 machines)
-#   rpi4    airos-rpi4.img     Raspberry Pi 4 SD card image, boots directly
+#   rpi4    airos-rpi4.img     Raspberry Pi 4 and 5 SD card image (one image for
+#                              both, and the 400, 500, CM4 and CM5), boots directly
 #   cubie   airos-cubie.img    Radxa Cubie A7S SD card with its boot chain
 #
 # The image (xz-compressed, with SHA-256 sums and a manifest of everything that

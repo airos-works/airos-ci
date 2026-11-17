@@ -13,8 +13,15 @@
 #   arm64   qemu-system-aarch64 (virt, UEFI firmware), the ISO as a USB disk,
 #           with an empty NVMe drive the boot device scan must get through
 #           (the ROCK 5 starts from NVMe)
-#   rpi4    not booted (QEMU's raspi4b cannot run Haiku's Pi loader); the SD
-#           image's partition table and boot files are checked instead
+#   rpi4    not booted (QEMU's raspi4b cannot run Haiku's Pi loader). The one
+#           SD image starts the Raspberry Pi 4 and the Pi 5 (and 400, 500,
+#           CM4, CM5), so what each board needs is checked instead: the
+#           partition table; the boot files (the Pi 4's start4.elf, both
+#           SoCs' device trees, the BCM2712 D0 overlay); config.txt's [pi5]
+#           settings, without which the Pi 5's loader and kernel have no RP1
+#           (console, USB, Ethernet); the drivers of both boards in the haiku
+#           package and their Wi-Fi and Bluetooth firmware in airos_payload
+#           (images/image-package.py require)
 # Debug kernel (2026-11-13): when build-image.sh left a haiku package built
 # with the kernel's debug checks at level 2 in IMAGE_DIR/debug-kernel (the
 # nightly x86_64 builds), the image is booted once more from NVMe with that
@@ -87,17 +94,74 @@ PY_CHECK
 fi
 
 if [[ $TARGET == rpi4 ]]; then
+	offset=$(( $(/sbin/sfdisk -J "$work/image" | python3 -c 'import json,sys; print(json.load(sys.stdin)["partitiontable"]["partitions"][0]["start"])') * 512 ))
 	{
 		echo "partitions:"
 		/sbin/sfdisk -l "$work/image"
 		echo "boot partition files:"
-		offset=$(( $(/sbin/sfdisk -J "$work/image" | python3 -c 'import json,sys; print(json.load(sys.stdin)["partitiontable"]["partitions"][0]["start"])') * 512 ))
-		mdir -i "$work/image@@$offset" -b ::/ | sort
+		mdir -i "$work/image@@$offset" -/ -b ::/ | sort
 	} | tee "$DIR/smoke.log"
-	for required in start4.elf fixup4.dat config.txt airos-loader.img airos-boot.tgz bcm2711-rpi-4-b.dtb; do
-		grep -q "/$required" "$DIR/smoke.log" || die "the boot partition has no $required"
+	# Both boards: the loader and the boot archive. The Pi 4: its firmware
+	# (start4.elf) and device tree. The Pi 5: no start*.elf (its EEPROM
+	# bootloader reads config.txt), its device trees, and the overlay the
+	# firmware applies to D0 steppings (without it the tree describes a C0).
+	for required in config.txt cmdline.txt airos-boot.txt airos-loader.img airos-boot.tgz \
+			start4.elf fixup4.dat bcm2711-rpi-4-b.dtb bcm2711-rpi-400.dtb \
+			bcm2712-rpi-5-b.dtb bcm2712d0-rpi-5-b.dtb bcm2712-d-rpi-5-b.dtb \
+			bcm2712-rpi-500.dtb overlays/bcm2712d0.dtbo; do
+		grep -q "^::/$required\$" "$DIR/smoke.log" || die "the boot partition has no $required"
 	done
-	echo "SMOKE PASS: SD image has the boot files" | tee -a "$DIR/smoke.log"
+	# config.txt's [pi5] section: the firmware leaves the PCIe x4 link to the
+	# RP1 up and its UART0 set up for the loader (haiku docs/rpi5/BOOT.md).
+	mtype -i "$work/image@@$offset" ::/config.txt > "$work/config.txt"
+	if ! python3 - "$work/config.txt" <<'PY_CONFIG' >> "$DIR/smoke.log" 2>&1; then
+import sys
+section, settings = "all", {}
+for line in open(sys.argv[1]):
+    line = line.split("#", 1)[0].strip()
+    if line.startswith("[") and line.endswith("]"):
+        section = line[1:-1]
+    elif "=" in line:
+        settings.setdefault(section, set()).add(line.replace(" ", ""))
+need = {"all": ["arm_64bit=1", "kernel_address=0x80000"],
+    "pi4": ["enable_gic=1"],
+    "pi5": ["enable_rp1_uart=1", "pciex4_reset=0", "framebuffer_depth=32"]}
+missing = [f"[{s}] {v}" for s, values in need.items() for v in values
+    if v not in settings.get(s, set())]
+if missing:
+    sys.exit("config.txt lacks " + ", ".join(missing))
+print("config.txt: [pi4] and [pi5] settings present")
+PY_CONFIG
+		tail -n 1 "$DIR/smoke.log"
+		die "config.txt does not start both boards"
+	fi
+	tail -n 1 "$DIR/smoke.log"
+	# The drivers of both boards (haiku) and the Wi-Fi and Bluetooth firmware
+	# their CYW43455 needs (airos_payload), from the image itself.
+	tools=$AIROS_BUILD/haiku-$TARGET/objects/linux/x86_64/release/tools
+	[[ -x $tools/bfs_shell/bfs_shell ]] || die "no bfs_shell in $tools for the package checks"
+	drivers=add-ons/kernel/drivers
+	python3 "$AIROS_CI/images/image-package.py" require "$work/image" "$tools" haiku \
+		add-ons/kernel/busses/usb/xhci add-ons/kernel/busses/pci/bcm2711 \
+		add-ons/kernel/busses/mmc/bcm2711_emmc2 add-ons/kernel/generic/rpi_firmware \
+		add-ons/accelerants/rpi_display.accelerant \
+		$drivers/graphics/rpi_display $drivers/graphics/v3d \
+		$drivers/network/bcm_genet $drivers/network/rp1_gem \
+		$drivers/bin/broadcomfmac $drivers/bin/h4bcm $drivers/bin/rpi_hevc \
+		$drivers/bin/bcm2835_audio $drivers/bin/bcm2712_hdmi_audio \
+		$drivers/bin/rpi_thermal $drivers/bin/vchiq >> "$DIR/smoke.log" 2>&1 \
+		|| { tail -n 3 "$DIR/smoke.log"; die "the haiku package lacks Pi drivers"; }
+	tail -n 1 "$DIR/smoke.log"
+	firmware=data/airos/non-packaged/data/firmware
+	python3 "$AIROS_CI/images/image-package.py" require "$work/image" "$tools" airos_payload \
+		$firmware/broadcomfmac/brcmfmac43455-sdio.bin \
+		$firmware/broadcomfmac/brcmfmac43455-sdio.clm_blob \
+		$firmware/broadcomfmac/brcmfmac43455-sdio.txt \
+		$firmware/h4bcm/BCM4345C0.hcd >> "$DIR/smoke.log" 2>&1 \
+		|| { tail -n 3 "$DIR/smoke.log"; die "airos_payload lacks the Pi's Wi-Fi or Bluetooth firmware"; }
+	tail -n 1 "$DIR/smoke.log"
+	echo "SMOKE PASS: SD image has the boot files, drivers and firmware of the Pi 4 and Pi 5" \
+		| tee -a "$DIR/smoke.log"
 	exit 0
 fi
 

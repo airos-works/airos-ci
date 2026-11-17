@@ -10,7 +10,7 @@
 #      natively with Ubuntu's LLVM 18, libclc and SPIRV-LLVM-Translator;
 #   2. libglvnd (libGL, libEGL, libGLESv2, libOpenGL, libGLdispatch and the
 #      Haiku GL kit headers) into a GL sysroot;
-#   3. Mesa three times: Panfrost (ROCK 5), V3D (Raspberry Pi 4), and the
+#   3. Mesa three times: Panfrost (ROCK 5), V3D (Raspberry Pi 4 and 5), and the
 #      V3D Vulkan driver;
 #   4. GLU, the GLTeapot demo, GLInfo and Terminal's OpenGL renderer.
 #
@@ -178,9 +178,10 @@ common_v3d=(-Dplatforms=haiku -Dexpat=disabled -Dgallium-va=disabled -Dshader-ca
 	-Dgles1=disabled -Dgbm=disabled -Dglx=disabled -Dllvm=disabled -Dvalgrind=disabled
 	-Dbuild-tests=false '-Dtools=[]' -Dzstd=disabled -Dzlib=disabled -Dxmlconfig=disabled
 	-Dmesa-clc=system -Dprecomp-compiler=system -Dspirv-tools=disabled)
-# V3D and V3DV run only on the Pi 4: tuned for its Cortex-A72 with inline
-# atomics, like the rest of the Pi image (haiku: SetCPUProfile arm64 : rpi4,
-# docs/rpi4/CPU-TUNING.md). libgcc's outlined atomic helpers never take their
+# V3D and V3DV run only on the Pis (V3D 4.2 on the Pi 4, 7.1 on the Pi 5; Mesa
+# builds both): tuned for the Pi 4's Cortex-A72 with inline atomics, like the
+# rest of the Pi image (haiku: SetCPUProfile arm64 : rpi4,
+# docs/rpi4/CPU-TUNING.md), which the Pi 5's Cortex-A76 runs as well. libgcc's outlined atomic helpers never take their
 # LSE path on Haiku, and the A72 has no LSE. A later cross file's options
 # replace the base file's, so this one repeats the sysroot.
 rpi4_cpu=$(printf "'%s', " "--sysroot=$GLROOT" -mtune=cortex-a72 -mno-outline-atomics)
@@ -209,11 +210,11 @@ EOF
 # Panfrost shares, so the ROCK 5 keeps airos-25.3.6.
 PANFROST_MESA=$MESA PANFROST_MESA_COMMIT=$MESA_COMMIT
 MESA=$W/mesa-rpi4 MESA_COMMIT=$RPI4_MESA_COMMIT
-note "Mesa: V3D (Raspberry Pi 4)"
+note "Mesa: V3D (Raspberry Pi 4 and 5)"
 mesa_build "$W/mesa-v3d" "${common_v3d[@]}" -Dgallium-drivers=v3d,softpipe '-Dvulkan-drivers=[]' \
 	-Dgles2=enabled -Dopengl=true -Degl=enabled -Dglvnd=enabled \
 	-Dshader-cache=enabled -Dshader-cache-max-size=64M -Dzlib=enabled
-note "Mesa: V3D Vulkan (Raspberry Pi 4)"
+note "Mesa: V3D Vulkan (Raspberry Pi 4 and 5)"
 mesa_build "$W/mesa-v3dv" "${common_v3d[@]}" '-Dgallium-drivers=[]' -Dvulkan-drivers=broadcom \
 	-Dgles2=disabled -Dopengl=false -Degl=disabled -Dglvnd=disabled
 MESA=$PANFROST_MESA MESA_COMMIT=$PANFROST_MESA_COMMIT
