@@ -16,6 +16,7 @@
 #             code_oss github_desktop pgadmin4 (from the aurora repository),
 #             signal_desktop (REPO_DIR signal),
 #             telegram (x86_64; REPO_DIR tdesktop),
+#             airdroid (x86_64; REPO_DIR airDroid),
 #             docker compose docker_desktop (the Docker stack: docker also
 #             builds the engine, containerd and buildx from the pinned forks),
 #             or several

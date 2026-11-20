@@ -14,6 +14,7 @@
 #               github_desktop pgadmin4 signal_desktop
 #               telegram (Telegram Desktop, x86_64; its own CI job)
 #               bambustudio (Bambu Studio; its own CI job)
+#               airdroid (airDroid, Android apps in a VM; x86_64; its own CI job)
 #               docker compose docker_desktop (the Docker stack; their own CI
 #               jobs, docker also builds the engine, containerd and buildx
 #               from the pinned forks)
@@ -25,6 +26,7 @@
 #               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
 #               proton-bridge proton-vpn-airos-app
 #               vscode desktop signal docker compose docker-desktop tdesktop bambustudio
+#               airDroid
 #               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
 #               VectorCraft and FilmCraft embed
@@ -2933,6 +2935,42 @@ build_bambustudio() {
 	finish_package bambustudio apps/BambuStudio/BambuStudio
 }
 
+# --- airDroid ----------------------------------------------------------------
+# Android apps on air/OS (airos-works/airDroid), Waydroid's model: LineageOS
+# runs in a Linux VM on NVMM (airDroid's QEMU: linuxvm's at its pin, with
+# airDroid's patches, OpenGL and virglrenderer for the guest's GPU), and its
+# windows, sound and input go through the Be API. The repository's own
+# scripts build the VM's kernel, the guest (a static musl Rust init: its
+# target is added to the Rust toolchain), QEMU and the app, and stage the
+# package (AIRDROID_STAGE_ONLY: attributes and the hpkg are made here).
+# x86_64 only (no hypervisor on arm64).
+build_airdroid() {
+	note airDroid
+	[[ $ARCH == x86_64 ]] || { echo "airDroid: x86_64 only, skipped for $ARCH"; return 0; }
+	snapshot airDroid airdroid
+	"$AIROS_CI/sdk/build-rust.sh" "$ARCH"
+	local linuxvm=$APPBUILD/airdroid/linuxvm
+	fork_checkout linuxvm "$linuxvm"
+	stage_begin
+	(
+		. "$AIROS_TOOLCHAIN/rust/env-$ARCH.sh"
+		export ARCH AIROS_SDK AIROS_TOOLCHAIN AIROS_CI AIROS_CACHE JOBS \
+			LINUXVM=$linuxvm LINUXVM_CACHE=$AIROS_CACHE/linuxvm \
+			AIRDROID_BUILD=$BUILDDIR AIRDROID_CACHE=$AIROS_CACHE/airdroid \
+			AIRDROID_STAGE=$STAGE AIRDROID_STAGE_ONLY=1 CARGO_TARGET_DIR=$BUILDDIR/target
+		bash "$SRC/tools/build-all.sh"
+	) || die "airDroid: tools/build-all.sh failed"
+	# The revision counts the repository's commits: every build is newer.
+	local count
+	count=$(git -C "$APPS/airDroid" rev-list --count HEAD)
+	sed -i "s/^version[ \t].*/version\t\t$(info_field version "$STAGE/.PackageInfo" | sed 's/-[0-9]*$//')-$count/" \
+		"$STAGE/.PackageInfo"
+	retarget_package_info "$STAGE/.PackageInfo" "$BUILDDIR/airDroid.PackageInfo"
+	mv "$BUILDDIR/airDroid.PackageInfo" "$STAGE/.PackageInfo"
+	add_attributes "$BUILDDIR/airDroid.rsrc" apps/airDroid
+	finish_package airdroid apps/airDroid bin/airdroid lib/airDroid/qemu-system-x86_64
+}
+
 main() {
 	check_prerequisites
 	mkdir -p "$APPBUILD" "$OUT" "$TMPDIR"
@@ -2944,13 +2982,13 @@ main() {
 			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
 			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
-			pgadmin4 signal_desktop docker compose docker_desktop telegram bambustudio; do
+			pgadmin4 signal_desktop docker compose docker_desktop telegram bambustudio airdroid; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop, pgAdmin 4 and Signal (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
 		# (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library) and the
 		# Docker stack (their own CI jobs; build_docker also checks out forks)
-		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram|bambustudio)$ && ${#SELECTED[@]} -eq 0 ]] \
+		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram|bambustudio|airdroid)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done
