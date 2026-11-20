@@ -20,14 +20,19 @@
 # haiku.hpkg. The driver binds to AMD GPUs only, and leaves Southern and Sea
 # Islands GPUs to radeon_hd.
 #
+# With them nouveau_drm-<linux>~git<date>-1-x86_64.hpkg, Linux's nouveau for
+# NVIDIA GPUs before Maxwell (Tesla, Fermi, Kepler), which shares the
+# accelerant and the user land below.
+#
 # And the GPU user land, in $AIROS_ROOT/image-inputs/x86_64/amdgpu/userland:
-# libdrm, libva, libglvnd and Mesa (radeonsi, RADV, the VA-API driver) from
+# libdrm, libva, libglvnd and Mesa (radeonsi, nouveau, RADV, NVK, the VA-API
+# driver) from
 # deps/build-amdgpu-userland.sh, and the amdgpu_va media add-on (H.264, HEVC,
 # VP9 and AV1 on the GPU through VA-API; installed as "amduvd", the name
 # airTime and Summit load AMD decoders by), built here from the Haiku tree.
 # The image ships the tree in system/non-packaged/amdgpu; its boot script
-# links it into system/non-packaged only where amdgpu_drm drives a GPU
-# (Haiku's tools/airos/ci/boot/UserBootscript).
+# links it into system/non-packaged only where amdgpu_drm or nouveau_drm
+# drives a GPU (Haiku's tools/airos/ci/boot/UserBootscript).
 #
 # images/build-image.sh x86_64 runs this with every image build, so the
 # driver and the add-on match the image's Haiku revision; the sdk-deps
@@ -111,6 +116,29 @@ if [[ -x $packageXdna && -d $W/airos-firmware/amdnpu ]]; then
 	done
 else
 	echo "no amdxdna: linux-drm ${DRM_COMMIT:0:12} or airos-firmware ${FW_COMMIT:0:12} lacks it"
+fi
+
+# NVIDIA GPUs before Maxwell: nouveau_drm (Linux's nouveau on the same compat
+# layer, an add-on of its own), where the linux-drm pin has its packaging. It
+# binds to NVIDIA GPUs with device IDs below 0x1340 that Haiku's nvidia
+# driver does not list (nvidia_rm has the newer ones), and drives them with
+# the same accelerant and user land as amdgpu_drm. No firmware: NVIDIA's
+# video firmware may not be passed on (the package's README says where it
+# goes).
+packageNouveau=$W/linux-drm/haiku/tools/package-nouveau.sh
+if [[ -x $packageNouveau ]]; then
+	note "nouveau_drm"
+	NOUVEAU_OUT=$W/linux-drm/out-nouveau-release
+	rm -f "$NOUVEAU_OUT/nouveau_drm"
+	make -C "$W/linux-drm" -f haiku/build/Makefile -j"$JOBS" nouveau OUT="$NOUVEAU_OUT" \
+		HAIKU_TOP="$HAIKU_SOURCE" HAIKU_BUILD="$HAIKU_BUILD" CROSS="$CROSS" > "$W/build-nouveau.log" 2>&1 \
+		|| { grep -m5 -B2 -A8 -E "error|Error" "$W/build-nouveau.log"; die "nouveau_drm build failed ($W/build-nouveau.log)"; }
+	ls -l "$NOUVEAU_OUT/nouveau_drm"
+	BIN=$NOUVEAU_OUT/nouveau_drm HAIKU_BUILD=$HAIKU_BUILD "$packageNouveau" "$W/stage/packages"
+	[[ $(ls "$W/stage/packages/nouveau_drm"-[0-9]*.hpkg 2>/dev/null | wc -l) == 1 ]] \
+		|| die "package-nouveau.sh made no single nouveau_drm package"
+else
+	echo "no nouveau_drm: linux-drm ${DRM_COMMIT:0:12} lacks its packaging"
 fi
 
 note "GPU user land"

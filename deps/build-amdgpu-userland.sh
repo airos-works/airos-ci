@@ -1,20 +1,30 @@
 #!/usr/bin/env bash
 # build-amdgpu-userland.sh
 #
-# The GPU user land of amdgpu_drm for the x86_64 images, cross-built from the
+# The GPU user land of amdgpu_drm and nouveau_drm for the x86_64 images,
+# cross-built from the
 # forks as linux-drm's haiku/tools/gpu-userland-build.sh builds it natively
 # on the X399 (with GPU_PREFIX=/boot/system/non-packaged,
 # MESA_PLATFORMS=haiku,wayland, MESA_VULKAN_DRIVERS=amd and
 # MESA_GALLIUM_VA=enabled):
 #
-#   libdrm, libdrm_amdgpu   airos-works/libdrm airos-2.4.134
+#   libdrm, libdrm_amdgpu,  airos-works/libdrm airos-2.4.134
+#   libdrm_nouveau
 #   libva, libva-drm        airos-works/libva airos-2.24.1
 #   libglvnd                airos-works/libglvnd airos-1.7.0 (libGL with the
 #                           Haiku GL kit, libEGL, libGLESv2, libOpenGL)
-#   Mesa                    airos-works/mesa airos-amdgpu: radeonsi (OpenGL,
-#                           GLES, EGL; llvmpipe and softpipe besides), RADV
-#                           (Vulkan, with Wayland windows through Haiku's
-#                           in-process Wayland server) and the VA-API driver
+#   Mesa                    airos-works/mesa airos-amdgpu: radeonsi and nouveau
+#                           (OpenGL, GLES, EGL; llvmpipe and softpipe
+#                           besides), RADV and NVK (Vulkan, with Wayland
+#                           windows through Haiku's in-process Wayland
+#                           server) and the VA-API driver of both. The
+#                           Gallium driver follows the DRM driver of the GPU
+#                           (amdgpu_drm or nouveau_drm). NVK, which needs
+#                           Rust for Haiku (sdk/build-rust.sh) and Mesa's CL
+#                           compilers built for this machine, is renamed
+#                           libvulkan_nouveau_drm.so, apart from the image's
+#                           NVK on nvidia_rm (deps/build-nvk.sh), which has
+#                           Mesa's name
 #   FFmpeg (static)         airos-works/ffmpeg airos-6.1.6, H.264, HEVC, VP9 and
 #                           AV1 with VA-API only, for the amdgpu_va media add-on
 #   in-process Wayland      airos-works/wayland-server airos: X547's server with
@@ -29,7 +39,7 @@
 #              and Vulkan ICD manifests in add-ons), as they go under
 #              /boot/system/non-packaged; the x86_64 image ships them in
 #              system/non-packaged/amdgpu and its boot script links them into
-#              place only where amdgpu_drm drives a GPU, as every other
+#              place only where amdgpu_drm or nouveau_drm drives a GPU, as every other
 #              machine keeps the system's OpenGL (deps/build-amdgpu.sh)
 #   addon/     what the amdgpu_va add-on is built against: the headers of
 #              libva and FFmpeg, libva's libraries and FFmpeg's static ones
@@ -99,6 +109,34 @@ fi
 note "host wayland-scanner"
 . "$AIROS_CI/lib/wayland-scanner.sh"
 host_wayland_scanner "$W"
+
+note "Rust for Haiku (NAK, NVK's shader compiler)"
+"$AIROS_CI/sdk/build-rust.sh" x86_64
+. "$AIROS_TOOLCHAIN/rust/env-x86_64.sh"
+
+note "Mesa's CL compilers for this machine (NVK's precompiled kernels)"
+# mesa_clc and vtn_bindgen2 of the same Mesa tree, with Ubuntu's LLVM 18,
+# libclc and SPIRV-LLVM-Translator (as deps/build-nvk.sh makes them)
+HOST=$AIROS_ROOT/toolchain/mesa-host-amdgpu-${MESA_COMMIT:0:12}
+if [[ ! -x $HOST/bin/mesa_clc || ! -x $HOST/bin/vtn_bindgen2 ]]; then
+	printf "[binaries]\nllvm-config = '/usr/lib/llvm-18/bin/llvm-config'\n" > "$W/host-native.ini"
+	rm -rf "$W/build-host"
+	env -u CC -u CXX meson setup "$W/build-host" "$W/mesa" --native-file "$W/host-native.ini" \
+		--prefix="$HOST" --libdir=lib --buildtype=debugoptimized --wrap-mode=nofallback \
+		'-Dplatforms=[]' '-Dvulkan-drivers=[]' '-Dgallium-drivers=[]' '-Dtools=[]' \
+		-Dglx=disabled -Dgbm=disabled -Dgallium-va=disabled -Dglvnd=disabled -Degl=disabled \
+		-Dgles1=disabled -Dgles2=disabled -Dopengl=false -Dlibunwind=disabled \
+		-Dlmsensors=disabled -Dvalgrind=disabled -Dbuild-tests=false '-Dvideo-codecs=[]' \
+		-Dmesa-clc=enabled -Dinstall-mesa-clc=true -Dprecomp-compiler=enabled \
+		-Dinstall-precomp-compiler=true -Dllvm=enabled -Dshared-llvm=enabled \
+		'-Dstatic-libclc=[]' > "$W/host-configure.log" 2>&1 \
+		|| { tail -30 "$W/host-configure.log"; die "host configure failed ($W/host-configure.log)"; }
+	ninja -C "$W/build-host" -j"$JOBS" > "$W/host-build.log" 2>&1 \
+		|| { grep -m5 -A8 error "$W/host-build.log"; die "host build failed ($W/host-build.log)"; }
+	ninja -C "$W/build-host" install > /dev/null
+	rm -rf "$W/build-host"
+fi
+export PATH="$HOST/bin:$PATH"
 
 note "sysroot: the SDK's and HaikuPorts' LLVM 21, libelf, Wayland"
 GLROOT=$W/sysroot
@@ -175,6 +213,8 @@ ar = '${CROSS}ar'
 strip = '${CROSS}strip'
 pkg-config = '/usr/bin/pkg-config'
 llvm-config = '$W/llvm-config'
+rust = ['rustc', '--target=$RUST_TARGET', '--sysroot=$RUST_SYSROOT', '-C', 'link-arg=--sysroot=$GLROOT', '-C', 'link-arg=-specs=$UNWIND_SPECS']
+rust_ld = '${CROSS}gcc'
 
 [host_machine]
 system = 'haiku'
@@ -186,6 +226,7 @@ endian = 'little'
 needs_exe_wrapper = true
 sys_root = '$GLROOT'
 pkg_config_libdir = [${pclist%, }]
+bindgen_clang_arguments = ['--target=x86_64-unknown-haiku', '--sysroot=$GLROOT']
 
 EOF
 cat > "$W/native.ini" <<EOF
@@ -213,7 +254,7 @@ meson_build() {
 	rm -rf "$W/build-$name"
 	mcross meson setup "$W/build-$name" "$source" --cross-file="$W/cross.ini" \
 		--native-file="$W/native.ini" --prefix=$PREFIX --libdir=lib --datadir=data \
-		--includedir=develop/headers --buildtype=release --wrap-mode=nofallback \
+		--includedir=develop/headers --buildtype=release \
 		-Dc_args="$cflags" -Dcpp_args="$cflags" -Dc_link_args="$ldflags" \
 		-Dcpp_link_args="$ldflags" "$@" \
 		> "$W/$name-configure.log" 2>&1 \
@@ -224,23 +265,26 @@ meson_build() {
 	DESTDIR=$GLROOT mcross meson install -C "$W/build-$name" --no-rebuild > /dev/null
 }
 
-meson_build libdrm "$W/libdrm" "" "$RPATH" \
-	-Damdgpu=enabled -Dradeon=disabled -Dintel=disabled -Dnouveau=disabled \
+meson_build libdrm "$W/libdrm" "" "$RPATH" --wrap-mode=nofallback \
+	-Damdgpu=enabled -Dradeon=disabled -Dintel=disabled -Dnouveau=enabled \
 	-Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dfreedreno=disabled \
 	-Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dcairo-tests=disabled \
 	-Dman-pages=disabled -Dvalgrind=disabled -Dinstall-test-programs=false -Dtests=false
 
-meson_build libva "$W/libva" "$POSITIVE" "$MAPPER" \
+meson_build libva "$W/libva" "$POSITIVE" "$MAPPER" --wrap-mode=nofallback \
 	-Ddisable_drm=false -Dwith_x11=no -Dwith_glx=no -Dwith_wayland=no -Dwith_win32=no
 
-meson_build libglvnd "$W/libglvnd" "" "" -Dx11=disabled -Dglx=disabled -Dhgl=true \
+meson_build libglvnd "$W/libglvnd" "" "" --wrap-mode=nofallback -Dx11=disabled -Dglx=disabled -Dhgl=true \
 	-Dgles1=false -Dgles2=true -Degl=true
 
+# (NAK's Rust crates come as Meson subprojects, fetched from crates.io: no
+# --wrap-mode=nofallback here)
 meson_build mesa "$W/mesa" "$POSITIVE" "$MAPPER" \
 	-Dplatforms=haiku,wayland -Degl=enabled -Dglvnd=enabled -Dglx=disabled \
 	-Dgbm=disabled -Dopengl=true -Dgles1=disabled -Dgles2=enabled \
-	-Dgallium-drivers=radeonsi,llvmpipe,softpipe -Dvulkan-drivers=amd \
+	-Dgallium-drivers=radeonsi,nouveau,llvmpipe,softpipe -Dvulkan-drivers=amd,nouveau \
 	-Damd-use-llvm=false -Dllvm=enabled -Dshared-llvm=enabled \
+	-Dmesa-clc=system -Dprecomp-compiler=system -Ddisplay-info=disabled \
 	-Dgallium-va=enabled -Dvideo-codecs=all -Dgallium-rusticl=false \
 	-Dshader-cache=enabled -Dxmlconfig=disabled -Dexpat=disabled \
 	-Dzstd=disabled -Dzlib=enabled -Dvalgrind=disabled \
@@ -249,7 +293,7 @@ meson_build mesa "$W/mesa" "$POSITIVE" "$MAPPER" \
 
 # the in-process Wayland server (lib/wayland-server-inproc.so), which
 # libwayland-client loads by name through the library path
-meson_build wayland-server "$W/wayland-server" "" "$RPATH"
+meson_build wayland-server "$W/wayland-server" "" "$RPATH" --wrap-mode=nofallback
 
 note "FFmpeg (static, VA-API) for the amdgpu_va add-on"
 ADDON=$W/addon
@@ -289,21 +333,35 @@ cp "$INSTALL$PREFIX/data/glvnd/egl_vendor.d/50_mesa.json" "$root/add-ons/opengl/
 cp "$INSTALL$PREFIX/data/vulkan/icd.d/radeon_icd.x86_64.json" "$root/add-ons/vulkan/icd.d/"
 grep -q "\"$PREFIX/lib/libvulkan_radeon.so\"" "$root/add-ons/vulkan/icd.d/radeon_icd.x86_64.json" \
 	|| die "RADV's manifest does not name $PREFIX/lib/libvulkan_radeon.so"
+# NVK on nouveau_drm under a name of its own: the image's NVK on nvidia_rm
+# (deps/build-nvk.sh) is lib/libvulkan_nouveau.so with the manifest
+# nouveau_icd.x86_64.json in the same directories. A machine has both
+# manifests and the loader loads both drivers, each finding only its own
+# GPUs; with the same soname the runtime loader would take the second for
+# the first, already loaded.
+nvkManifest=$INSTALL$PREFIX/data/vulkan/icd.d/nouveau_icd.x86_64.json
+grep -q "\"$PREFIX/lib/libvulkan_nouveau.so\"" "$nvkManifest" \
+	|| die "NVK's manifest does not name $PREFIX/lib/libvulkan_nouveau.so"
+mv "$root/lib/libvulkan_nouveau.so" "$root/lib/libvulkan_nouveau_drm.so"
+patchelf --set-soname libvulkan_nouveau_drm.so "$root/lib/libvulkan_nouveau_drm.so"
+sed "s|$PREFIX/lib/libvulkan_nouveau.so|$PREFIX/lib/libvulkan_nouveau_drm.so|" "$nvkManifest" \
+	> "$root/add-ons/vulkan/icd.d/nouveau_drm_icd.x86_64.json"
 find "$root/lib" -type f -name '*.so*' -exec "${CROSS}strip" --strip-unneeded {} +
 # Haiku's loader cannot do TLS descriptors or the initial-exec model in
 # libraries it loads late.
 if find "$root/lib" -type f -name '*.so*' -exec "${CROSS}readelf" -rW {} + 2>/dev/null \
 		| grep -qE 'TLSDESC|R_X86_64_TPOFF'; then
-	die "unsupported TLS relocations in the AMD GPU libraries"
+	die "unsupported TLS relocations in the GPU libraries"
 fi
 for lib in libGL.so.1 libEGL.so.1 libGLESv2.so.2 libEGL_mesa.so.0 libvulkan_radeon.so \
-		libdrm.so.2 libdrm_amdgpu.so.1 libva.so.2 libva-drm.so.2 dri/radeonsi_drv_video.so \
+		libvulkan_nouveau_drm.so libdrm.so.2 libdrm_amdgpu.so.1 libdrm_nouveau.so.2 libva.so.2 \
+		libva-drm.so.2 dri/radeonsi_drv_video.so dri/nouveau_drv_video.so \
 		wayland-server-inproc.so; do
 	[[ -e $root/lib/$lib ]] || die "no $lib"
 done
-printf 'libdrm %s\nlibva %s\nlibglvnd %s\nmesa %s\nffmpeg %s\nwayland-server %s\nllvm %s\n' \
+printf 'libdrm %s\nlibva %s\nlibglvnd %s\nmesa %s\nffmpeg %s\nwayland-server %s\nllvm %s\nrust %s\n' \
 	"$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" "$MESA_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT" \
-	"$llvm_version" > "$W/sources.txt"
+	"$llvm_version" "$(rustc --version)" > "$W/sources.txt"
 rsync -rlc --chmod=g+rwX --delete "$root/" "$OUT/root/"
 rsync -rlc --chmod=g+rwX --delete "$ADDON/" "$OUT/addon/"
 cp "$W/sources.txt" "$W/haikuports.json" "$OUT/"

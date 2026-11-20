@@ -426,9 +426,10 @@ done
 # arm64: the Dragon's user land for system/non-packaged/adreno, which the boot
 # script links into place only where the adreno driver publishes the GPU
 [[ -z $dragon ]] || cp -a "$gl/adreno" "$WORK/adreno"
-# x86_64: amdgpu_drm and amdgpu_firmwares, and the AMD GPU user land for
-# system/non-packaged/amdgpu (deps/build-amdgpu.sh), which every x86_64 image
-# carries
+# x86_64: amdgpu_drm and amdgpu_firmwares (and nouveau_drm, amdxdna where
+# the linux-drm pin packages them), and the GPU user land of amdgpu_drm and
+# nouveau_drm for system/non-packaged/amdgpu (deps/build-amdgpu.sh), which
+# every x86_64 image carries
 if [[ $ARCH == x86_64 ]]; then
 	for name in amdgpu_drm amdgpu_firmwares; do
 		ls "$gl/amdgpu/packages/$name"-[0-9]*.hpkg > /dev/null 2>&1 \
@@ -436,6 +437,7 @@ if [[ $ARCH == x86_64 ]]; then
 	done
 	cp "$gl"/amdgpu/packages/*.hpkg "$WORK/packages/"
 	for file in lib/libEGL_mesa.so.0 lib/libvulkan_radeon.so lib/wayland-server-inproc.so \
+			lib/libvulkan_nouveau_drm.so lib/dri/nouveau_drv_video.so \
 			add-ons/media/plugins/amduvd; do
 		[[ -e $gl/amdgpu/userland/$file ]] \
 			|| die "no $file in $gl/amdgpu/userland (deps/build-amdgpu.sh)"

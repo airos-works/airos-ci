@@ -246,7 +246,7 @@
     "base": "v6.18.52",
     "base_commit": "v6.18.52",
     "branch": "airos-6.18.52",
-    "commit": "d39d06f0d81ebb8c5ac0dccfb991dd92859e75dd",
+    "commit": "95ae68fd527ac663067f3f0f8a5d74dc8cd9f448",
     "repo": "linux-drm",
     "upstream": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
     "url": "https://github.com/airos-works/linux-drm.git"
@@ -264,7 +264,7 @@
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
     "branch": "airos-amdgpu",
-    "commit": "f7a8e4dfbf3f9f6c7d586c0e94bc420c5fb7b397",
+    "commit": "7155ecbaf0d77fcf18f5c35c4863204c304ddd97",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
