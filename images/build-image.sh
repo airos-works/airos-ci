@@ -106,6 +106,10 @@ IMAGE_APPS+=(docker_cli docker_engine containerd docker_buildx docker_compose do
 # The Linux VM that runs containers from Linux images (built by the docker
 # job): NVMM on x86_64, emulation (TCG, much slower) on arm64.
 IMAGE_APPS+=(linuxvm)
+# airDroid: Android apps in a Linux VM on NVMM (Waydroid's model; its own CI
+# job), x86_64 only: arm64 has no hypervisor. Android itself (about 1 GB) is
+# downloaded on its first start.
+[[ $TARGET != x86_64 ]] || IMAGE_APPS+=(airdroid)
 PINNED_SETS+=(bridge)
 if [[ $TARGET == x86_64 ]]; then
 	PINNED_SETS+=(mail)
