@@ -137,11 +137,6 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - **airImager** (airos-works/airimager), which writes air/OS images (the
   `.iso.xz`/`.img.xz` downloads, `.iso`, `.img`) to USB sticks and SD cards
   and verifies them, on every target, in the Deskbar's **Utilities** folder.
-- x86_64: **airDroid** (airos-works/airDroid), Android apps in their own
-  windows, Waydroid's model: LineageOS in a Linux VM on NVMM, with OpenGL
-  on the host GPU (virgl); Android is downloaded on its first start. In
-  the Deskbar's **Applications** folder, with its Android apps in
-  **Android apps**.
 - Raspberry Pi 4 and Cubie A7S: **AirPins** (airos-works/AirPins), the GPIO
   tool for their pin headers.
 - **Office**, between Applications and Utilities in Deskbar: Clipper,
