@@ -3,7 +3,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos",
-    "commit": "a8e5d1ffc40d97b5d44581ec86191bb183459da2",
+    "commit": "a71e0bc112cfbea49e5636a234228f45f4ce7659",
     "repo": "airos-firmware",
     "upstream": null,
     "url": "https://github.com/airos-works/airos-firmware.git"

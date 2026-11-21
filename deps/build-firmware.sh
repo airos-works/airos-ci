@@ -8,7 +8,8 @@
 #
 #   $AIROS_PACKAGES/any/      intel_, realtek_ and mediatek_bluetooth_firmwares,
 #                             mediatek_wifi_firmwares, intel_wifi7_firmwares
-#                             (BE200; architecture any), as
+#                             (BE200), broadcom_wifi_firmwares (BCM43602;
+#                             architecture any), as
 #                             tools/rock5-itx/build-bluetooth-firmware-packages.sh
 #                             and docs/x399-workstation/tools/build-mediatek-
 #                             wifi-firmware-package.sh make them
@@ -120,6 +121,15 @@ build_package intel_wifi7_firmwares iaxwifi200 "$fw/LICENCE.iwlwifi_firmware" \
 	"Intel Wireless Firmware" "2018-2024 Intel Corporation" "Intel Wi-Fi 7 firmware" \
 	"Firmware for the Wi-Fi half of the Intel Wi-Fi 7 BE200, loaded by the iaxwifi200 driver" \
 	"$iwx"/iwx-*
+
+# Broadcom FullMAC PCIe Wi-Fi chips for broadcomfmac's PCIe bus: the BCM43602
+# of Apple's 2015-2017 Macs (iMac18,1 tested). The firmware is 7.35.177.61,
+# the same file in every linux-firmware release since 2015; the chip takes its
+# board data from its own SROM/OTP, so no NVRAM file.
+build_package broadcom_wifi_firmwares broadcomfmac "$fw/LICENCE.broadcom_bcm43xx" \
+	"Broadcom BCM43xx Firmware" "Broadcom Corporation" "Broadcom Wi-Fi firmware" \
+	"Firmware for Broadcom FullMAC PCIe Wi-Fi chips (the BCM43602 of Apple's 2015-2017 Macs), loaded by the broadcomfmac driver" \
+	"$fw"/brcm/brcmfmac*-pcie.bin
 
 note "HaikuPorts Wi-Fi firmware for arm64"
 for source in $(AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" \
