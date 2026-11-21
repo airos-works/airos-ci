@@ -487,8 +487,13 @@ Setting it up again:
 5. Optionally copy Summit's trees from another server with their owners and
    times (`/data1/airos/{src,build}/webkit-*`, `/data1/airos/summit`,
    `/data2/airos/work/summit-deps-*`, `/data2/airos/cache/forks`, the symbol
-   store): the libraries are then not built again. A full engine build takes
-   about 25 minutes there (11 700 steps at 32 jobs, peaking near 65 GB).
+   store): the libraries are then not built again. After a copy, or a
+   `chown`, run `git update-index --refresh` in each `src/webkit-*` tree:
+   the files' inodes and change times differ from what git's index
+   recorded, and the pipeline's `git checkout -f` otherwise writes all
+   79 000 files again, which rebuilds the whole engine. A full engine build
+   takes about 25 minutes there (11 700 steps at 32 jobs, peaking near
+   65 GB).
 
 ## Symbols of Summit's packages
 
