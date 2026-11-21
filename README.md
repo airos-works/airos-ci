@@ -134,6 +134,11 @@ Haiku has no arm64 release, so the release targets are x86_64 only.
 - **airCal** (airos-works/airCal), calendars and to-dos with Google
   Calendar, CalDAV, Google Tasks and Todoist sync, on every target, in the
   Deskbar's **Applications** folder (its package's own link).
+- **Photos** (airos-works/photos), the photo library: timeline, people
+  (Neural Kit), edits, RAW through LightCraft's engine, camera, phone and
+  card import and Immich sync, on every target, in the Deskbar's
+  **Applications** folder (its package's own link). Its `photos_agent`
+  (a `user_launch` job) opens it when a camera, phone or card is connected.
 - **airImager** (airos-works/airimager), which writes air/OS images (the
   `.iso.xz`/`.img.xz` downloads, `.iso`, `.img`) to USB sticks and SD cards
   and verifies them, on every target, in the Deskbar's **Utilities** folder.
