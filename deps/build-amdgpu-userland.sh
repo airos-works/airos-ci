@@ -1,30 +1,36 @@
 #!/usr/bin/env bash
 # build-amdgpu-userland.sh
 #
-# The GPU user land of amdgpu_drm and nouveau_drm for the x86_64 images,
-# cross-built from the
+# The GPU user land of amdgpu_drm, nouveau_drm and i915_drm for the x86_64
+# images, cross-built from the
 # forks as linux-drm's haiku/tools/gpu-userland-build.sh builds it natively
 # on the X399 (with GPU_PREFIX=/boot/system/non-packaged,
 # MESA_PLATFORMS=haiku,wayland, MESA_VULKAN_DRIVERS=amd and
 # MESA_GALLIUM_VA=enabled):
 #
-#   libdrm, libdrm_amdgpu,  airos-works/libdrm airos-2.4.134
-#   libdrm_nouveau
+#   libdrm, libdrm_amdgpu,  airos-works/libdrm airos-2.4.134 (airos-intel:
+#   libdrm_nouveau,         libdrm_intel without libpciaccess, its CPU maps
+#   libdrm_intel            through DRM_HAIKU_IOCTL_MAP)
 #   libva, libva-drm        airos-works/libva airos-2.24.1
 #   libglvnd                airos-works/libglvnd airos-1.7.0 (libGL with the
 #                           Haiku GL kit, libEGL, libGLESv2, libOpenGL)
-#   Mesa                    airos-works/mesa airos-amdgpu: radeonsi and nouveau
-#                           (OpenGL, GLES, EGL; llvmpipe and softpipe
-#                           besides), RADV and NVK (Vulkan, with Wayland
-#                           windows through Haiku's in-process Wayland
-#                           server) and the VA-API driver of both. The
-#                           Gallium driver follows the DRM driver of the GPU
-#                           (amdgpu_drm or nouveau_drm). NVK, which needs
+#   Mesa                    airos-works/mesa airos-amdgpu (airos-intel):
+#                           radeonsi, nouveau and iris (OpenGL, GLES, EGL;
+#                           llvmpipe and softpipe besides), RADV, NVK and ANV
+#                           (Vulkan, with Wayland windows through Haiku's
+#                           in-process Wayland server) and the VA-API driver
+#                           of radeonsi and nouveau. The Gallium driver
+#                           follows the DRM driver of the GPU (amdgpu_drm,
+#                           nouveau_drm or i915_drm). NVK, which needs
 #                           Rust for Haiku (sdk/build-rust.sh) and Mesa's CL
 #                           compilers built for this machine, is renamed
 #                           libvulkan_nouveau_drm.so, apart from the image's
 #                           NVK on nvidia_rm (deps/build-nvk.sh), which has
 #                           Mesa's name
+#   intel-vaapi-driver      airos-works/intel-vaapi-driver airos: i965, the
+#                           VA-API driver of Intel GPUs up to Comet Lake on
+#                           i915_drm (decoding and encoding; libva takes it
+#                           for "i915" after iHD, which is not built)
 #   FFmpeg (static)         airos-works/ffmpeg airos-6.1.6, H.264, HEVC, VP9 and
 #                           AV1 with VA-API only, for the amdgpu_va media add-on
 #   in-process Wayland      airos-works/wayland-server airos: X547's server with
@@ -78,6 +84,7 @@ fork_checkout libdrm "$W/libdrm"; DRM_COMMIT=$FORK_COMMIT
 fork_checkout libva "$W/libva"; VA_COMMIT=$FORK_COMMIT
 fork_checkout libglvnd "$W/libglvnd"; GLVND_COMMIT=$FORK_COMMIT
 fork_checkout mesa-amdgpu "$W/mesa"; MESA_COMMIT=$FORK_COMMIT
+fork_checkout intel-vaapi-driver "$W/intel-vaapi-driver"; I965_COMMIT=$FORK_COMMIT
 fork_checkout ffmpeg "$W/ffmpeg"; FFMPEG_COMMIT=$FORK_COMMIT
 fork_checkout wayland-server "$W/wayland-server"; WLS_COMMIT=$FORK_COMMIT
 
@@ -99,10 +106,10 @@ fi
 AIROS_CACHE=$AIROS_CACHE AIROS_SDK=$AIROS_SDK "$AIROS_CI/deps/haikuports.py" fetch --no-deps x86_64 \
 	"${HAIKUPORTS[@]}" | xargs -n1 basename > "$W/haikuports.txt"
 key=$(cat "$0" "$W/haikuports.txt" <(printf '%s\n' "$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" \
-	"$MESA_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT") | sha256sum | cut -c1-16)
+	"$MESA_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT" "$I965_COMMIT") | sha256sum | cut -c1-16)
 if [[ ${FORCE:-0} != 1 && ${CLEAN:-0} != 1 && -f $OUT/key && $(cat "$OUT/key") == "$key" \
 		&& -f $OUT/root/lib/libEGL_mesa.so.0 && -f $OUT/addon/lib/libavcodec.a ]]; then
-	echo "AMD GPU user land unchanged ($key): $OUT"
+	echo "GPU user land unchanged ($key): $OUT"
 	exit 0
 fi
 
@@ -266,13 +273,19 @@ meson_build() {
 }
 
 meson_build libdrm "$W/libdrm" "" "$RPATH" --wrap-mode=nofallback \
-	-Damdgpu=enabled -Dradeon=disabled -Dintel=disabled -Dnouveau=enabled \
+	-Damdgpu=enabled -Dradeon=disabled -Dintel=enabled -Dnouveau=enabled \
 	-Dvmwgfx=disabled -Domap=disabled -Dexynos=disabled -Dfreedreno=disabled \
 	-Dtegra=disabled -Dvc4=disabled -Detnaviv=disabled -Dcairo-tests=disabled \
 	-Dman-pages=disabled -Dvalgrind=disabled -Dinstall-test-programs=false -Dtests=false
 
 meson_build libva "$W/libva" "$POSITIVE" "$MAPPER" --wrap-mode=nofallback \
 	-Ddisable_drm=false -Dwith_x11=no -Dwith_glx=no -Dwith_wayland=no -Dwith_win32=no
+
+# i965 (intel-vaapi-driver), against libdrm_intel, into lib/dri where libva
+# looks for drivers
+meson_build intel-vaapi-driver "$W/intel-vaapi-driver" "$POSITIVE" "$MAPPER" --wrap-mode=nofallback \
+	-Dwith_x11=no -Dwith_wayland=no -Denable_hybrid_codec=false -Denable_tests=false \
+	-Ddriverdir=$PREFIX/lib/dri
 
 meson_build libglvnd "$W/libglvnd" "" "" --wrap-mode=nofallback -Dx11=disabled -Dglx=disabled -Dhgl=true \
 	-Dgles1=false -Dgles2=true -Degl=true
@@ -282,7 +295,8 @@ meson_build libglvnd "$W/libglvnd" "" "" --wrap-mode=nofallback -Dx11=disabled -
 meson_build mesa "$W/mesa" "$POSITIVE" "$MAPPER" \
 	-Dplatforms=haiku,wayland -Degl=enabled -Dglvnd=enabled -Dglx=disabled \
 	-Dgbm=disabled -Dopengl=true -Dgles1=disabled -Dgles2=enabled \
-	-Dgallium-drivers=radeonsi,nouveau,llvmpipe,softpipe -Dvulkan-drivers=amd,nouveau \
+	-Dgallium-drivers=radeonsi,nouveau,iris,llvmpipe,softpipe -Dvulkan-drivers=amd,nouveau,intel \
+	-Dintel-elk=false \
 	-Damd-use-llvm=false -Dllvm=enabled -Dshared-llvm=enabled \
 	-Dmesa-clc=system -Dprecomp-compiler=system -Ddisplay-info=disabled \
 	-Dgallium-va=enabled -Dvideo-codecs=all -Dgallium-rusticl=false \
@@ -333,6 +347,9 @@ cp "$INSTALL$PREFIX/data/glvnd/egl_vendor.d/50_mesa.json" "$root/add-ons/opengl/
 cp "$INSTALL$PREFIX/data/vulkan/icd.d/radeon_icd.x86_64.json" "$root/add-ons/vulkan/icd.d/"
 grep -q "\"$PREFIX/lib/libvulkan_radeon.so\"" "$root/add-ons/vulkan/icd.d/radeon_icd.x86_64.json" \
 	|| die "RADV's manifest does not name $PREFIX/lib/libvulkan_radeon.so"
+cp "$INSTALL$PREFIX/data/vulkan/icd.d/intel_icd.x86_64.json" "$root/add-ons/vulkan/icd.d/"
+grep -q "\"$PREFIX/lib/libvulkan_intel.so\"" "$root/add-ons/vulkan/icd.d/intel_icd.x86_64.json" \
+	|| die "ANV's manifest does not name $PREFIX/lib/libvulkan_intel.so"
 # NVK on nouveau_drm under a name of its own: the image's NVK on nvidia_rm
 # (deps/build-nvk.sh) is lib/libvulkan_nouveau.so with the manifest
 # nouveau_icd.x86_64.json in the same directories. A machine has both
@@ -354,13 +371,14 @@ if find "$root/lib" -type f -name '*.so*' -exec "${CROSS}readelf" -rW {} + 2>/de
 	die "unsupported TLS relocations in the GPU libraries"
 fi
 for lib in libGL.so.1 libEGL.so.1 libGLESv2.so.2 libEGL_mesa.so.0 libvulkan_radeon.so \
-		libvulkan_nouveau_drm.so libdrm.so.2 libdrm_amdgpu.so.1 libdrm_nouveau.so.2 libva.so.2 \
-		libva-drm.so.2 dri/radeonsi_drv_video.so dri/nouveau_drv_video.so \
+		libvulkan_nouveau_drm.so libvulkan_intel.so libdrm.so.2 libdrm_amdgpu.so.1 \
+		libdrm_nouveau.so.2 libdrm_intel.so.1 libva.so.2 libva-drm.so.2 \
+		dri/radeonsi_drv_video.so dri/nouveau_drv_video.so dri/i965_drv_video.so \
 		wayland-server-inproc.so; do
 	[[ -e $root/lib/$lib ]] || die "no $lib"
 done
-printf 'libdrm %s\nlibva %s\nlibglvnd %s\nmesa %s\nffmpeg %s\nwayland-server %s\nllvm %s\nrust %s\n' \
-	"$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" "$MESA_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT" \
+printf 'libdrm %s\nlibva %s\nlibglvnd %s\nmesa %s\nintel-vaapi-driver %s\nffmpeg %s\nwayland-server %s\nllvm %s\nrust %s\n' \
+	"$DRM_COMMIT" "$VA_COMMIT" "$GLVND_COMMIT" "$MESA_COMMIT" "$I965_COMMIT" "$FFMPEG_COMMIT" "$WLS_COMMIT" \
 	"$llvm_version" "$(rustc --version)" > "$W/sources.txt"
 rsync -rlc --chmod=g+rwX --delete "$root/" "$OUT/root/"
 rsync -rlc --chmod=g+rwX --delete "$ADDON/" "$OUT/addon/"

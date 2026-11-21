@@ -1,0 +1,63 @@
+From 921ae1d820948db0e43a3635bfe249612f4c97cc Mon Sep 17 00:00:00 2001
+From: Justin Gasper <jmgasper@gmail.com>
+Date: Sat, 21 Nov 2026 11:05:20 +1100
+Subject: [PATCH] Haiku: i965 on i915_drm
+
+i915_drm is Linux 6.18's i915 as a Haiku add-on (Intel GPUs from Gen 9
+on); libva takes i965 for the DRM driver "i915" (after iHD).
+
+- The GPU's PCI revision comes from libdrm (drmGetDevice2(), which asks
+  i915_drm: DRM_HAIKU_IOCTL_DEVICE_INFO) where there is no sysfs.
+- Haiku has dlopen() in libroot: no libdl required.
+
+Built with positive POSIX errors (posix_error_mapper), as libdrm and
+libva are there. Cross-built for x86_64; not yet run on an Intel GPU.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ meson.build        |  3 ++-
+ src/intel_driver.c | 14 ++++++++++++++
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/meson.build b/meson.build
+index fa0b2f2..456c930 100644
+--- a/meson.build
++++ b/meson.build
+@@ -19,7 +19,8 @@ if version_arr.length() == 4
+ endif
+ 
+ cc = meson.get_compiler('c')
+-dl_dep = cc.find_library('dl')
++# (Haiku has dlopen() in libroot)
++dl_dep = cc.find_library('dl', required : host_machine.system() != 'haiku')
+ mathlib_dep = cc.find_library('m', required : false)
+ 
+ git = find_program('git', required : false)
+diff --git a/src/intel_driver.c b/src/intel_driver.c
+index 37e2fc6..2ef60cd 100644
+--- a/src/intel_driver.c
++++ b/src/intel_driver.c
+@@ -69,6 +69,20 @@ intel_driver_get_param(struct intel_driver_data *intel, int param, int *value)
+ 
+ static void intel_driver_get_revid(struct intel_driver_data *intel, int *value)
+ {
++#ifdef __HAIKU__
++    /* No sysfs on Haiku: i915_drm tells libdrm the GPU's PCI revision
++     * (DRM_HAIKU_IOCTL_DEVICE_INFO) */
++    drmDevicePtr device = NULL;
++
++    if (drmGetDevice2(intel->fd, DRM_DEVICE_GET_PCI_REVISION, &device) == 0
++        && device->bustype == DRM_BUS_PCI) {
++        *value = device->deviceinfo.pci->revision_id;
++        drmFreeDevice(&device);
++        return;
++    }
++    if (device)
++        drmFreeDevice(&device);
++#endif
+ #define PCI_REVID   8
+     FILE *fp;
+     char config_data[16];
+-- 
+2.53.0
+

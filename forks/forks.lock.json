@@ -137,8 +137,8 @@
   "libdrm": {
     "base": "libdrm-2.4.134",
     "base_commit": "libdrm-2.4.134",
-    "branch": "airos-2.4.134",
-    "commit": "208d69cfedcd89d99af2288c70bd01fb73bbaa04",
+    "branch": "airos-intel",
+    "commit": "9f0c5d5f31e45fe6e41f219dee4e6b399b8877f6",
     "repo": "libdrm",
     "upstream": "https://gitlab.freedesktop.org/mesa/drm.git",
     "url": "https://github.com/airos-works/libdrm.git"
@@ -263,8 +263,8 @@
   "mesa-amdgpu": {
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
-    "branch": "airos-amdgpu",
-    "commit": "7155ecbaf0d77fcf18f5c35c4863204c304ddd97",
+    "branch": "airos-intel",
+    "commit": "236dab66a36e8976c4774f49ebf828bec17f6df1",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
