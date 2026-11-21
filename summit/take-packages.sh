@@ -13,7 +13,7 @@
 #      into the air/OS package pool here ($AIROS_PACKAGES/ARCH), from which
 #      the images take them (a release's into $AIROS_DATA/packages-RELEASE/ARCH)
 #   2. air/OS only: the image's libraries the x86_64 engine links
-#      ($AIROS_ROOT/summit/ARCH/system) and the engine into DEPS, for the
+#      ($AIROS_ROOT/summit/x86_64/system) and the engine into DEPS, for the
 #      applications that link it (summit/engine-for-apps.sh)
 #   3. the symbol store ($AIROS_SYMBOLS, served at /symbols/): a mirror of
 #      that server's, the only one that files symbols
@@ -63,10 +63,13 @@ done
 
 if [[ $SDK_NAME == "$ARCH" ]]; then
 	[[ -n $engine ]] || die "$HOST has no summit_webkit package in $remote"
-	# The staged image libraries are the Summit pipeline's (summit-ARCH lock).
-	mkdir -p "$AIROS_ROOT/summit/$ARCH/system"
-	with_lock "summit-$ARCH" "${fetch[@]}" -c --delete --chmod=g+rwX --ignore-missing-args \
-		"rsync://$HOST/data1/summit/$ARCH/system/" "$AIROS_ROOT/summit/$ARCH/system/"
+	# The staged image libraries are the Summit pipeline's (summit-ARCH lock);
+	# only the x86_64 engine links the image's (summit/lib.sh SYSLIBS).
+	if [[ $ARCH == x86_64 ]]; then
+		mkdir -p "$AIROS_ROOT/summit/$ARCH/system"
+		with_lock "summit-$ARCH" "${fetch[@]}" -c --delete --chmod=g+rwX \
+			"rsync://$HOST/data1/summit/$ARCH/system/" "$AIROS_ROOT/summit/$ARCH/system/"
+	fi
 	"$AIROS_CI/summit/engine-for-apps.sh" "$ARCH" "$engine"
 fi
 
