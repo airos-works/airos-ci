@@ -44,9 +44,9 @@ die() { echo "error: $*" >&2; exit 1; }
 
 note "network"
 # The 10 GbE card (enic) is the server's network port, by DHCP. The cabled
-# 1 GbE port (igb) is CIMC's (shared LOM) and stays unconfigured here: a second
+# 1 GbE port (igb) is CIMC's (shared LOM) and gets no address here: a second
 # address on the same network made avahi see its own name as a conflict
-# (airos-summit-2.local).
+# (airos-summit-2.local), and the name resolved to the slow port.
 netplan=/etc/netplan/50-airos-summit.yaml
 if [[ ! -f $netplan ]]; then
 	cat > "$netplan" <<'NETPLAN'
@@ -58,6 +58,16 @@ network:
       match:
         driver: enic
       dhcp4: true
+      optional: true
+    # Named here so that nothing else configures them (the initramfs leaves a
+    # DHCP default for every port no file matches).
+    cimc:
+      match:
+        driver: igb
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
       optional: true
 NETPLAN
 	chmod 600 "$netplan"
