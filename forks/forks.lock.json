@@ -3,7 +3,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos",
-    "commit": "774aa2599f8ff2a1e52aaec055afca62260cc3c8",
+    "commit": "a8e5d1ffc40d97b5d44581ec86191bb183459da2",
     "repo": "airos-firmware",
     "upstream": null,
     "url": "https://github.com/airos-works/airos-firmware.git"
@@ -137,7 +137,7 @@
   "libdrm": {
     "base": "libdrm-2.4.134",
     "base_commit": "libdrm-2.4.134",
-    "branch": "airos-intel",
+    "branch": "airos-2.4.134",
     "commit": "9f0c5d5f31e45fe6e41f219dee4e6b399b8877f6",
     "repo": "libdrm",
     "upstream": "https://gitlab.freedesktop.org/mesa/drm.git",
@@ -246,7 +246,7 @@
     "base": "v6.18.52",
     "base_commit": "v6.18.52",
     "branch": "airos-6.18.52",
-    "commit": "95ae68fd527ac663067f3f0f8a5d74dc8cd9f448",
+    "commit": "9130070bc91770c2bde6c5a9a6d34a28a86a3f7d",
     "repo": "linux-drm",
     "upstream": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
     "url": "https://github.com/airos-works/linux-drm.git"
@@ -263,7 +263,7 @@
   "mesa-amdgpu": {
     "base": "33656fb53639a447733ed926a00843db898e28c7",
     "base_commit": "33656fb53639a447733ed926a00843db898e28c7",
-    "branch": "airos-intel",
+    "branch": "airos-amdgpu",
     "commit": "236dab66a36e8976c4774f49ebf828bec17f6df1",
     "repo": "mesa",
     "upstream": null,
@@ -583,5 +583,14 @@
     "repo": "dawn",
     "upstream": "https://github.com/google/dawn.git",
     "url": "https://github.com/airos-works/dawn.git"
+  },
+  "intel-vaapi-driver": {
+    "base": "fd727a4e9cb8b2878a1e93d4dddc8dd1c1a4e0ea",
+    "base_commit": "fd727a4e9cb8b2878a1e93d4dddc8dd1c1a4e0ea",
+    "branch": "airos",
+    "commit": "417ef6e56f61856480068b31e1106e0e8d564ab1",
+    "repo": "intel-vaapi-driver",
+    "upstream": "https://github.com/intel/intel-vaapi-driver.git",
+    "url": "https://github.com/airos-works/intel-vaapi-driver.git"
   }
 }

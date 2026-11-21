@@ -21,8 +21,10 @@
 # Islands GPUs to radeon_hd.
 #
 # With them nouveau_drm-<linux>~git<date>-1-x86_64.hpkg, Linux's nouveau for
-# NVIDIA GPUs before Maxwell (Tesla, Fermi, Kepler), which shares the
-# accelerant and the user land below.
+# NVIDIA GPUs before Maxwell (Tesla, Fermi, Kepler), and i915_drm-<linux>~
+# git<date>-1-x86_64.hpkg with i915_firmwares-<date>-<rev>-any.hpkg, Linux's
+# i915 for Intel GPUs from Gen 9 on, which share the accelerant and the user
+# land below.
 #
 # And the GPU user land, in $AIROS_ROOT/image-inputs/x86_64/amdgpu/userland:
 # libdrm, libva, libglvnd and Mesa (radeonsi, nouveau, RADV, NVK, the VA-API
@@ -54,6 +56,9 @@ FIRMWARE_REVISION=1
 # the same for the amdnpu directory (the NPU's firmware, added later)
 NPU_FIRMWARE_VERSION=20261109
 NPU_FIRMWARE_REVISION=1
+# the same for the i915 directory (Intel GPUs, i915_drm)
+I915_FIRMWARE_VERSION=20261109
+I915_FIRMWARE_REVISION=1
 
 W=$AIROS_WORK/amdgpu
 # (AMDGPU_INPUTS and AMDGPU_USERLAND_OUT: elsewhere, for trial runs)
@@ -139,6 +144,33 @@ if [[ -x $packageNouveau ]]; then
 		|| die "package-nouveau.sh made no single nouveau_drm package"
 else
 	echo "no nouveau_drm: linux-drm ${DRM_COMMIT:0:12} lacks its packaging"
+fi
+
+# Intel GPUs from Gen 9 on: i915_drm (Linux's i915 on the same compat layer,
+# an add-on of its own) and the GuC/HuC/DMC firmware of airos-firmware's
+# i915 directory, where the linux-drm pin has the packaging and the firmware
+# pin the files. By default it takes Gen 9's big cores (Skylake to Comet
+# Lake; intel_extreme in haiku.hpkg leaves those to it while it is
+# installed) and drives them with the same accelerant and user land (iris,
+# ANV, i965 VA-API) as amdgpu_drm.
+packageI915=$W/linux-drm/haiku/tools/package-i915.sh
+if [[ -x $packageI915 && -d $W/airos-firmware/i915 ]]; then
+	note "i915_drm"
+	I915_OUT=$W/linux-drm/out-i915-release
+	rm -f "$I915_OUT/i915_drm"
+	make -C "$W/linux-drm" -f haiku/build/Makefile -j"$JOBS" i915 OUT="$I915_OUT" \
+		HAIKU_TOP="$HAIKU_SOURCE" HAIKU_BUILD="$HAIKU_BUILD" CROSS="$CROSS" > "$W/build-i915.log" 2>&1 \
+		|| { grep -m5 -B2 -A8 -E "error|Error" "$W/build-i915.log"; die "i915_drm build failed ($W/build-i915.log)"; }
+	ls -l "$I915_OUT/i915_drm"
+	BIN=$I915_OUT/i915_drm HAIKU_BUILD=$HAIKU_BUILD FIRMWARE_DIR=$W/airos-firmware \
+		FIRMWARE_VERSION=$I915_FIRMWARE_VERSION FIRMWARE_REVISION=$I915_FIRMWARE_REVISION \
+		"$packageI915" "$W/stage/packages"
+	for name in i915_drm i915_firmwares; do
+		[[ $(ls "$W/stage/packages/$name"-[0-9]*.hpkg 2>/dev/null | wc -l) == 1 ]] \
+			|| die "package-i915.sh made no single $name package"
+	done
+else
+	echo "no i915_drm: linux-drm ${DRM_COMMIT:0:12} or airos-firmware ${FW_COMMIT:0:12} lacks it"
 fi
 
 note "GPU user land"
