@@ -16,6 +16,16 @@
 # All run as the unprivileged user ghrunner (no sudo, no docker) with the
 # labels self-hosted, airos-build.
 #
+# RUNNER_LABEL (default airos-build) names another build server's runner: the
+# Summit build server's is
+#
+#   RUNNER_LABEL=airos-summit RUNNER_ENV='AIROS_SDK_FROM=USER@airos-build.local' \
+#       runner/register-runner.sh summit airos-summit.local
+#
+# (label and name prefix airos-summit; RUNNER_ENV: VAR=VALUE words, without
+# spaces, for the runner's .env, the environment of its jobs.
+# summit/sync-sdk.sh reads AIROS_SDK_FROM.)
+#
 # Also sets the repository (or organization) so that workflow runs from
 # outside contributors' pull requests always wait for approval: the runner is
 # a real machine.
@@ -24,6 +34,7 @@ set -euo pipefail
 REPO=${1:?usage: register-runner.sh REPO|--org [HOST]}
 HOST=${2:-airos-build.local}
 OWNER=${GITHUB_OWNER:-airos-works}
+LABEL=${RUNNER_LABEL:-airos-build}
 RUNNER_VERSION=${RUNNER_VERSION:-$(gh api repos/actions/runner/releases/latest --jq .tag_name | sed 's/^v//')}
 SSH=(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new)
 
@@ -31,13 +42,13 @@ if [[ $REPO == --org ]]; then
 	api=orgs/$OWNER
 	url=https://github.com/$OWNER
 	REPO=_org
-	name=airos-build
+	name=$LABEL
 	# The Default group only serves private repositories until told otherwise.
 	gh api -X PATCH "$api/actions/runner-groups/1" -F allows_public_repositories=true >/dev/null
 else
 	api=repos/$OWNER/$REPO
 	url=https://github.com/$OWNER/$REPO
-	name="airos-build-${REPO,,}"
+	name="$LABEL-${REPO,,}"
 fi
 token=$(gh api -X POST "$api/actions/runners/registration-token" --jq .token)
 gh api -X PUT "$api/actions/permissions/fork-pr-contributor-approval" \
@@ -50,9 +61,11 @@ if [[ -z $password ]]; then
 	read -rsp "sudo password on $HOST: " password
 	echo
 fi
-"${SSH[@]}" "$HOST" bash -s -- "$REPO" "$OWNER" "$token" "$name" "$dir" "$RUNNER_VERSION" "$password" "$url" <<'REMOTE'
+"${SSH[@]}" "$HOST" bash -s -- "$REPO" "$OWNER" "$token" "$name" "$dir" "$RUNNER_VERSION" "$password" "$url" \
+	"$LABEL" ${RUNNER_ENV:-} <<'REMOTE'
 set -euo pipefail
-repo=$1 owner=$2 token=$3 name=$4 dir=$5 version=$6 password=$7 url=$8
+repo=$1 owner=$2 token=$3 name=$4 dir=$5 version=$6 password=$7 url=$8 label=$9
+shift 9
 cache=/data2/airos/cache/actions-runner-linux-x64-$version.tar.gz
 as_runner() { echo "$password" | sudo -S -p '' -u ghrunner -H bash -c "umask 002; $1"; }
 if [[ ! -f $cache ]]; then
@@ -66,10 +79,13 @@ if [[ -f $dir/.runner ]]; then
 else
 	as_runner "mkdir -p '$dir' /data2/airos/runner-work && tar xzf '$cache' -C '$dir'"
 	as_runner "cd '$dir' && ./config.sh --unattended --replace --url '$url' \
-		--token '$token' --name '$name' --labels airos-build \
+		--token '$token' --name '$name' --labels '$label' \
 		--work '/data2/airos/runner-work/$repo'"
 	# The runner's jobs need the air/OS tree's group access (umask 002).
 	as_runner "cd '$dir' && printf 'LANG=C.UTF-8\n' >> .env"
+	for line in "$@"; do
+		as_runner "cd '$dir' && printf '%s\n' '$line' >> .env"
+	done
 	echo "$password" | sudo -S -p '' bash -c "cd '$dir' && ./svc.sh install ghrunner >/dev/null"
 	if [[ $repo == _org ]]; then unit=actions.runner.$owner.$name.service
 	else unit=actions.runner.$owner-$repo.$name.service; fi

@@ -3,7 +3,10 @@
 Build pipelines for **air/OS**, the airos-works fork of Haiku
 ([airos-works/haiku](https://github.com/airos-works/haiku)). They run on the
 self-hosted build server **airos-build** (Cisco C240, Ubuntu 26.04,
-192.168.1.200) through GitHub Actions runners, one per repository.
+192.168.1.200) through GitHub Actions runners, one per repository. Summit,
+whose WebKit engine takes most of a build server's time and memory, is built
+on a server of its own, **airos-summit**
+([below](#the-summit-build-server)).
 
 | Pipeline | Runs from | On | Makes |
 |---|---|---|---|
@@ -365,12 +368,13 @@ and `images/smoke-test.sh` record each build in `/data2/airos/builds`
 | `sdk/build-rust.sh` | a pinned Rust nightly with std for x86_64 and ARM64 Haiku; bindgen and cbindgen for NVK's NAK |
 | `apps/build-app-packages.sh` | cross-builds the applications, `summit_webkit`, `summit` and `summit_webkitlegacy` into Haiku packages |
 | `apps/ci-build-app.sh`, `apps/publish.sh` | the CI step of the app pipelines; the release and README update |
-| `summit/` | the Summit pipeline: engine libraries (`build-deps.sh`), WebKit (`build-engine.sh`), packages (`build-summit.sh`) |
+| `summit/` | the Summit pipeline: engine libraries (`build-deps.sh`), WebKit (`build-engine.sh`), packages (`build-summit.sh`); between the two build servers: `sync-sdk.sh` (the SDKs to the Summit server), `take-packages.sh` (its packages to the main one), `engine-for-apps.sh` |
 | `images/` | `build-image.sh TARGET` (`CLEAN=1`: Haiku from scratch), `smoke-test.sh TARGET`, the nginx that serves the images and the dashboard |
 | `dashboard/` | the build dashboard (`server.py`, `index.html`, `install.sh`) |
 | `forks/` | the third-party sources as airos-works forks: `forks.json` (what and how), `forks.lock.json` (pinned commits), `make-forks.py`, `patches/` |
 | `runner/register-runner.sh REPO` | adds a self-hosted runner for a repository (`--org`: one for the whole organization) |
 | `server/provision.sh` | the build server's package setup after an Ubuntu install |
+| `server/setup-summit-server.sh`, `server/summit-autoinstall/`, `server/summit-sdk-serve.sh` | the Summit build server: its set-up after the install, the unattended Ubuntu install through CIMC, and the main server's side of the SDK mirror |
 
 ## Third-party sources: the forks
 
@@ -405,6 +409,9 @@ forks/make-forks.py --only mesa --force   # remake one fork after changing its p
 | `/data2/airos/cache`, `/data2/airos/work`, `/data2/airos/locks` | downloads and git caches, scratch space, `flock` locks |
 | `/data1/runner/REPO` | the GitHub runners (user `ghrunner`) |
 
+Summit's own trees (`/data1/airos/summit`, `/data1/airos/{src,build}/webkit-*`)
+are on the [Summit build server](#the-summit-build-server).
+
 `/data2/airos/artifacts` and `/data2/airos/cache` are bind mounts of
 `/data3/airos/artifacts` and `/data3/airos/cache`. /data3 is a RAID10 of six
 1.2 TB SAS disks (`server/setup-data3.sh`). /data1 and /data2 are SSDs and
@@ -420,6 +427,63 @@ through locks:
 - `summit-ARCH`: the Summit pipeline (`summit-ARCH-RELEASE` for a release).
 - `webkit-build`: one engine compile at a time.
 - `packages-ARCH`: updates to the pool.
+
+## The Summit build server
+
+**airos-summit** (Cisco UCS C240 M4SX, two Xeon E5-2680 v4: 56 threads,
+88 GB; Ubuntu 26.04; `airos-summit.local`, DHCP on its 10 GbE port) builds
+Summit and nothing else, since 21 November 2026: an engine build used most
+of airos-build's memory beside the image and application builds (the kernel
+killed runners there several times). Summit's workflow
+([`summit.yml`](.github/workflows/summit.yml)) has two jobs:
+
+1. `build`, on the runner labelled `airos-summit`: the whole Summit pipeline,
+   as before, with the engine's source and build trees, Summit's libraries
+   and the packaging on that server.
+2. `pool`, on airos-build: `summit/take-packages.sh` takes the packages into
+   the package pool, the engine into `DEPS` for the applications that link it,
+   and the symbols.
+
+The server has the same paths as airos-build (the SDKs' `env.sh` files and the
+Haiku host tools name them): `/data1/airos`, `/data2/airos` and
+`/data4/airos`, bind mounts of one RAID10 of eight 1.2 TB SAS disks (`/data`,
+4.4 TB); `/` is a RAID1 of three 600 GB disks. It builds no SDK:
+
+- **SDKs, from airos-build.** Before every snapshot of an SDK
+  (`summit/lib.sh`), `summit/sync-sdk.sh` mirrors what the pipeline reads of
+  it: the SDK, the GL stack, the cross compiler, the host tools, the image's
+  packages, the MIME database with its attributes, and `DEPS`. The runner's
+  environment names the source (`AIROS_SDK_FROM=USER@airos-build.local`); the
+  runner user's SSH key is in that account's `authorized_keys` with
+  `server/summit-sdk-serve.sh` as its command, which allows nothing but an
+  rsync read of `/data1/airos` and holds the SDK's lock, shared, meanwhile.
+  A run costs seconds when nothing changed.
+- **Packages and symbols, to airos-build.** The server runs an rsync daemon
+  that lets airos-build read its trees (modules `data1`, `data2`, `data4`),
+  and the `pool` job fetches from it. The symbol store on airos-build
+  (`/data4/airos/symbols`, served at `/symbols/`) is a mirror of the Summit
+  server's, the only one that files symbols.
+
+Setting it up again:
+
+1. Ubuntu: `server/summit-autoinstall/make-iso.sh` makes an unattended
+   install ISO (`/` on the RAID1, the account, SSH keys); its header has the
+   CIMC commands that boot it as virtual media. GRUB comes from the virtual
+   DVD and fetches the kernel and the ISO over the network: the BMC's virtual
+   media reads at 1 MB/s and failed under the installer.
+2. On the server: `sudo server/setup-summit-server.sh` (the RAID10, the
+   `airos` group and `ghrunner`, the packages of `server/provision.sh`, swap,
+   the rsync daemon, the SSH key).
+3. On airos-build: `install -m 755 server/summit-sdk-serve.sh
+   ~/.local/bin/summit-sdk-serve`, and the key line the set-up printed into
+   `~/.ssh/authorized_keys`.
+4. The runner: `RUNNER_LABEL=airos-summit
+   RUNNER_ENV='AIROS_SDK_FROM=USER@airos-build.local ENGINE_JOBS=36'
+   runner/register-runner.sh summit airos-summit.local`.
+5. Optionally copy the engine's trees from airos-build so the first build is
+   incremental (`/data1/airos/{src,build}/webkit-*`, `/data1/airos/summit`,
+   `/data2/airos/work/summit-deps-*`, with owners and times, under the
+   `summit-*` locks).
 
 ## Symbols of Summit's packages
 

@@ -35,8 +35,9 @@ export OUT_LIST=${OUT_LIST:-$JOBTMP/packages.txt}
 mkdir -p "$JOBTMP"
 
 # A release's SDK and private Mesa, the first time (later sdk-deps.yml
-# keeps them current).
-if [[ $SDK_NAME != "$ARCH" ]]; then
+# keeps them current). The Summit build server mirrors them instead
+# (summit/sync-sdk.sh, from summit_sdk).
+if [[ $SDK_NAME != "$ARCH" && -z ${AIROS_SDK_FROM:-} ]]; then
 	[[ -f $AIROS_SDK/$SDK_NAME/env.sh ]] || "$AIROS_CI/sdk/build-release-sdk.sh" "$ARCH" "$AIROS_TARGET"
 	[[ -d $AIROS_ROOT/gl/$SDK_NAME-mesa/lib ]] || "$AIROS_CI/deps/build-gl-x86_64.sh"
 fi
@@ -53,27 +54,9 @@ apps=summit_webkit,summit
 "$AIROS_CI/apps/ci-build-app.sh" "$ARCH" "$apps" summit "$SUMMIT_DIR"
 engine=$(tail -n +"$((before + 1))" "$OUT_LIST" | grep '/summit_webkit-[^/]*\.hpkg$' | tail -n 1)
 [[ -n $engine ]] || die "no summit_webkit package was made"
-# Natter's builds are for air/OS.
-[[ $SDK_NAME == "$ARCH" ]] || exit 0
+# Natter's builds are for air/OS. On the Summit build server the main build
+# server's job does this, with the packages it takes from here
+# (summit/take-packages.sh).
+[[ $SDK_NAME == "$ARCH" && -z ${AIROS_SDK_FROM:-} ]] || exit 0
 
-note "engine for app builds"
-# DEPS is read by app builds under the shared haiku-ARCH lock.
-DEPS=${DEPS:-$AIROS_ROOT/deps/$ARCH/boot/system}
-. "$AIROS_SDK/$ARCH/env.sh"
-# x86_64: the image's libraries the engine links (summit/lib.sh SYSLIBS) that
-# DEPS lacks, for the linker of programs that link the engine; DEPS's own
-# are left alone.
-syslibs=$AIROS_ROOT/summit/$ARCH/system/boot/system/lib
-with_lock "haiku-$ARCH" bash -c '
-	set -e
-	rm -rf "$1/lib/summit-webkit" "$1/develop/headers/summit-webkit"
-	"$2" extract -C "$1" "$3"
-	rm -f "$1/.PackageInfo"
-	rm -rf "$1/documentation/packages/summit_webkit"
-	if [[ -d $4 ]]; then
-		for lib in "$4"/*.so*; do
-			[[ -e $1/lib/${lib##*/} || -L $1/lib/${lib##*/} ]] || cp -a "$lib" "$1/lib/"
-		done
-	fi
-' _ "$DEPS" "$TOOLS/package/package" "$engine" "$syslibs"
-echo "$(basename "$engine") -> $DEPS/lib/summit-webkit"
+"$AIROS_CI/summit/engine-for-apps.sh" "$ARCH" "$engine"

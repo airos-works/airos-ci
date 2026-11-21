@@ -44,6 +44,9 @@ fi
 
 summit_sdk() {
 	mkdir -p "$SUMMIT_ROOT"
+	# The Summit build server has no SDKs of its own: it mirrors the main
+	# build server's, under that server's lock (summit/sync-sdk.sh).
+	[[ -z ${AIROS_SDK_FROM:-} ]] || "$AIROS_CI/summit/sync-sdk.sh" "$SDK_NAME"
 	(
 		flock -s 9
 		[[ -f $AIROS_SDK/$SDK_NAME/env.sh ]] || die "no $SDK_NAME SDK; run sdk/build-sdk.sh $ARCH" \

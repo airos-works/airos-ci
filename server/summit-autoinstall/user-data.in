@@ -1,0 +1,56 @@
+#cloud-config
+# Ubuntu Server autoinstall for airos-summit (server/summit-autoinstall/make-iso.sh
+# fills in @HASH@, @KEYS@ and @SERVE@).
+#
+# The live installer session: a user to look in with while it runs.
+users:
+  - default
+  - name: debug
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+@KEYS4@
+autoinstall:
+  version: 1
+  # The storage section for this machine's disks: / on a RAID1 of the three
+  # 600 GB disks.
+  early-commands:
+    - python3 /cdrom/airos/make-storage.py
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  timezone: Australia/Hobart
+  identity:
+    hostname: airos-summit
+    realname: jmgasper
+    username: jmgasper
+    password: '@HASH@'
+  ssh:
+    install-server: true
+    allow-pw: true
+    authorized-keys:
+@KEYS3@
+  network:
+    version: 2
+    ethernets:
+      lan:
+        match:
+          name: "e*"
+        dhcp4: true
+        optional: true
+  storage:
+    layout:
+      name: direct
+  packages:
+    - avahi-daemon
+    - mdadm
+  updates: security
+  late-commands:
+    # For the set-up over SSH (server/setup-summit-server.sh, the runner);
+    # remove the file afterwards to have sudo ask for the password.
+    - echo 'jmgasper ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-jmgasper-provision
+    - chmod 440 /target/etc/sudoers.d/90-jmgasper-provision
+    - cp /run/airos-pre-install.txt /target/root/pre-install-disks.txt || true
+    - curl -s -m 10 "@SERVE@/phone-home?done=$(hostname -I | tr ' ' ,)" || true
+  shutdown: reboot

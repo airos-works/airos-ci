@@ -1,9 +1,15 @@
 # Reusable workflow: the Summit pipeline (summit/build-summit.sh) on the
-# self-hosted air/OS build server: Summit's libraries from the airos-works forks,
+# self-hosted Summit build server (airos-summit, which builds nothing else;
+# server/setup-summit-server.sh): Summit's libraries from the airos-works forks,
 # the WebKit engine with Summit's Haiku port (incremental; the first build
-# takes hours), and the summit_webkit and summit packages, which go into the
-# air/OS package pool for the images. On the default branch the packages are
-# published (rolling "latest" release) and the README's build links updated.
+# takes hours), and the summit_webkit and summit packages. It builds against a
+# mirror of the main build server's SDKs (summit/sync-sdk.sh). On the default
+# branch the packages are published (rolling "latest" release) and the
+# README's build links updated.
+#
+# A second job on the main build server (airos-build) then takes the packages
+# into the air/OS package pool for the images, the engine into the prefix of
+# the applications that link it, and the symbols (summit/take-packages.sh).
 #
 # Then the same for stock Haiku releases (haiku-releases; x86_64 only):
 # against the release's own SDK, in trees of their own, never into the air/OS
@@ -64,8 +70,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: [self-hosted, airos-build]
+    runs-on: [self-hosted, airos-summit]
     timeout-minutes: 720
+    outputs:
+      haiku: ${{ steps.haiku.outcome }}
     steps:
       - name: Check out ${{ github.repository }}
         uses: actions/checkout@v7
@@ -151,3 +159,38 @@ jobs:
         run: |
           echo "::error title=Stock Haiku build failed::The air/OS packages were built and published; the build for Haiku ${{ inputs.haiku-releases }} failed (see 'Build for stock Haiku')."
           exit 1
+
+  # The main build server takes what its image and application builds read.
+  # Also after a build that failed part way: an architecture built before the
+  # failure is in the Summit server's pool, and take-packages.sh leaves alone
+  # what the pool here already has.
+  pool:
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, airos-build]
+    timeout-minutes: 60
+    steps:
+      - name: Fetch airos-ci
+        run: |
+          rm -rf "$RUNNER_TEMP/airos-ci"
+          git clone -q --depth 1 --branch "${{ inputs.airos-ci-ref }}" \
+            https://github.com/airos-works/airos-ci.git "$RUNNER_TEMP/airos-ci"
+          git -C "$RUNNER_TEMP/airos-ci" log --oneline -1
+
+      - name: Take the packages into the pool
+        run: |
+          for arch in ${{ inputs.architectures }}; do
+            echo "::group::$arch"
+            "$RUNNER_TEMP/airos-ci/summit/take-packages.sh" "$arch"
+            echo "::endgroup::"
+          done
+
+      - name: Take the packages for stock Haiku
+        if: inputs.haiku-releases != '' && needs.build.outputs.haiku == 'success'
+        run: |
+          for release in ${{ inputs.haiku-releases }}; do
+            echo "::group::x86_64 for Haiku $release"
+            AIROS_TARGET=$release "$RUNNER_TEMP/airos-ci/summit/take-packages.sh" x86_64
+            echo "::endgroup::"
+          done
+
