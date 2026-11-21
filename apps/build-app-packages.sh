@@ -15,6 +15,7 @@
 #               telegram (Telegram Desktop, x86_64; its own CI job)
 #               bambustudio (Bambu Studio; its own CI job)
 #               airdroid (airDroid, Android apps in a VM; x86_64; its own CI job)
+#               photos (Photos, the photo library; its own CI job)
 #               docker compose docker_desktop (the Docker stack; their own CI
 #               jobs, docker also builds the engine, containerd and buildx
 #               from the pinned forks)
@@ -26,7 +27,7 @@
 #               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
 #               proton-bridge proton-vpn-airos-app
 #               vscode desktop signal docker compose docker-desktop tdesktop bambustudio
-#               airDroid
+#               airDroid photos
 #               (CI jobs link their checkout there),
 #               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
 #               VectorCraft and FilmCraft embed
@@ -2971,6 +2972,50 @@ build_airdroid() {
 	finish_package airdroid apps/airDroid bin/airdroid lib/airDroid/qemu-system-x86_64
 }
 
+# --- Photos -----------------------------------------------------------------
+# The photo library (airos-works/photos): the application, photos_agent (the
+# background program that opens Photos when a camera arrives, started by a
+# user_launch job) and photos_tool, plus the face models for the Neural Kit.
+# RAW files are developed by LightCraft's engine: raw/ is a Rust static
+# library (its Cargo.toml pins the airos-works/lightcraft revision), built
+# with the pinned toolchain by the repository's tools/build-raw.sh.
+build_photos() {
+	note Photos
+	snapshot photos photos
+	# (a hand build may not write the runner's toolchain: one that is there
+	# will do)
+	"$AIROS_CI/sdk/build-rust.sh" "$ARCH" \
+		|| [[ -f $AIROS_TOOLCHAIN/rust/env-$ARCH.sh ]] \
+		|| die "Photos: no Rust toolchain for $ARCH"
+	(
+		export AIROS_SDK AIROS_TOOLCHAIN JOBS \
+			PHOTOS_RAW_TARGET_DIR=${PHOTOS_RAW_TARGET_DIR:-$BUILDDIR/raw-target}
+		bash "$SRC/tools/build-raw.sh" "$ARCH"
+	) || die "Photos: the RAW library did not build"
+	CPATH=$(FARM_CPATH) make -C "$SRC" -s -j"$JOBS" BUILD=build-$ARCH CXX="$CXX_T" \
+		RAW_NATIVE_LIBS="$(cat "$BUILDDIR/libphotos_raw.libs")" \
+		RC="$TOOLS/rc/rc" XRES="$TOOLS/xres" MIMESET=true all
+	stage_begin
+	install_binary "$BUILDDIR/Photos" "$BUILDDIR/Photos.rsrc" apps/Photos
+	install_binary "$BUILDDIR/photos_agent" "$BUILDDIR/photos_agent.rsrc" bin/photos_agent
+	install_binary "$BUILDDIR/photos_tool" - bin/photos_tool
+	local model
+	for model in "$SRC"/models/*.tflite; do
+		install_file 644 "$model" "data/Photos/models/$(basename "$model")"
+	done
+	install_file 644 "$SRC/resources/photos_agent.launch" data/user_launch/photos_agent
+	docs photos README.md LICENSE docs models/README.md models/LICENSE.YuNet \
+		models/LICENSE.SFace raw/NOTICE
+	deskbar_link apps/Photos Photos
+	retarget_package_info "$SRC/resources/Photos.PackageInfo" "$STAGE/.PackageInfo"
+	# The agent is an application too (its signature is how Photos and the
+	# launch job find it), outside apps/ (verify_package).
+	local APP_PATHS='^(apps|bin)/'
+	add_attributes "$BUILDDIR/Photos.rsrc" apps/Photos
+	resource_attributes "$BUILDDIR/photos_agent.rsrc" bin/photos_agent
+	finish_package photos apps/Photos bin/photos_agent bin/photos_tool
+}
+
 main() {
 	check_prerequisites
 	mkdir -p "$APPBUILD" "$OUT" "$TMPDIR"
@@ -2982,13 +3027,14 @@ main() {
 			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
 			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
-			pgadmin4 signal_desktop docker compose docker_desktop telegram bambustudio airdroid; do
+			pgadmin4 signal_desktop docker compose docker_desktop telegram bambustudio airdroid \
+			photos; do
 		# Only when asked for: Air Pins, Code - OSS, GitHub Desktop, pgAdmin 4 and Signal (their
 		# own CI jobs, after Aurora), Summit (its engine is a pipeline of its own), Mail
 		# (pinned for the images: apps/mail.lock.json; in the pool
 		# its airos_ name would also be copied into images as a library) and the
 		# Docker stack (their own CI jobs; build_docker also checks out forks)
-		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram|bambustudio|airdroid)$ && ${#SELECTED[@]} -eq 0 ]] \
+		[[ $app =~ ^(airpins|summit_webkit|summit|summit_webkitlegacy|airos_mail|code_oss|github_desktop|pgadmin4|signal_desktop|docker|compose|docker_desktop|telegram|bambustudio|airdroid|photos)$ && ${#SELECTED[@]} -eq 0 ]] \
 			&& continue
 		wanted "$app" && "build_$app"
 	done
