@@ -456,8 +456,12 @@ Haiku host tools name them): `/data1/airos`, `/data2/airos` and
   environment names the source (`AIROS_SDK_FROM=USER@airos-build.local`); the
   runner user's SSH key is in that account's `authorized_keys` with
   `server/summit-sdk-serve.sh` as its command, which allows nothing but an
-  rsync read of `/data1/airos` and holds the SDK's lock, shared, meanwhile.
-  A run costs seconds when nothing changed.
+  rsync read of `/data1/airos` under the SDK's lock, which is held, shared,
+  for the whole copy. A run costs seconds when nothing changed. An SDK or
+  image build on airos-build holds that lock for its whole run; when it is
+  not free within `AIROS_SDK_WAIT` seconds (default 300), Summit is built
+  against the mirror as it is, the SDK from before that build, and does not
+  wait behind the images (on airos-build it did, up to an hour).
 - **Packages and symbols, to airos-build.** The server runs an rsync daemon
   that lets airos-build read its trees (modules `data1`, `data2`, `data4`),
   and the `pool` job fetches from it. The symbol store on airos-build
@@ -478,12 +482,13 @@ Setting it up again:
    ~/.local/bin/summit-sdk-serve`, and the key line the set-up printed into
    `~/.ssh/authorized_keys`.
 4. The runner: `RUNNER_LABEL=airos-summit
-   RUNNER_ENV='AIROS_SDK_FROM=USER@airos-build.local ENGINE_JOBS=36'
+   RUNNER_ENV='AIROS_SDK_FROM=USER@airos-build.local ENGINE_JOBS=32'
    runner/register-runner.sh summit airos-summit.local`.
-5. Optionally copy the engine's trees from airos-build so the first build is
-   incremental (`/data1/airos/{src,build}/webkit-*`, `/data1/airos/summit`,
-   `/data2/airos/work/summit-deps-*`, with owners and times, under the
-   `summit-*` locks).
+5. Optionally copy Summit's trees from another server with their owners and
+   times (`/data1/airos/{src,build}/webkit-*`, `/data1/airos/summit`,
+   `/data2/airos/work/summit-deps-*`, `/data2/airos/cache/forks`, the symbol
+   store): the libraries are then not built again. A full engine build takes
+   about 25 minutes there (11 700 steps at 32 jobs, peaking near 65 GB).
 
 ## Symbols of Summit's packages
 
