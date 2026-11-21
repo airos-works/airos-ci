@@ -90,8 +90,12 @@ else
 	if [[ $repo == _org ]]; then unit=actions.runner.$owner.$name.service
 	else unit=actions.runner.$owner-$repo.$name.service; fi
 	# Files the jobs create stay writable for the airos group (umask 002).
+	# When the kernel kills a job's process for memory, the runner goes on
+	# (systemd otherwise failed the unit, and the runner stayed offline
+	# until someone restarted it: 19 October and 2 November 2026).
 	echo "$password" | sudo -S -p '' bash -c "mkdir -p /etc/systemd/system/$unit.d \
 		&& printf '[Service]\nUMask=0002\n' > /etc/systemd/system/$unit.d/umask.conf \
+		&& printf '[Service]\nOOMPolicy=continue\nRestart=always\nRestartSec=30\n' > /etc/systemd/system/$unit.d/restart.conf \
 		&& systemctl daemon-reload && systemctl start $unit"
 fi
 systemctl is-active "actions.runner.$owner$([[ $repo == _org ]] || echo "-$repo").$name.service"

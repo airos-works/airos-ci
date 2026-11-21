@@ -1244,9 +1244,16 @@ INFO
 object_is_current() {
 	local object=$1 dependency
 	[[ -e $object && -e $object.d ]] || return 1
+	# Read whole, not from a process substitution: the early return left one
+	# writing into a closed pipe, and bash 5.3's wait -n takes its death
+	# (SIGPIPE, status 141) for a compile's, so a build in which many sources
+	# compile (a new checkout, other flags) ended with "a source did not
+	# compile" and no error above (21 November 2026).
+	local dependencies
+	dependencies=$(sed -e 's/^[^:]*://' -e 's/\\$//' "$object.d" | tr -s ' ' '\n' | sed '/^$/d')
 	while read -r dependency; do
 		[[ -e $dependency && ! $dependency -nt $object ]] || return 1
-	done < <(sed -e 's/^[^:]*://' -e 's/\\$//' "$object.d" | tr -s ' ' '\n' | sed '/^$/d')
+	done <<< "$dependencies"
 	return 0
 }
 

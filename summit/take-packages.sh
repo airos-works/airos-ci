@@ -64,6 +64,7 @@ done
 if [[ $SDK_NAME == "$ARCH" ]]; then
 	[[ -n $engine ]] || die "$HOST has no summit_webkit package in $remote"
 	# The staged image libraries are the Summit pipeline's (summit-ARCH lock).
+	mkdir -p "$AIROS_ROOT/summit/$ARCH/system"
 	with_lock "summit-$ARCH" "${fetch[@]}" -c --delete --chmod=g+rwX --ignore-missing-args \
 		"rsync://$HOST/data1/summit/$ARCH/system/" "$AIROS_ROOT/summit/$ARCH/system/"
 	"$AIROS_CI/summit/engine-for-apps.sh" "$ARCH" "$engine"
