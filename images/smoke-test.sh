@@ -62,13 +62,29 @@ if [[ -n $BUILD_ID ]]; then
 	build_stage "smoke test" "$TARGET in QEMU"
 	python3 "$AIROS_CI/lib/status.py" set "$BUILD_ID" "smoke_pid=$$" || true
 fi
-work=$(mktemp -d "$TMPDIR/smoke-$TARGET-XXXXXX")
-trap 'status=$?; kill $(jobs -p) 2>/dev/null || true; rm -rf "$work"
+work=
+trap 'status=$?; kill $(jobs -p) 2>/dev/null || true; [[ -z $work ]] || rm -rf "$work"
 	[[ -z $BUILD_ID ]] || python3 "$AIROS_CI/lib/status.py" end "$BUILD_ID" \
 		$([[ $status == 0 ]] && echo done || echo failed) \
 		"smoke=$([[ $status == 0 ]] && echo pass || echo fail)"' EXIT
 
-image=$(ls "$DIR"/*.xz | head -n 1)
+images=("$DIR"/*.xz)
+image=${images[0]}
+# Allow for the raw image, package extraction and writable boot overlays.
+# The nightly debug boot also needs a second raw image. On the build server
+# the target's Jam tree and the shared temporary directory are on separate SSDs.
+image_bytes=$(xz --robot --list "$image" | awk '$1 == "totals" {print $5}')
+required=$((image_bytes + 1024 * 1024 * 1024))
+[[ ! -f $DIR/debug-kernel/haiku.hpkg ]] || ((required += image_bytes))
+if (( $(df -B1 --output=avail "$TMPDIR" | tail -1) < required )); then
+	build_dir=$AIROS_BUILD/haiku-$TARGET
+	(( $(df -B1 --output=avail "$build_dir" | tail -1) >= required )) \
+		|| die "smoke test needs $required bytes in $TMPDIR or $build_dir"
+	note "low space in $TMPDIR; using $build_dir for the smoke test"
+	export TMPDIR=$build_dir
+fi
+work=$(mktemp -d "$TMPDIR/smoke-$TARGET-XXXXXX")
+
 xz -dc "$image" > "$work/image"
 
 # Verify the design editor and its build gate in the finished BFS on every target.

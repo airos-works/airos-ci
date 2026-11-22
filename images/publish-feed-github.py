@@ -30,22 +30,36 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 
 KEEP = int(os.environ.get("AIROS_GITHUB_UPDATE_KEEP", "6"))
 
 
-def gh(*args, data=None):
-    return subprocess.run(["gh", *args], input=data, check=True, text=True,
-        stdout=subprocess.PIPE).stdout
+def gh(*args, data=None, retry=False):
+    for delay in (2, 8, None):
+        result = subprocess.run(["gh", *args], input=data, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        if result.returncode == 0:
+            return result.stdout
+        if not retry or delay is None or not re.search(
+                r"error connecting|connection (?:reset|refused)|timed? ?out|"
+                r"unexpected EOF|HTTP (?:408|429|5\d\d)\b",
+                result.stderr, re.IGNORECASE):
+            result.check_returncode()
+        print(f"retrying gh {args[0]} in {delay}s", file=sys.stderr)
+        time.sleep(delay)
 
 
 def gh_json(*args):
-    return json.loads(gh(*args))
+    return json.loads(gh(*args, retry=True))
 
 
 def sha256_bytes(data):
@@ -103,6 +117,13 @@ class Repository:
             "--json", "apiUrl")["apiUrl"]
         return gh_json("api", api)
 
+    def upload_files(self, tag, paths):
+        # A connection can drop after GitHub accepted one of the files.
+        # These are draft assets or a staging name beside the live index,
+        # so re-uploading the same bytes under the same name is safe.
+        gh("release", "upload", tag, "--repo", self.name, "--clobber", *paths,
+            retry=True)
+
     def upload(self, release, paths):
         """Uploads paths (local files) to release; returns its new assets
         by their SHA-256, checked against GitHub's digests."""
@@ -113,8 +134,7 @@ class Repository:
             return {}
         # gh resolves a draft's tag itself; the REST tag endpoint does not
         for start in range(0, len(paths), 20):
-            gh("release", "upload", release["tag_name"], "--repo", self.name,
-                "--clobber", *paths[start:start + 20])
+            self.upload_files(release["tag_name"], paths[start:start + 20])
         remote = self.release(release["id"])
         by_digest = {}
         for asset in remote["assets"]:
@@ -139,23 +159,17 @@ class Repository:
             print(f"would replace {release['tag_name']}/{name}")
             return
         staged = f"next-{name}"
-        old = [a for a in release["assets"] if a["name"] in (name, staged)]
-        for asset in old:
-            if asset["name"] == staged:
-                gh("api", "-X", "DELETE",
-                    f"repos/{self.name}/releases/assets/{asset['id']}")
         with tempfile.TemporaryDirectory() as work:
             upload = os.path.join(work, staged)
             with open(path, "rb") as source, open(upload, "wb") as target:
                 target.write(source.read())
-            gh("release", "upload", release["tag_name"], "--repo", self.name,
-                upload)
+            self.upload_files(release["tag_name"], [upload])
         remote = self.release(release["id"])
         new = next(a for a in remote["assets"] if a["name"] == staged)
         if new.get("digest") != "sha256:" + sha256_file(path):
             raise RuntimeError(f"{name} did not reach {release['tag_name']} "
                 "intact")
-        for asset in old:
+        for asset in release["assets"]:
             if asset["name"] == name:
                 gh("api", "-X", "DELETE",
                     f"repos/{self.name}/releases/assets/{asset['id']}")

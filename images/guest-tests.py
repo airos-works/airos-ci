@@ -44,6 +44,12 @@ RUNNER_SCRIPT = f"""#!/bin/sh
 # tree's tools/airos/ci/guest-tests, run once at boot. Everything goes to the
 # serial log through /dev/dprintf.
 exec >/dev/dprintf 2>&1
+# The early boot jobs compete with the timed tests for disk and CPU. Wait
+# for the graphical session's input_server to answer before starting them.
+echo "Guest tests waiting for input_server"
+until hey -s application/x-vnd.Be-input_server get Name; do
+	sleep 1
+done
 echo "GUEST TESTS START"
 for test in /boot/{DIRECTORY}/*; do
 	name=${{test##*/}}
@@ -67,6 +73,7 @@ JOB_FILE = f"""# Written by airos-ci images/guest-tests.py: runs the smoke test'
 # regression tests once at boot (/boot/{DIRECTORY}).
 job x-vnd.airos-guest-tests {{
 	launch /bin/sh /boot/{DIRECTORY}/{RUNNER}
+	on initial_volumes_mounted
 }}
 """
 
