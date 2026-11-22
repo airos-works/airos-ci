@@ -340,12 +340,16 @@ def package_changes(old, new):
 
 
 def app_commits(old_manifest, new_manifest):
-    """Commits of the pinned applications (Office, Media, Bridge, Mail)."""
+    """Commits of the applications and build inputs pinned in each image."""
     apps = []
-    for key in ("office", "media", "bridge", "mail"):
+    for key in ("office", "media", "developer", "bridge", "mail"):
         old, new = (old_manifest or {}).get(key) or {}, (new_manifest or {}).get(key) or {}
         if not isinstance(new, dict):
             continue
+        # The manifest records a package set with its SDK, recipe and application pins.
+        new = new.get("applications", new)
+        if isinstance(old, dict):
+            old = old.get("applications", old)
         for name, entry in sorted(new.items()):
             if not isinstance(entry, dict):
                 continue
@@ -461,7 +465,7 @@ def command_publish(args):
     release["changes"] = changes
     if manifest:
         release["image_manifest"] = {key: manifest.get(key)
-            for key in ("office", "media", "bridge", "mail", "recipe", "inputs")}
+            for key in ("office", "media", "developer", "bridge", "mail", "recipe", "inputs")}
 
     relative = os.path.join("builds", release["id"], "update.json")
     write_json(os.path.join(feed, relative), release)

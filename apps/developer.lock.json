@@ -1,0 +1,4 @@
+{
+  "figcraft": {"repository": "https://github.com/airos-works/figcraft.git", "commit": "b33714c03c81d597ddf0159e52f5b01bbc7daf6c", "branch": "airos", "binary": "FigCraft"},
+  "craft-fonts": {"repository": "https://github.com/storytold/craft-fonts.git", "commit": "37827adc41fd165f9a9234ac40f94dbad353aa69"}
+}

@@ -70,7 +70,7 @@ fi
 # library, in Applications), and the ones built here at the pins in
 # apps/office.lock.json and media.lock.json for the Office and Media folders.
 IMAGE_APPS=(summit summit_webkit amp airtime kiri airshot burrow snap airimager aircal photos)
-PINNED_SETS=(office media)
+PINNED_SETS=(office media developer)
 # HaikuWebKit's BWebView API on Summit's engine (Summit's legacy/, built by
 # the Summit pipeline), in place of HaikuPorts' haikuwebkit: it provides and
 # replaces haikuwebkit and haikuwebkit_devel, so WebPositive and other
@@ -232,7 +232,7 @@ for app in "${IMAGE_APPS[@]}"; do
 	[[ -n $file ]] || die "$app left the package pool during the build"
 	cp "$file" "$WORK/packages/"
 done
-# Office and Media are part of every release image: build-pinned.sh stops the
+# Office, Media and Developer are part of every release image: build-pinned.sh stops the
 # image (and verify-pinned.sh checks it again) instead of silently publishing
 # one without a requested application.
 for set in "${PINNED_SETS[@]}"; do
@@ -852,6 +852,7 @@ for path in sorted(glob.glob(os.path.join(inputs, "*-sources.txt"))
 json.dump({
     "inputs": sources,
     "office": json.load(open(os.path.join(pkgdir, "office-sources.json"))),
+    "developer": json.load(open(os.path.join(pkgdir, "developer-sources.json"))),
     "media": json.load(open(os.path.join(pkgdir, "media-sources.json"))),
     "bridge": json.load(open(os.path.join(pkgdir, "bridge-sources.json"))) if os.path.exists(os.path.join(pkgdir, "bridge-sources.json")) else None,
     "mail": json.load(open(os.path.join(pkgdir, "mail-sources.json"))) if os.path.exists(os.path.join(pkgdir, "mail-sources.json")) else None,

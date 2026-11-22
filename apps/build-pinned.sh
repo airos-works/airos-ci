@@ -4,7 +4,7 @@
 # Build the packages of one Deskbar folder at the reviewed revisions in
 # apps/SET.lock.json: office (Clipper, MSGA, WordCraft, GridCraft, DeckCraft,
 # PdfCraft), media (PhotoCraft, LightCraft, VectorCraft, EffectCraft,
-# FilmCraft), bridge (Proton Mail Bridge) or
+# FilmCraft), developer (FigCraft), bridge (Proton Mail Bridge) or
 # mail (Mail, which replaces Haiku's). An entry with a "binary" is an
 # application; one without is a source the applications build with
 # (craft-fonts). Called under the image's architecture lock, after its SDK has
@@ -12,7 +12,7 @@
 # image manifest) to OUTPUT_DIR.
 set -euo pipefail
 . "$(cd "$(dirname "$0")/.." && pwd)/lib/env.sh"
-SET=${1:?usage: build-pinned.sh office|media|bridge|mail ARCH OUTPUT_DIR}
+SET=${1:?usage: build-pinned.sh office|media|developer|bridge|mail ARCH OUTPUT_DIR}
 ARCH=${2:?architecture}
 OUT=${3:?output directory}
 LOCK=$AIROS_CI/apps/$SET.lock.json

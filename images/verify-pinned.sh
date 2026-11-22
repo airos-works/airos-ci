@@ -4,7 +4,7 @@
 # apps/SET.lock.json, including each binary and its exact Deskbar link.
 # Office/Media use their named folders; an entry can declare another folder.
 set -euo pipefail
-tool=${1:?usage: verify-pinned.sh PACKAGE_TOOL ARCH PACKAGE_DIR office|media|bridge|mail}
+tool=${1:?usage: verify-pinned.sh PACKAGE_TOOL ARCH PACKAGE_DIR office|media|developer|bridge|mail}
 arch=${2:?architecture}
 packages=${3:?package directory}
 set=${4:?package set}
@@ -27,6 +27,10 @@ while IFS=$'\t' read -r name binary folder menu; do
 	"$tool" list -i "$file" | grep -q "^[[:space:]]*architecture: $arch\$"
 	"$tool" list -p "$file" > "$work/paths"
 	grep -qx "apps/$binary" "$work/paths"
+    if [[ $name == figcraft ]]; then
+        grep -qx "bin/figcraft-cli" "$work/paths"
+        grep -qx "documentation/packages/figcraft/docs/haiku.md" "$work/paths"
+    fi
 	grep -qx "data/deskbar/menu/$folder/$menu" "$work/paths"
 	if [[ $folder != Applications ]] && grep -qx "data/deskbar/menu/Applications/$menu" "$work/paths"; then
 		echo "$name still has an Applications menu entry" >&2

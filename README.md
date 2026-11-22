@@ -19,9 +19,9 @@ on a server of its own, **airos-summit**
 The applications and Summit go into the **package pool**
 (`/data2/airos/packages/{x86_64,arm64,any}`). Each image build takes the
 newest successful builds from that pool, and stops if any application in
-`IMAGE_APPS` (`images/build-image.sh`) is missing from it. Office and Media are built directly
-for each image SDK from [`apps/office.lock.json`](apps/office.lock.json) and
-[`apps/media.lock.json`](apps/media.lock.json), so both architectures use the
+`IMAGE_APPS` (`images/build-image.sh`) is missing from it. Office, Media and Developer are built directly
+for each image SDK from [`apps/office.lock.json`](apps/office.lock.json),
+[`apps/media.lock.json`](apps/media.lock.json) and [`apps/developer.lock.json`](apps/developer.lock.json), so both architectures use the
 same reviewed sources. Update those pins to select newer versions; a pin
 must be a commit on its declared release branch (`main` by default), and a pin off that branch, missing
 apps or incorrect menu links stop the image build. Turbo Chook's own workflow

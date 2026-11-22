@@ -10,7 +10,7 @@
 #
 #   APP       build-app-packages.sh name: amp airtime airshot burrow clipper msga
 #             kiri natter turbochook lcdmonitor airpins snap wordcraft
-#             gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft
+#             gridcraft deckcraft pdfcraft figcraft photocraft lightcraft vectorcraft
 #             effectcraft filmcraft aurora
 #             proton_bridge proton_vpn airtop airimager aircal
 #             code_oss github_desktop pgadmin4 (from the aurora repository),
@@ -44,12 +44,13 @@ rm -rf "$apps" "$out"
 mkdir -p "$apps" "$out"
 ln -s "$SOURCE" "$apps/$REPO_DIR"
 
-# PhotoCraft, LightCraft, VectorCraft and FilmCraft embed the craft-fonts collection, at the revision
-# pinned beside them in apps/media.lock.json (as the image builds use it).
-if [[ ,$APP, =~ ,(photocraft|lightcraft|vectorcraft|filmcraft), ]] && [[ -z ${CRAFT_FONTS:-} ]]; then
+# The font collection is pinned alongside the editors in their package set.
+if [[ ,$APP, =~ ,(figcraft|photocraft|lightcraft|vectorcraft|filmcraft), ]] && [[ -z ${CRAFT_FONTS:-} ]]; then
+	font_set=media
+	[[ ,$APP, != *,figcraft,* ]] || font_set=developer
 	read -r fonts_repo fonts_commit < <(python3 -c 'import json, sys
 pin = json.load(open(sys.argv[1]))["craft-fonts"]
-print(pin["repository"], pin["commit"])' "$AIROS_CI/apps/media.lock.json")
+print(pin["repository"], pin["commit"])' "$AIROS_CI/apps/$font_set.lock.json")
 	fonts=$AIROS_WORK/craft-fonts
 	with_lock craft-fonts bash -c '
 		set -euo pipefail

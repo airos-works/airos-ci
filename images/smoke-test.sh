@@ -71,6 +71,11 @@ trap 'status=$?; kill $(jobs -p) 2>/dev/null || true; rm -rf "$work"
 image=$(ls "$DIR"/*.xz | head -n 1)
 xz -dc "$image" > "$work/image"
 
+# Verify the design editor and its build gate in the finished BFS on every target.
+tools=$AIROS_BUILD/haiku-$TARGET/objects/linux/x86_64/release/tools
+python3 "$AIROS_CI/images/image-package.py" require "$work/image" "$tools" figcraft \
+    apps/FigCraft bin/figcraft-cli data/deskbar/menu/Developer/FigCraft
+
 if [[ $TARGET == cubie ]]; then
 	# The board boot chain is outside the GPT partitions. Verify it and the
 	# ESP before the UEFI boot below (QEMU does not emulate the A733 SoC).

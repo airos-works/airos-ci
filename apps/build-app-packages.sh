@@ -8,7 +8,7 @@
 #   OUTPUT_DIR  where the packages go (default $AIROS_PACKAGES/ARCH)
 #   APP         any of: airshot clipper msga burrow kiri lcdmonitor amp turbochook
 #               natter airtime airtop airpins airimager aircal snap wordcraft gridcraft deckcraft
-#               pdfcraft photocraft lightcraft vectorcraft effectcraft filmcraft aurora
+#               pdfcraft figcraft photocraft lightcraft vectorcraft effectcraft filmcraft aurora
 #               summit_webkit summit
 #               summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss
 #               github_desktop pgadmin4 signal_desktop
@@ -24,12 +24,12 @@
 #   APPS        a directory with the application repositories under the names
 #               airShot clipper msga burrow kiri lcdmonitor tasamp turbochook natter
 #               airTime AirTop airpins airimager aircal snap wordcraft gridcraft deckcraft pdfcraft
-#               photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
+#               figcraft photocraft lightcraft vectorcraft effectcraft filmcraft aurora mail
 #               proton-bridge proton-vpn-airos-app
 #               vscode desktop signal docker compose docker-desktop tdesktop bambustudio
 #               airDroid photos
 #               (CI jobs link their checkout there),
-#               and craft-fonts (storytold/craft-fonts), which PhotoCraft, LightCraft,
+#               and craft-fonts (storytold/craft-fonts), which FigCraft, PhotoCraft, LightCraft,
 #               VectorCraft and FilmCraft embed
 #
 # It uses the air/OS cross SDK of that architecture (sdk/build-sdk.sh: cross
@@ -2493,7 +2493,7 @@ build_craft() {
 	. "$AIROS_TOOLCHAIN/rust/env-$ARCH.sh"
 	local res=$SRC/apps/$app-haiku/resources triple=${RUST_TARGET//-/_}
 	local crates=(-p "$app-haiku") binaries=("apps/$binary")
-	[[ $app != pdfcraft ]] || crates+=(-p pdfcraft-cli)
+	case $app in figcraft|pdfcraft) crates+=(-p "$app-cli");; esac
 	# Since WordCraft 0.15 the translations, spelling word lists and
 	# hyphenation patterns come from storytold/craft-i18n at the commit the
 	# app's craft-i18n.rev names, embedded at build time as upstream's
@@ -2526,9 +2526,9 @@ build_craft() {
 			# without assuming optional AES/SHA instructions on every board.
 			export AWS_LC_SYS_CFLAGS_aarch64_unknown_haiku='-DOPENSSL_STATIC_ARMCAP -march=armv8-a'
 		fi
-		if [[ $app =~ ^(lightcraft|photocraft|vectorcraft|filmcraft)$ ]]; then
+		if [[ $app =~ ^(figcraft|lightcraft|photocraft|vectorcraft|filmcraft)$ ]]; then
 			# These releases embed the craft-fonts collection (pinned beside
-			# them in media.lock.json), as their tools/haiku/build.sh do.
+			# them in their package set).
 			export CRAFT_FONTS_DIR=$CRAFT_FONTS CRAFT_FONTS_REQUIRED=1
 		fi
 		[[ -z $i18n ]] || export CRAFT_I18N_DIR=$i18n CRAFT_I18N_REQUIRED=1
@@ -2553,6 +2553,10 @@ build_craft() {
 		done < <(cd "$i18n" && { echo ATTRIBUTION.md; echo language-data/manifest.toml; find . -type f -regextype posix-extended \
 			-regex '\./((.*/)?(LICEN[CS]E|COPYING)[^/]*|language-data/licences/.*)' -printf '%P\n'; } | sort -u)
 	fi
+	if [[ $app == figcraft ]]; then
+		install_binary "$BUILDDIR/target/$RUST_TARGET/release/figcraft-cli" - bin/figcraft-cli
+		binaries+=(bin/figcraft-cli)
+	fi
 	case $app in
 	pdfcraft)
 		install_binary "$BUILDDIR/target/$RUST_TARGET/release/pdfcraft-cli" - bin/pdfcraft-cli
@@ -2564,7 +2568,7 @@ build_craft() {
 		done < <(awk -F '\"' '/^licence_file = / { print $2 }' "$SRC/ATTRIBUTION.toml" | sort -u)
 		# hayro-cmap is vendored since PdfCraft 0.15: its licence is in the list above.
 		;;
-	photocraft|lightcraft|vectorcraft|effectcraft|filmcraft)
+	figcraft|photocraft|lightcraft|vectorcraft|effectcraft|filmcraft)
 		# The licences of the assets, fonts and vendored crates the editor
 		# embeds, as in the application's own tools/haiku/package.sh.
 		local dirs=(assets crates vendor licenses "apps/$app-haiku" tools/haiku) dir
@@ -2620,6 +2624,7 @@ build_craft() {
 	finish_package "$app" "${binaries[@]}"
 }
 
+build_figcraft() { build_craft figcraft FigCraft Developer; }
 build_wordcraft() { build_craft wordcraft WordCraft Office; }
 build_gridcraft() { build_craft gridcraft GridCraft Office; }
 build_deckcraft() { build_craft deckcraft DeckCraft Office; }
@@ -3031,7 +3036,7 @@ main() {
 	setup_dependency_farm
 	local app
 	for app in airshot clipper msga burrow kiri lcdmonitor amp turbochook natter airtime airtop airpins \
-			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft photocraft lightcraft vectorcraft \
+			airimager aircal snap wordcraft gridcraft deckcraft pdfcraft figcraft photocraft lightcraft vectorcraft \
 			effectcraft filmcraft aurora summit_webkit \
 			summit summit_webkitlegacy proton_bridge airos_mail proton_vpn code_oss github_desktop \
 			pgadmin4 signal_desktop docker compose docker_desktop telegram bambustudio airdroid \
