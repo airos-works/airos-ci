@@ -18,8 +18,9 @@ GitHub, so that air/OS machines update from GitHub's servers:
 Every address in the mirrored index.json and update.json files is absolute;
 each package is uploaded once, to the release that brought it, and later
 releases point at that asset. A package CI built again with only other file
-times ("equivalent" in the feed) is not uploaded again: the release lists the
-copy already on GitHub. index.json changes last, after everything it names is
+times or another version ("equivalent" in the feed) is not uploaded again:
+the release lists the copy already on GitHub, with that copy's file name and
+version. index.json changes last, after everything it names is
 there, so a machine never sees a release whose files are missing. Releases
 the index no longer names and no kept release uses are deleted.
 
@@ -229,7 +230,8 @@ def mirror_release(repository, feed, target, build, releases, known):
             digest = entry["sha256"]
             if digest in known or digest in planned:
                 continue
-            # a package rebuilt with only other file times: its earlier copy
+            # a package rebuilt with only other file times or another
+            # version: its earlier copy
             if kind == "packages" and any(d in known
                     for d in entry.get("equivalent", [])):
                 continue
@@ -257,10 +259,20 @@ def mirror_release(repository, feed, target, build, releases, known):
                 if d in known)
             entry["equivalent"] = [d for d in entry["equivalent"]
                 if d != copy] + [digest]
+            # a build of another version (only the version tells it from
+            # the rebuild): the release lists it as it is, since System
+            # Updater checks a download's file name and version
+            described = {d["sha256"]: d for d in entry.get("equivalent_files", [])}
+            if copy in described:
+                entry["file"] = described[copy]["file"]
+                entry["version"] = described[copy]["version"]
             entry["sha256"] = copy
             entry["size"] = known[copy][1]
             digest = copy
         entry["url"] = known[digest][0]
+        # for the feed's own use (the equivalents' provides); machines need
+        # only "equivalent"
+        entry.pop("equivalent_files", None)
     for entry in local.get("boot_files", []):
         entry["url"] = known[entry["sha256"]][0]
     text = json.dumps(local, indent=1, ensure_ascii=False) + "\n"

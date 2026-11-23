@@ -104,7 +104,11 @@ def main():
             "airos_release", args.post_install))
     with open(os.path.join(args.out, "airos_payload"), "w") as f:
         f.write(package_info("airos_payload", version, args.arch,
-            f"air/OS system files outside packages, {when}",
+            # no build time here (the version has it): a build whose files
+            # are the last one's is then that build again but for its
+            # version, which System Updater does not download again
+            # (release-feed.py's mark_equivalents)
+            "air/OS system files outside packages",
             "The GPU stacks, drivers and firmware of the air/OS release that "
             "live in system/non-packaged, which links to them here, so that "
             "they change with the release and an older version brings its "

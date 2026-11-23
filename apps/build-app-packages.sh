@@ -174,9 +174,16 @@ snapshot() {
 		echo "snapshot of $repo at $(git -C "$repo" rev-parse --short HEAD)$(
 			[[ -n $(git --no-optional-locks -C "$repo" status --porcelain) ]] \
 				&& echo ' plus uncommitted changes')"
+		# __DATE__/__TIME__ (MSGA's About text) and the like say when the
+		# source was committed, not when CI built it: CI builds an app again
+		# for every Haiku commit, and a build with the time in it differs
+		# from the last one, so System Updater downloads it again.
+		export SOURCE_DATE_EPOCH
+		SOURCE_DATE_EPOCH=$(git -C "$repo" log -1 --format=%ct)
 	else
 		rsync -a --exclude='/build-*' --exclude='/artifacts' "$repo/" "$SRC/"
 		echo "snapshot of $repo (not a git repository)"
+		unset SOURCE_DATE_EPOCH
 	fi
 	# Objects live outside the snapshot so rebuilds stay incremental.
 	rm -rf "$SRC/build-$ARCH"

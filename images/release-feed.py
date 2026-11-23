@@ -205,7 +205,13 @@ def command_extract(args):
 # file:atime, file:mtime, file:crtime and their nanoseconds
 # (headers/os/package/hpkg/PackageAttributes.h)
 TIME_ATTRIBUTES = {5, 6, 7, 8, 9, 10}
-MAX_EQUIVALENT = 16
+# package:version.major/minor/micro/revision/prerelease, package:provides and
+# package:requires
+VERSION_ATTRIBUTES = {22, 23, 24, 25, 36}
+RESOLVABLE_ATTRIBUTES = {28, 29}
+# Earlier builds an entry lists as equivalent. A machine whose copy is among
+# them keeps it; CI makes 5 to 10 builds a day, so this reaches about a week.
+MAX_EQUIVALENT = 64
 
 
 def uleb128(data, position):
@@ -289,15 +295,162 @@ def hpkg_contents(tools, path, work):
             attributes_strings_count))
 
 
-def same_contents(tools, old, new):
-    """Whether two packages differ in nothing but file times."""
+def without_symlink_attributes(nodes):
+    """The TOC without the file attributes of symlinks. The Linux build keeps
+    Haiku attributes in a side store keyed by inode, so a new symlink can
+    inherit the BEOS:TYPE of a deleted file (amdnpu_firmwares had one in one
+    build and not in the next); nothing reads a symlink's own attributes."""
+    result = []
+    for ident, value, children in nodes:
+        if ident == 0:  # dir:entry
+            symlink = (1, 2, ()) in children  # file:type B_HPKG_FILE_TYPE_SYMLINK
+            children = tuple(child for child in
+                without_symlink_attributes(children)
+                if not (symlink and child[0] == 11))  # file:attribute
+        result.append((ident, value, children))
+    return tuple(result)
+
+
+def same_files(tools, old, new):
+    """Whether two packages hold the same files and package attributes, apart
+    from file times, the attributes of symlinks and the version, provides and
+    requires, which equivalent() judges."""
     with tempfile.TemporaryDirectory(prefix="release-feed-") as work:
         try:
-            return hpkg_contents(tools, old, work) == hpkg_contents(tools, new, work)
+            old_toc, old_attributes = hpkg_contents(tools, old, work)
+            new_toc, new_attributes = hpkg_contents(tools, new, work)
         except (ValueError, IndexError, OSError, struct.error,
                 subprocess.CalledProcessError) as error:
             print(f"cannot compare {os.path.basename(new)}: {error}")
             return False
+
+    def rest(attributes):
+        return tuple(node for node in attributes
+            if node[0] not in VERSION_ATTRIBUTES | RESOLVABLE_ATTRIBUTES)
+
+    def files(toc):
+        # .PackageInfo is the package attributes as text, compared above
+        return without_symlink_attributes(tuple(node for node in toc
+            if node[:2] != (0, b".PackageInfo")))
+
+    return (files(old_toc) == files(new_toc)
+        and rest(old_attributes) == rest(new_attributes))
+
+
+# --- versions, as BPackageVersion compares them ----------------------------
+
+def natural_compare(a, b):
+    """NaturalCompare() (ICU with numeric sorting) where its answer is
+    certain, else None: runs of digits by value, letters without case."""
+    ta = re.findall(r"\d+|[A-Za-z]+|.", a)
+    tb = re.findall(r"\d+|[A-Za-z]+|.", b)
+    for x, y in zip(ta, tb):
+        if x == y:
+            continue
+        if x.isdigit() and y.isdigit() and int(x) != int(y):
+            return -1 if int(x) < int(y) else 1
+        if x.isalpha() and y.isalpha() and x.lower() != y.lower():
+            return -1 if x.lower() < y.lower() else 1
+        return None
+    return (len(ta) > len(tb)) - (len(ta) < len(tb))
+
+
+def compare_versions(a, b):
+    """BPackageVersion::Compare() of two version strings
+    (major.minor.micro~prerelease-revision), or None where unsure."""
+    def parse(version):
+        revision = 0
+        match = re.fullmatch(r"(.*)-(\d+)", version)
+        if match:
+            version, revision = match.group(1), int(match.group(2))
+        version, _, prerelease = version.partition("~")
+        major, minor, micro = (version.split(".", 2) + ["", ""])[:3]
+        return major, minor, micro, prerelease, revision
+
+    if a == b:
+        return 0
+    pa, pb = parse(a), parse(b)
+    for x, y in zip(pa[:3], pb[:3]):
+        order = natural_compare(x, y)
+        if order != 0:
+            return order
+    if pa[3] != pb[3]:
+        if not pa[3] or not pb[3]:
+            return 1 if not pa[3] else -1  # no pre-release is newer
+        order = natural_compare(pa[3], pb[3])
+        if order != 0:
+            return order
+    return (pa[4] > pb[4]) - (pa[4] < pb[4])
+
+
+OPERATORS = {
+    "<": lambda order: order < 0, "<=": lambda order: order <= 0,
+    "==": lambda order: order == 0, "!=": lambda order: order != 0,
+    ">=": lambda order: order >= 0, ">": lambda order: order > 0,
+}
+
+
+def satisfies(provided, operator, required):
+    """Whether a provided version meets a requirement; False where unsure."""
+    if not operator:
+        return True
+    if not provided:
+        return False
+    order = compare_versions(provided, required)
+    return order is not None and OPERATORS[operator](order)
+
+
+def resolvables(tools, path):
+    """A package's version, provides [name, version] and requires
+    [name, operator, version], from its package info."""
+    output = subprocess.run([os.path.join(tools, "package", "package"), "list",
+        "-i", path], check=True, stdout=subprocess.PIPE, text=True).stdout
+    version = re.search(r"(?m)^\tversion: (\S+)", output)
+    provides = [[m.group(1), m.group(2) or ""] for m in re.finditer(
+        r"(?m)^\tprovides: (\S+)(?: = (\S+))?", output)]
+    requires = [[m.group(1), m.group(2) or "", m.group(3) or ""]
+        for m in re.finditer(r"(?m)^\trequires: ([^\s<>=!]+)"
+            r"(?:(<=|>=|==|!=|<|>)(\S+))?", output)]
+    return {"version": version.group(1) if version else "",
+        "provides": provides, "requires": requires}
+
+
+def weaker_requires(old, new):
+    """Whether every requirement of the old build is the new build's or a
+    weaker one (a lower minimum): what the release satisfies for the new
+    build it satisfies for the old. CI stamps the Haiku it built against
+    into some minimums (amdgpu_drm: haiku >= <that hrev>)."""
+    def key(requirement):
+        return (requirement[0], requirement[1])
+
+    if sorted(map(key, old)) != sorted(map(key, new)):
+        return False
+    newer = {key(r): r[2] for r in new}
+    for name, operator, version in old:
+        if version == newer[(name, operator)]:
+            continue
+        if operator not in (">=", ">"):
+            return False
+        order = compare_versions(version, newer[(name, operator)])
+        if order is None or order > 0:
+            return False
+    return True
+
+
+def still_required(provides, release_requires, own_name):
+    """Whether every versioned requirement of the release's other packages on
+    what a build provides is met by that build's versions."""
+    provided = {}
+    for name, version in provides:
+        provided.setdefault(name, []).append(version)
+    for package, requirements in release_requires.items():
+        if package == own_name:
+            continue
+        for name, operator, version in requirements:
+            if name in provided and operator and not any(
+                    satisfies(p, operator, version) for p in provided[name]):
+                return False
+    return True
 
 
 def git_log(source, old, new):
@@ -321,7 +474,9 @@ def git_log(source, old, new):
     return commits[:MAX_COMMITS], more + skipped
 
 
-def package_changes(old, new):
+def package_changes(old, new, unchanged=()):
+    """Packages whose versions changed, but for those that only CI's version
+    stamp tells apart from the release before (equivalent ones)."""
     def versions(release):
         result = {}
         for package in release.get("packages", []):
@@ -331,7 +486,7 @@ def package_changes(old, new):
     before, after = versions(old), versions(new)
     changes = []
     for name in sorted(set(before) | set(after)):
-        if name in ("airos_release", "airos_payload"):
+        if name in ("airos_release", "airos_payload") or name in unchanged:
             continue
         if before.get(name) != after.get(name):
             changes.append({"name": name, "from": before.get(name, ""),
@@ -359,6 +514,108 @@ def app_commits(old_manifest, new_manifest):
                     "from": before.get("commit", ""), "to": entry["commit"],
                     "repository": entry.get("repository", "")})
     return apps
+
+
+def mark_equivalents(tools, feed, staged, previous, release):
+    """Lists in each package of the release the earlier builds of it that
+    hold the same files ("equivalent"): System Updater keeps an installed
+    copy that is one of them instead of downloading the package again.
+
+    CI builds many packages again for every image although nothing in them
+    changed but the build's stamp: other file times (the Office apps after
+    each Haiku commit), a version that is the build's (airos_payload, 112 MiB,
+    and the hrev of smbfs, userland_fs, haiku_datatranslators...), a minimum
+    Haiku version that is the one built against (the DRM drivers). A build
+    of another version counts only when the release still works with it: its
+    requires are the new build's or weaker, and no versioned requirement of
+    the release's other packages rules it out. Those of another file name are
+    described in "equivalent_files" (file, version, provides), which the
+    GitHub mirror needs to list one in place of the rebuild."""
+    def staged_path(package):
+        return os.path.join(staged, "packages", package["file"])
+
+    def feed_path(package):
+        return os.path.join(feed, "packages", package["sha256"], package["file"])
+
+    infos = {}
+    release_requires = {}
+    for package in release["packages"]:
+        info = resolvables(tools, staged_path(package))
+        infos[package["file"]] = info
+        release_requires.setdefault(package["name"], []).extend(
+            info["requires"])
+
+    by_file = {p["file"]: p for p in previous.get("packages", [])}
+    by_name = {}
+    for package in previous.get("packages", []):
+        by_name.setdefault(package["name"], []).append(package)
+
+    same = other_version = 0
+    for package in release["packages"]:
+        old = by_file.get(package["file"])
+        if old is None and len(by_name.get(package["name"], [])) == 1:
+            old = by_name[package["name"]][0]
+        if old is None:
+            continue
+        info = infos[package["file"]]
+        old_info = None
+        if old["sha256"] != package["sha256"]:
+            if not os.path.exists(feed_path(old)):
+                continue
+            old_info = resolvables(tools, feed_path(old))
+            if (sorted(n for n, _ in old_info["provides"])
+                    != sorted(n for n, _ in info["provides"])
+                    or not weaker_requires(old_info["requires"],
+                        info["requires"])
+                    or not still_required(old_info["provides"],
+                        release_requires, package["name"])
+                    or not same_files(tools, feed_path(old),
+                        staged_path(package))):
+                continue
+            if old["file"] == package["file"]:
+                same += 1
+            else:
+                other_version += 1
+
+        # the old entry's chain, and the old build itself
+        files = {f["sha256"]: f for f in old.get("equivalent_files", [])}
+        chain = list(old.get("equivalent", []))
+        if old["sha256"] != package["sha256"]:
+            chain.append(old["sha256"])
+        equivalent, described = [], []
+        for digest in chain:
+            if digest == package["sha256"] or digest in equivalent:
+                continue
+            description = files.get(digest)
+            if description is None and old["file"] != package["file"]:
+                # an earlier build of the old entry's file name
+                if old_info is None:
+                    old_info = (resolvables(tools, feed_path(old))
+                        if os.path.exists(feed_path(old)) else None)
+                if old_info is None:
+                    continue
+                description = {"sha256": digest, "file": old["file"],
+                    "version": old["version"],
+                    "provides": old_info["provides"]}
+            if description is not None:
+                if description["file"] == package["file"]:
+                    description = None
+                elif not still_required(description["provides"],
+                        release_requires, package["name"]):
+                    continue
+            equivalent.append(digest)
+            if description is not None:
+                described.append(description)
+        equivalent = equivalent[-MAX_EQUIVALENT:]
+        described = [d for d in described if d["sha256"] in equivalent]
+        package.pop("equivalent", None)
+        package.pop("equivalent_files", None)
+        if equivalent:
+            package["equivalent"] = equivalent
+        if described:
+            package["equivalent_files"] = described
+    print(f"{same} packages built again with only other file times, "
+        f"{other_version} with only another version")
 
 
 def command_publish(args):
@@ -393,27 +650,13 @@ def command_publish(args):
     tools = args.tools
     if not tools and os.path.exists(os.path.join(staged, "tools")):
         tools = open(os.path.join(staged, "tools")).read().strip()
+    unchanged = set()
     if previous and tools:
-        older = {p["file"]: p for p in previous.get("packages", [])}
-        same = 0
-        for package in release["packages"]:
-            old = older.get(package["file"])
-            if old is None:
-                continue
-            equivalent = list(old.get("equivalent", []))
-            if old["sha256"] != package["sha256"]:
-                old_path = os.path.join(feed, "packages", old["sha256"],
-                    old["file"])
-                if not os.path.exists(old_path) or not same_contents(tools,
-                        old_path, os.path.join(staged, "packages",
-                            package["file"])):
-                    continue
-                equivalent.append(old["sha256"])
-                same += 1
-            equivalent = [d for d in equivalent if d != package["sha256"]]
-            if equivalent:
-                package["equivalent"] = equivalent[-MAX_EQUIVALENT:]
-        print(f"{same} packages built again with only other file times")
+        mark_equivalents(tools, feed, staged, previous, release)
+        unchanged = {p["name"] for p in release["packages"]
+            if p.get("equivalent") and any(o["sha256"] in p["equivalent"]
+                or o["sha256"] == p["sha256"] for o in previous["packages"]
+                if o["name"] == p["name"])}
 
     # the packages, once each
     for package in release["packages"]:
@@ -457,7 +700,7 @@ def command_publish(args):
             release.get("haiku", {}).get("commit"))
         changes["haiku"] = commits
         changes["haiku_more"] = more
-        changes["packages"] = package_changes(previous, release)
+        changes["packages"] = package_changes(previous, release, unchanged)
         changes["apps"] = app_commits(previous.get("image_manifest"), manifest)
     else:
         changes["packages"] = []
