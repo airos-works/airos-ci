@@ -125,6 +125,10 @@ check_prerequisites() {
 # (it writes attributes on build outputs, and staging does it properly).
 setup_host_tools() {
 	mkdir -p "$HOSTBIN"
+	# Written anew, not over the old files: a build by another user of the
+	# work tree (a local run with umask 022) leaves files the runner cannot
+	# write to, but may replace in the group-writable directory.
+	rm -f "$HOSTBIN/rc" "$HOSTBIN/xres" "$HOSTBIN/mimeset"
 	printf '#!/bin/sh\nexec "%s" "$@"\n' "$TOOLS/rc/rc" > "$HOSTBIN/rc"
 	printf '#!/bin/sh\nexec "%s" "$@"\n' "$TOOLS/xres" > "$HOSTBIN/xres"
 	printf '#!/bin/sh\nexit 0\n' > "$HOSTBIN/mimeset"
