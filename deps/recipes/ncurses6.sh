@@ -28,7 +28,7 @@ build() {
 	local install=$dir/install pkg=$dir/package
 	rm -rf "$install" "$pkg"
 	# tic for the terminfo database and the build's generators run here
-	CPPFLAGS= LDFLAGS= ./configure --host="$TRIPLET" --build="$BUILD_TRIPLET" \
+	CPPFLAGS= LDFLAGS="$HASH_STYLE" ./configure --host="$TRIPLET" --build="$BUILD_TRIPLET" \
 		--prefix=$PREFIX --bindir=$PREFIX/bin --libdir=$PREFIX/lib \
 		--includedir=$PREFIX/develop/headers --datadir=$PREFIX/data \
 		--mandir=$PREFIX/documentation/man \

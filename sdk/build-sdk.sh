@@ -101,8 +101,14 @@ update_buildtools() {
 configure_build() {
 	mkdir -p "$BUILD"
 	cd "$BUILD"
+	# The fork's build/scripts/build_cross_tools_gcc4 configures them (the
+	# default GNU hash tables of haiku#200, for one): a change of it rebuilds
+	# them as a new buildtools pin does.
+	local script
+	script=$(sha256sum "$WT/build/scripts/build_cross_tools_gcc4" | cut -c1-16)
 	if [[ ! -x $CROSS_DIR/bin/$TRIPLET-gcc ]] \
-			|| [[ $(cat "$CROSS_DIR/.buildtools-revision" 2>/dev/null) != "$BUILDTOOLS_PIN" ]]; then
+			|| [[ $(cat "$CROSS_DIR/.buildtools-revision" 2>/dev/null) != "$BUILDTOOLS_PIN" ]] \
+			|| [[ $(cat "$CROSS_DIR/.cross-tools-script" 2>/dev/null) != "$script" ]]; then
 		note "cross tools $ARCH (buildtools $BUILDTOOLS_PIN)"
 		build_stage "cross tools" "GCC and binutils for $ARCH"
 		with_lock buildtools git -C "$AIROS_SRC/buildtools" checkout -q "$BUILDTOOLS_PIN"
@@ -110,6 +116,7 @@ configure_build() {
 		"$WT/configure" --distro-compatibility compatible --no-full-xattr \
 			--cross-tools-source "$AIROS_SRC/buildtools" --build-cross-tools "$ARCH" -j"$JOBS"
 		echo "$BUILDTOOLS_PIN" > "$CROSS_DIR/.buildtools-revision"
+		echo "$script" > "$CROSS_DIR/.cross-tools-script"
 	elif ! grep -q "^#c $WT/configure" build/BuildConfig 2>/dev/null \
 			|| ! grep -q -- '--no-full-xattr' build/BuildConfig; then
 		note "configure $ARCH"
@@ -204,7 +211,11 @@ assemble_sdk() {
 	mkdir -p "$root/develop/headers"
 	cp -a "$WT/headers/private" "$root/develop/headers/"
 	# C++ exceptions: link libgcc_s ahead of libgcc's private unwinder copy.
-	printf '*libgcc:\n-lgcc_s -lgcc\n\n' > "$new/shared-unwinder.specs"
+	# And GNU hash tables next to the SysV ones in everything linked with it
+	# (the runtime loader rejects missing symbols by their Bloom filter,
+	# haiku#200).
+	printf '*libgcc:\n-lgcc_s -lgcc\n\n*link:\n+ --hash-style=both\n\n' \
+		> "$new/shared-unwinder.specs"
 	local tools=$BUILD/objects/linux/$(uname -m)/release/tools
 	cat > "$new/env.sh" <<EOF
 # air/OS $ARCH cross SDK, from airos-works/haiku $REVISION ($SHA)

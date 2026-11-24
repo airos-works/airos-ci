@@ -39,7 +39,7 @@ build() {
 		"$SRC/source/configure" --disable-samples --disable-extras --disable-tests \
 		&& env -u CC -u CXX make -j"$JOBS")
 	(cd "$target" && CPPFLAGS= CFLAGS="-O2 -fno-semantic-interposition" \
-		CXXFLAGS="-O2 -fno-semantic-interposition" LDFLAGS=-Wl,-Bsymbolic-functions \
+		CXXFLAGS="-O2 -fno-semantic-interposition" LDFLAGS="-Wl,-Bsymbolic-functions $HASH_STYLE" \
 		"$SRC/source/configure" --host="$TRIPLET" --build="$BUILD_TRIPLET" \
 		--with-cross-build="$host" --prefix=$PREFIX --bindir=$PREFIX/bin --sbindir=$PREFIX/bin \
 		--libdir=$PREFIX/lib --includedir=$PREFIX/develop/headers --datadir=$PREFIX/data \

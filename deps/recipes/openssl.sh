@@ -19,7 +19,7 @@ fetch_source() {
 build() {
 	local target
 	case $ARCH in arm64) target=haiku-aarch64 ;; x86_64) target=haiku-x86_64 ;; esac
-	CC=${CROSS}gcc CFLAGS="--sysroot=$SYSROOT -O2 -fPIC" LDFLAGS="--sysroot=$SYSROOT" \
+	CC=${CROSS}gcc CFLAGS="--sysroot=$SYSROOT -O2 -fPIC" LDFLAGS="--sysroot=$SYSROOT $HASH_STYLE" \
 		./Configure "$target" shared no-tests no-docs --prefix=$PREFIX --libdir=lib \
 		--openssldir=$PREFIX/data/ssl
 	make -j"$JOBS"

@@ -65,7 +65,12 @@ export AR=${CROSS}ar RANLIB=${CROSS}ranlib STRIP=${CROSS}strip NM=${CROSS}nm LD=
 	OBJDUMP=${CROSS}objdump
 export CPPFLAGS="-I$DEPS/develop/headers"
 export CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC"
-export LDFLAGS="-L$DEPS/develop/lib -L$DEPS/lib -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib"
+# GNU hash tables next to the SysV ones: the runtime loader rejects a symbol a
+# library lacks by the table's Bloom filter instead of walking a hash chain,
+# which is most of the lookups at program start (haiku#200). The SDK's specs
+# file passes the flag too; this keeps an older SDK from dropping it.
+HASH_STYLE=-Wl,--hash-style=both
+export LDFLAGS="-L$DEPS/develop/lib -L$DEPS/lib -Wl,-rpath-link,$DEPS/lib -Wl,-rpath-link,$SYSROOT/boot/system/lib $HASH_STYLE"
 export PKG_CONFIG_LIBDIR=$DEPS/develop/lib/pkgconfig PKG_CONFIG_PATH= PKG_CONFIG_SYSROOT_DIR=$DEPS_ROOT
 BUILD_TRIPLET=$(uname -m)-pc-linux-gnu
 TOOLCHAIN_FILE=$WORKDIR/toolchain.cmake
@@ -78,8 +83,8 @@ set(CMAKE_C_COMPILER ${CROSS}gcc)
 set(CMAKE_CXX_COMPILER ${CROSS}g++)
 set(CMAKE_C_FLAGS_INIT "-fPIC -I$DEPS/develop/headers")
 set(CMAKE_CXX_FLAGS_INIT "-fPIC -I$DEPS/develop/headers")
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$DEPS/develop/lib -Wl,-rpath-link,$DEPS/lib")
-set(CMAKE_SHARED_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$DEPS/develop/lib -Wl,-rpath-link,$DEPS/lib")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$DEPS/develop/lib -Wl,-rpath-link,$DEPS/lib $HASH_STYLE")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-specs=$UNWIND_SPECS -L$DEPS/develop/lib -Wl,-rpath-link,$DEPS/lib $HASH_STYLE")
 set(CMAKE_FIND_ROOT_PATH $SYSROOT/boot/system $SYSROOT/boot/system/develop $DEPS $DEPS/develop)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
@@ -371,7 +376,8 @@ build_recipe() {
 	FORK=$NAME
 	. "$recipe"
 	local dir=$WORKDIR/$NAME stamp
-	stamp="$(fork_info "$FORK" commit 2>/dev/null || echo none) $(sha256sum "$recipe" | cut -c1-16) ${STAMP_EXTRA:-}"
+	# (the link flags are in it so that a change of them rebuilds every recipe)
+	stamp="$(fork_info "$FORK" commit 2>/dev/null || echo none) $(sha256sum "$recipe" | cut -c1-16) ${STAMP_EXTRA:-} link:$HASH_STYLE"
 	if [[ ${FORCE:-0} != 1 && -f $dir/stamp && $(cat "$dir/stamp") == "$stamp" ]]; then
 		echo "== $NAME (up to date)"
 		return

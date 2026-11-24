@@ -158,7 +158,10 @@ done
 rm -f "$root/.PackageInfo"
 mkdir -p "$root/develop/headers"
 cp -a "$src/headers/private" "$root/develop/headers/"
-printf '*libgcc:\n-lgcc_s -lgcc\n\n' > "$new/shared-unwinder.specs"
+# libgcc_s ahead of libgcc's private unwinder copy, and GNU hash tables next to
+# the SysV ones (haiku#200), for everything linked with the specs file.
+printf '*libgcc:\n-lgcc_s -lgcc\n\n*link:\n+ --hash-style=both\n\n' \
+	> "$new/shared-unwinder.specs"
 # The compiler, and the host rc and xres with their libraries.
 rsync -rl "${BASE_CROSS%/bin/*}/" "$new/cross-tools/"
 mkdir -p "$new/host-tools/bin" "$new/host-tools/lib"

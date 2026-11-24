@@ -14,7 +14,7 @@ LICENSE="BSD (3-clause)"
 fetch_source() { fetch_tarball "$SOURCE_URL" "$SOURCE_SHA256"; }
 build() {
 	[[ $ARCH == arm64 ]] || die "this libvpx recipe is for arm64 (x86_64: deps/build-libvpx.sh)"
-	CROSS=$CROSS LDFLAGS="--sysroot=$SYSROOT -specs=$UNWIND_SPECS" ./configure \
+	CROSS=$CROSS LDFLAGS="--sysroot=$SYSROOT -specs=$UNWIND_SPECS $HASH_STYLE" ./configure \
 		--target=arm64-linux-gcc --prefix=$PREFIX --libdir=$PREFIX/lib \
 		--enable-pic --enable-shared --disable-static --enable-vp8 --enable-vp9 \
 		--enable-postproc --enable-vp9-highbitdepth --disable-examples --disable-tools \
