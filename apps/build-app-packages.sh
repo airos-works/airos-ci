@@ -1345,6 +1345,9 @@ PY
 	symbols_begin summit summit
 	install_binary "$BUILDDIR/Summit" "$BUILDDIR/Summit.rsrc" apps/Summit
 	install_file 644 "$SRC/resources/start.html" data/Summit/start.html
+	if [[ $SDK_NAME == x86_64 && -f $SRC/resources/i915-egl.json ]]; then
+		install_file 644 "$SRC/resources/i915-egl.json" data/Summit/i915-egl.json
+	fi
 	deskbar_link apps/Summit Summit
 	docs summit README.md LICENSE docs vendor/nlohmann/LICENSE.MIT vendor/nlohmann/UPSTREAM.md
 	# air/OS: the system's web browser: links, web pages and XHTML open in
