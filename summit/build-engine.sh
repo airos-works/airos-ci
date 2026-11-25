@@ -229,6 +229,9 @@ cmake -DSUMMIT_DEBUG_LINES=ON -S "$SRC" -B "$B" -G Ninja -C "$SUMMIT_DIR/engine/
 	-DCMAKE_TOOLCHAIN_FILE="$TC" -DCMAKE_BUILD_TYPE=Release "${options[@]}" > "$B/configure.log" 2>&1 \
 	|| { tail -40 "$B/configure.log"; die "WebKit configure failed (log: $B/configure.log)"; }
 grep -E "^-- (Enabled|  ENABLE_WEB_RTC|  USE_SKIA|  ENABLE_WEBGL )" "$B/configure.log" | head -10 || true
+# How much of WebCore and JavaScriptCore the profile covers, by hot source
+# group (Summit #280): a profile from another engine revision or SDK shows here.
+[[ -z ${pgo_dir:-} ]] || python3 "$(dirname "$0")/pgo-coverage.py" "$B" "$pgo_dir" || true
 
 note "build ($JOBS jobs)"
 # One big engine build at a time on the host: each takes about all of its
