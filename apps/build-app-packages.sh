@@ -1578,14 +1578,15 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 # Visual Studio Code's open source build on Aurora (airos-works/vscode, branch
 # haiku; build/haiku/README.md). The workbench is the same JavaScript on every
 # architecture: gulp builds it once per commit of the repository, with the
-# Node.js of its .nvmrc, into a stage kept in $CODE_OSS_WORK (npm ci only when
-# a package-lock.json changes). build/haiku/cross.sh then cross-builds the
-# native modules against Node.js 22's headers and makes the package, whose
-# launcher is the pool's aurora-host for ARCH with Code - OSS's resources: so
-# build Aurora first, and Code - OSS again after an Aurora host change.
+# Node.js of its .nvmrc and the pnpm of its package.json, into a stage kept
+# in $CODE_OSS_WORK (pnpm install only when a lockfile changes).
+# build/haiku/cross.sh then cross-builds the native modules against Node.js
+# 22's headers and makes the package, whose launcher is the pool's
+# aurora-host for ARCH with Code - OSS's resources: so build Aurora first, and
+# Code - OSS again after an Aurora host change.
 CODE_OSS_WORK=${CODE_OSS_WORK:-$AIROS_WORK/code_oss}
-CODE_OSS_BUILD_NODE=24.18.0
-CODE_OSS_BUILD_NODE_SHA256=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
+CODE_OSS_BUILD_NODE=24.22.1
+CODE_OSS_BUILD_NODE_SHA256=6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6
 CODE_OSS_HEADERS=22.23.3
 CODE_OSS_HEADERS_SHA256=eff1a7e67736bdf25db421ddaa613ed605f751a7b9fe07fb473ea880d1348987
 
@@ -1649,23 +1650,36 @@ code_oss_stage() {
 	# (node_modules, gulp's out-* trees) stay for the next build.
 	mkdir -p "$src"
 	rsync -a --delete --exclude=/.git --filter=':- .gitignore' "$repo/" "$src/"
-	locks=$(cd "$src" && find . -name node_modules -prune -o -name package-lock.json -print \
+	locks=$(cd "$src" && find . -name node_modules -prune -o \( -name pnpm-lock.yaml -o -name package-lock.json \) -print \
 		| sort | xargs sha256sum | sha256sum | cut -c1-64)
 	(
-		export PATH=$node/bin:$PATH
+		# the pnpm that package.json pins (packageManager), next to the stage
+		local pnpm
+		pnpm=$(cd "$src" && "$node/bin/node" -p 'require("./package.json").packageManager')
+		[[ $pnpm == pnpm@* ]] || die "Code - OSS pins no pnpm in packageManager"
+		pnpm=${pnpm%%+*}
+		if [[ ! -x $CODE_OSS_WORK/$pnpm/bin/pnpm ]]; then
+			rm -rf "$CODE_OSS_WORK/$pnpm"
+			PATH=$node/bin:$PATH npm install -g --no-audit --no-fund --prefix "$CODE_OSS_WORK/$pnpm" "$pnpm" >/dev/null
+		fi
+		export PATH=$CODE_OSS_WORK/$pnpm/bin:$node/bin:$PATH
 		cd "$src"
-		if [[ ! -d node_modules || $(cat "$CODE_OSS_WORK/npm.locks" 2>/dev/null) != "$locks" ]]; then
-			note "Code - OSS: npm ci (Node.js $(node --version))"
+		if [[ ! -d node_modules || $(cat "$CODE_OSS_WORK/pnpm.locks" 2>/dev/null) != "$locks" ]]; then
+			note "Code - OSS: pnpm install (Node.js $(node --version), pnpm $(pnpm --version))"
 			# Without install scripts: they build the modules' Linux binaries
-			# (native-keymap wants X11's headers), and the package's are
-			# cross-built by build/haiku/cross.sh. The repository's postinstall
-			# then installs its sub-projects (build, extensions, remote) the
-			# same way; it sets git options, so the copy gets an empty repository.
+			# (native-keymap wants X11's headers, kerberos GSSAPI's), and the
+			# package's are cross-built by build/haiku/cross.sh. The repository's
+			# postinstall then installs its other roots (build, remote) the same
+			# way; it sets git options, so the copy gets an empty repository.
 			export ELECTRON_SKIP_BINARY_DOWNLOAD=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-			npm ci --no-audit --no-fund --ignore-scripts
+			# (node_modules that npm installed would mix with pnpm's)
+			find . -name node_modules -type d -prune -exec test -f {}/.package-lock.json \; \
+				-exec rm -rf {} +
+			pnpm install --frozen-lockfile --ignore-scripts
 			[[ -d .git ]] || git init -q
-			npm_config_ignore_scripts=true npm_command=ci node build/npm/postinstall.ts
-			echo "$locks" > "$CODE_OSS_WORK/npm.locks"
+			pnpm_config_ignore_scripts=true npm_config_ignore_scripts=true \
+				pnpm_config_frozen_lockfile=true node build/npm/postinstall.ts
+			echo "$locks" > "$CODE_OSS_WORK/pnpm.locks"
 		fi
 		note "Code - OSS: workbench (gulp vscode-haiku-x64-min)"
 		build/haiku/build.sh "$stage"
