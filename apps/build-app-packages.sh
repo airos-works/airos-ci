@@ -1585,8 +1585,8 @@ INFO"' _ "$work/PackageInfo.template" > "$work/aurora.PackageInfo"
 # aurora-host for ARCH with Code - OSS's resources: so build Aurora first, and
 # Code - OSS again after an Aurora host change.
 CODE_OSS_WORK=${CODE_OSS_WORK:-$AIROS_WORK/code_oss}
-CODE_OSS_BUILD_NODE=24.22.1
-CODE_OSS_BUILD_NODE_SHA256=6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6
+CODE_OSS_BUILD_NODE=24.22.3
+CODE_OSS_BUILD_NODE_SHA256=4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb
 CODE_OSS_HEADERS=22.23.3
 CODE_OSS_HEADERS_SHA256=eff1a7e67736bdf25db421ddaa613ed605f751a7b9fe07fb473ea880d1348987
 
