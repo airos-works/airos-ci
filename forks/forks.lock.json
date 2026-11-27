@@ -255,7 +255,7 @@
     "base": null,
     "base_commit": null,
     "branch": "airos-25.3.6",
-    "commit": "cbc2178aaffe6a46648c9314e50b3f46a7fa898c",
+    "commit": "d8bd4afaf6d7901147e6156a6ac8ebf19efe6d53",
     "repo": "mesa",
     "upstream": null,
     "url": "https://github.com/airos-works/mesa.git"
